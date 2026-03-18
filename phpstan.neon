@@ -3,3 +3,5 @@ parameters:
     paths:
         - src
     tmpDir: build/phpstan
+    ignoreErrors:
+        - identifier: trait.unused
