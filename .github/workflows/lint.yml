@@ -1,0 +1,47 @@
+name: linter
+
+on:
+  - push
+  - pull_request
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Install Dependencies
+        run: |
+          composer install -q --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist
+
+      - name: Run PHPStan
+        run: composer lint
+
+      - name: Run Pint
+        run: composer fmt
+
+      - name: Commit Formatting Changes
+        uses: stefanzweifel/git-auto-commit-action@v7
+        with:
+          commit_message: Apply formatting changes
+          commit_options: '--no-verify'
+          file_pattern: |
+            **/*
+            !.github/workflows/*

@@ -1,0 +1,62 @@
+{
+    "name": "jacobjoergensen/laravel-paper",
+    "description": "A flat-file Eloquent driver for Laravel.",
+    "license": "MIT",
+    "keywords": [
+        "laravel",
+        "eloquent",
+        "flat-file",
+        "markdown",
+        "content"
+    ],
+    "authors": [
+        {
+            "name": "JacobJoergensen",
+            "email": "jj@minehubsstudios.com"
+        }
+    ],
+    "require": {
+        "php": "^8.3",
+        "illuminate/database": "^12.0|^13.0",
+        "illuminate/filesystem": "^12.0|^13.0",
+        "illuminate/support": "^12.0|^13.0",
+        "spatie/yaml-front-matter": "^2.0"
+    },
+    "require-dev": {
+        "laravel/pint": "^1.0",
+        "orchestra/testbench": "^10.0|^11.0",
+        "pestphp/pest": "^4.0",
+        "pestphp/pest-plugin-laravel": "^4.1",
+        "phpstan/phpstan": "^2.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "JacobJoergensen\\LaravelPaper\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "JacobJoergensen\\LaravelPaper\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "fmt": "vendor/bin/pint --parallel",
+        "lint": "vendor/bin/phpstan analyse",
+        "test": "vendor/bin/pest"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "JacobJoergensen\\LaravelPaper\\PaperServiceProvider"
+            ]
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

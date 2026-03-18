@@ -1,0 +1,6 @@
+{
+    "preset": "laravel",
+    "declare_strict_types": true,
+    "no_superfluous_elseif": true,
+    "no_useless_else": true
+}
