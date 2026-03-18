@@ -1,6 +1,6 @@
 {
     "name": "jacobjoergensen/laravel-paper",
-    "description": "A flat-file Eloquent driver for Laravel.",
+    "description": "A flat-file Eloquent driver for modern Laravel.",
     "license": "MIT",
     "keywords": [
         "laravel",
