@@ -274,7 +274,7 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @param  list<array<string, mixed>>|null  $wheres
+     * @param  ?array<int, array{type: string, boolean: string, column?: string, operator?: string, value?: scalar|null, values?: array<int, scalar>}>  $wheres
      */
     private function matchesWheres(Model $model, ?array $wheres = null): bool
     {
@@ -287,6 +287,7 @@ final class PaperQueryBuilder
         $result = true;
 
         foreach ($wheres as $index => $where) {
+            /** @var array{type: string, boolean: string, column?: string, operator?: string, value?: scalar|null, values?: array<int, scalar>} $where */
             $matches = $this->evaluateWhere($model, $where);
 
             if ($index === 0) {
@@ -302,31 +303,23 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @param  array<string, mixed>  $where
+     * @param  array{type: string, boolean: string, column?: string, operator?: string, value?: scalar|null, values?: array<int, scalar>, wheres?: array<int, array{type: string, boolean: string, column?: string, operator?: string, value?: scalar|null, values?: array<int, scalar>}>}  $where
      */
     private function evaluateWhere(Model $model, array $where): bool
     {
         if ($where['type'] === 'group') {
-            /** @var list<array<string, mixed>> $nested */
-            $nested = $where['wheres'];
+            $nested = $where['wheres'] ?? [];
 
             return $this->matchesWheres($model, $nested);
         }
 
-        /** @var string $column */
-        $column = $where['column'];
+        $column = $where['column'] ?? '';
         $value = $model->getAttribute($column);
 
-        /** @var array<int, scalar> $values */
-        $values = $where['values'] ?? [];
-
-        /** @var string $operator */
-        $operator = $where['operator'] ?? '=';
-
         return match ($where['type']) {
-            'in' => in_array($value, $values, true),
-            'notIn' => ! in_array($value, $values, true),
-            default => $this->evaluateCondition($value, $operator, $where['value'] ?? null),
+            'in' => in_array($value, $where['values'] ?? [], true),
+            'notIn' => ! in_array($value, $where['values'] ?? [], true),
+            default => $this->evaluateCondition($value, $where['operator'] ?? '=', $where['value'] ?? null),
         };
     }
 
