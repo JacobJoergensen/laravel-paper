@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## Version 1.4.0 (2026-03-19)
+* Added `lazy` method for memory-efficient iteration with `LazyCollection`
+* Added `PaperRule` validation with `exists` and `unique` rules for Paper models
+* Added `fresh` and `refresh` methods for reloading models from file
+* Optimized cache layer to eliminate redundant lookups
+
 ## Version 1.3.0 (2026-03-19)
 * Added bulk `delete` on query builder
 * Added `exists` and `doesntExist` query methods
