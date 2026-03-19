@@ -83,6 +83,27 @@ trait Paper
         return static::query()->where($column, $operator, $value);
     }
 
+    public static function orWhere(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
+    {
+        return static::query()->orWhere($column, $operator, $value);
+    }
+
+    /**
+     * @param  array<int, scalar>  $values
+     */
+    public static function whereIn(string $column, array $values): PaperQueryBuilder
+    {
+        return static::query()->whereIn($column, $values);
+    }
+
+    /**
+     * @param  array<int, scalar>  $values
+     */
+    public static function whereNotIn(string $column, array $values): PaperQueryBuilder
+    {
+        return static::query()->whereNotIn($column, $values);
+    }
+
     public static function first(): ?static
     {
         /** @var ?static */

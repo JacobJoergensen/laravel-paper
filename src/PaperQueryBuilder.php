@@ -13,7 +13,7 @@ use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
 
 final class PaperQueryBuilder
 {
-    /** @var array<int, array{column: string, operator: string, value: mixed}> */
+    /** @var array<int, array{type: string, column: string, operator?: string, value?: scalar|null, values?: array<int, scalar>, boolean: string}> */
     private array $wheres = [];
 
     /** @var array<int, array{column: string, direction: string}> */
@@ -44,7 +44,11 @@ final class PaperQueryBuilder
         return null;
     }
 
-    public function where(string $column, mixed $operator, mixed $value = null): self
+    /**
+     * @param  ?scalar  $operator
+     * @param  ?scalar  $value
+     */
+    public function where(string $column, mixed $operator, mixed $value = null, string $boolean = 'and'): self
     {
         if ($value === null && ! is_string($operator)) {
             $value = $operator;
@@ -52,12 +56,69 @@ final class PaperQueryBuilder
         }
 
         $this->wheres[] = [
+            'type' => 'basic',
             'column' => $column,
             'operator' => is_string($operator) ? $operator : '=',
             'value' => $value,
+            'boolean' => $boolean,
         ];
 
         return $this;
+    }
+
+    /**
+     * @param  scalar|null  $operator
+     * @param  scalar|null  $value
+     */
+    public function orWhere(string $column, mixed $operator, mixed $value = null): self
+    {
+        return $this->where($column, $operator, $value, 'or');
+    }
+
+    /**
+     * @param  array<int, scalar>  $values
+     */
+    public function whereIn(string $column, array $values, string $boolean = 'and'): self
+    {
+        $this->wheres[] = [
+            'type' => 'in',
+            'column' => $column,
+            'values' => $values,
+            'boolean' => $boolean,
+        ];
+
+        return $this;
+    }
+
+    /**
+     * @param  array<int, scalar>  $values
+     */
+    public function orWhereIn(string $column, array $values): self
+    {
+        return $this->whereIn($column, $values, 'or');
+    }
+
+    /**
+     * @param  array<int, scalar>  $values
+     */
+    public function whereNotIn(string $column, array $values, string $boolean = 'and'): self
+    {
+        $this->wheres[] = [
+            'type' => 'notIn',
+            'column' => $column,
+            'values' => $values,
+            'boolean' => $boolean,
+        ];
+
+        return $this;
+    }
+
+    /**
+     * @param  array<int, scalar>  $values
+     */
+    public function orWhereNotIn(string $column, array $values): self
+    {
+        return $this->whereNotIn($column, $values, 'or');
     }
 
     public function orderBy(string $column, string $direction = 'asc'): self
@@ -183,15 +244,39 @@ final class PaperQueryBuilder
 
     private function matchesWheres(Model $model): bool
     {
-        foreach ($this->wheres as $where) {
-            $value = $model->getAttribute($where['column']);
+        if (empty($this->wheres)) {
+            return true;
+        }
 
-            if (! $this->evaluateCondition($value, $where['operator'], $where['value'])) {
-                return false;
+        $result = true;
+
+        foreach ($this->wheres as $index => $where) {
+            $matches = $this->evaluateWhere($model, $where);
+
+            if ($index === 0) {
+                $result = $matches;
+            } elseif ($where['boolean'] === 'or') {
+                $result = $result || $matches;
+            } else {
+                $result = $result && $matches;
             }
         }
 
-        return true;
+        return $result;
+    }
+
+    /**
+     * @param  array{type: string, column: string, operator?: string, value?: scalar|null, values?: array<int, scalar>, boolean: string}  $where
+     */
+    private function evaluateWhere(Model $model, array $where): bool
+    {
+        $value = $model->getAttribute($where['column']);
+
+        return match ($where['type']) {
+            'in' => in_array($value, $where['values'] ?? [], true),
+            'notIn' => ! in_array($value, $where['values'] ?? [], true),
+            default => $this->evaluateCondition($value, $where['operator'] ?? '=', $where['value'] ?? null),
+        };
     }
 
     private function evaluateCondition(mixed $actual, string $operator, mixed $expected): bool
