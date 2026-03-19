@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## Version 1.3.0 (2026-03-19)
+* Added bulk `delete` on query builder
+* Added `exists` and `doesntExist` query methods
+
 ## Version 1.2.1 (2026-03-19)
 * Fixed two-argument `where` with string values not working correctly
 

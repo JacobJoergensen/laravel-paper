@@ -310,6 +310,29 @@ final class PaperQueryBuilder
         return $this->get()->count();
     }
 
+    public function exists(): bool
+    {
+        return $this->count() > 0;
+    }
+
+    public function doesntExist(): bool
+    {
+        return $this->count() === 0;
+    }
+
+    public function delete(): int
+    {
+        $deleted = 0;
+
+        foreach ($this->get() as $model) {
+            if ($model->delete()) {
+                $deleted++;
+            }
+        }
+
+        return $deleted;
+    }
+
     /**
      * @return Collection<int, mixed>
      */
