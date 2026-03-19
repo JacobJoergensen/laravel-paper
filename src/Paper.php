@@ -110,6 +110,19 @@ trait Paper
         return static::query()->first();
     }
 
+    public static function count(): int
+    {
+        return static::query()->count();
+    }
+
+    /**
+     * @return Collection<int, mixed>
+     */
+    public static function pluck(string $column): Collection
+    {
+        return static::query()->pluck($column);
+    }
+
     public function getKeyName(): string
     {
         return 'slug';

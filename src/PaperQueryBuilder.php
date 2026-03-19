@@ -160,6 +160,19 @@ final class PaperQueryBuilder
         return $this->limit(1)->get()->first();
     }
 
+    public function count(): int
+    {
+        return $this->get()->count();
+    }
+
+    /**
+     * @return Collection<int, mixed>
+     */
+    public function pluck(string $column): Collection
+    {
+        return $this->get()->pluck($column);
+    }
+
     /**
      * @return Collection<int, Model>
      */
