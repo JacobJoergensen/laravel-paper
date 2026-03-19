@@ -83,10 +83,44 @@ trait Paper
         return static::query()->where($column, $operator, $value);
     }
 
+    public static function orWhere(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
+    {
+        return static::query()->orWhere($column, $operator, $value);
+    }
+
+    /**
+     * @param  array<int, scalar>  $values
+     */
+    public static function whereIn(string $column, array $values): PaperQueryBuilder
+    {
+        return static::query()->whereIn($column, $values);
+    }
+
+    /**
+     * @param  array<int, scalar>  $values
+     */
+    public static function whereNotIn(string $column, array $values): PaperQueryBuilder
+    {
+        return static::query()->whereNotIn($column, $values);
+    }
+
     public static function first(): ?static
     {
         /** @var ?static */
         return static::query()->first();
+    }
+
+    public static function count(): int
+    {
+        return static::query()->count();
+    }
+
+    /**
+     * @return Collection<int, mixed>
+     */
+    public static function pluck(string $column): Collection
+    {
+        return static::query()->pluck($column);
     }
 
     public function getKeyName(): string
@@ -106,6 +140,86 @@ trait Paper
 
     public function usesTimestamps(): bool
     {
+        return false;
+    }
+
+    public function save(array $options = []): bool
+    {
+        static::resolveAttributes();
+
+        $files = app(Filesystem::class);
+        $cache = app(CacheContract::class);
+
+        $class = static::class;
+        $driver = static::$paperDrivers[$class];
+        $path = static::$paperContentPaths[$class];
+        $slug = $this->getAttribute($this->getKeyName());
+
+        if (empty($slug)) {
+            return false;
+        }
+
+        $isCreating = ! $this->exists;
+
+        if ($this->fireModelEvent('saving') === false) {
+            return false;
+        }
+
+        if ($isCreating && $this->fireModelEvent('creating') === false) {
+            return false;
+        }
+
+        if (! $isCreating && $this->fireModelEvent('updating') === false) {
+            return false;
+        }
+
+        $filepath = $path.'/'.$slug.'.'.$driver->extensions()[0];
+        $content = $driver->serialize($this->getAttributes());
+
+        $success = $files->put($filepath, $content) !== false;
+
+        if ($success) {
+            $this->exists = true;
+            $cache->forget($filepath);
+
+            $this->fireModelEvent($isCreating ? 'created' : 'updated', false);
+            $this->fireModelEvent('saved', false);
+        }
+
+        return $success;
+    }
+
+    public function delete(): bool
+    {
+        static::resolveAttributes();
+
+        if ($this->fireModelEvent('deleting') === false) {
+            return false;
+        }
+
+        $files = app(Filesystem::class);
+        $cache = app(CacheContract::class);
+
+        $class = static::class;
+        $driver = static::$paperDrivers[$class];
+        $path = static::$paperContentPaths[$class];
+        $slug = $this->getAttribute($this->getKeyName());
+
+        foreach ($driver->extensions() as $ext) {
+            $filepath = $path.'/'.$slug.'.'.$ext;
+
+            if ($files->exists($filepath)) {
+                $cache->forget($filepath);
+                $deleted = $files->delete($filepath);
+
+                if ($deleted) {
+                    $this->fireModelEvent('deleted', false);
+                }
+
+                return $deleted;
+            }
+        }
+
         return false;
     }
 
