@@ -13,7 +13,7 @@ use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
 
 final class PaperQueryBuilder
 {
-    /** @var list<array{type: string, column?: string, operator?: string, value?: scalar|null, values?: array<int, scalar>, wheres?: list<array<string, mixed>>, boolean: string}> */
+    /** @var list<array{type: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, wheres?: list<array<string, mixed>>, boolean: string}> */
     private array $wheres = [];
 
     /** @var array<int, array{column: string, direction: string}> */
@@ -139,6 +139,9 @@ final class PaperQueryBuilder
         return $this->whereNotIn($column, $values, 'or');
     }
 
+    /**
+     * @param  scalar  $value
+     */
     public function whereContains(string $column, mixed $value, string $boolean = 'and'): self
     {
         $this->wheres[] = [
@@ -151,6 +154,9 @@ final class PaperQueryBuilder
         return $this;
     }
 
+    /**
+     * @param  scalar  $value
+     */
     public function orWhereContains(string $column, mixed $value): self
     {
         return $this->whereContains($column, $value, 'or');
@@ -291,7 +297,7 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @param  ?array<int, array{type: string, boolean: string, column?: string, operator?: string, value?: scalar|null, values?: array<int, scalar>}>  $wheres
+     * @param  ?array<int, array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>}>  $wheres
      */
     private function matchesWheres(Model $model, ?array $wheres = null): bool
     {
@@ -304,7 +310,7 @@ final class PaperQueryBuilder
         $result = true;
 
         foreach ($wheres as $index => $where) {
-            /** @var array{type: string, boolean: string, column?: string, operator?: string, value?: scalar|null, values?: array<int, scalar>} $where */
+            /** @var array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>} $where */
             $matches = $this->evaluateWhere($model, $where);
 
             if ($index === 0) {
@@ -320,7 +326,7 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @param array{type: string, boolean: string, column?: string, operator?: string, value?: scalar|null, values?: array<int, scalar>, wheres?: array<int, array{type: string, boolean: string, column?: string, operator?: string, value?: scalar|null, values?: array<int, scalar>}>} $where
+     * @param  array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, wheres?: array<int, array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>}>}  $where
      */
     private function evaluateWhere(Model $model, array $where): bool
     {
