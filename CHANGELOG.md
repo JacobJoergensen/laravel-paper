@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## Version 1.2.1 (2026-03-19)
 * Fixed two-argument `where` with string values not working correctly
 
 ## Version 1.2.0 (2026-03-19)
