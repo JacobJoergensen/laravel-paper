@@ -341,7 +341,7 @@ final class PaperQueryBuilder
 
         return match ($where['type']) {
             'in' => in_array($value, $where['values'] ?? [], true),
-            'notIn' => !in_array($value, $where['values'] ?? [], true),
+            'notIn' => ! in_array($value, $where['values'] ?? [], true),
             'contains' => is_array($value) && in_array($where['value'] ?? null, $value, true),
             default => $this->evaluateCondition($value, $where['operator'] ?? '=', $where['value'] ?? null),
         };
