@@ -7,6 +7,7 @@ namespace JacobJoergensen\LaravelPaper;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Filesystem\Filesystem;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
 use JacobJoergensen\LaravelPaper\Attributes\Driver;
@@ -104,10 +105,57 @@ trait Paper
         return static::query()->whereNotIn($column, $values);
     }
 
+    public static function whereContains(string $column, mixed $value): PaperQueryBuilder
+    {
+        return static::query()->whereContains($column, $value);
+    }
+
+    public static function whereNull(string $column): PaperQueryBuilder
+    {
+        return static::query()->whereNull($column);
+    }
+
+    public static function whereNotNull(string $column): PaperQueryBuilder
+    {
+        return static::query()->whereNotNull($column);
+    }
+
+    /**
+     * @param  array{0: scalar, 1: scalar}  $values
+     */
+    public static function whereBetween(string $column, array $values): PaperQueryBuilder
+    {
+        return static::query()->whereBetween($column, $values);
+    }
+
+    /**
+     * @param  array{0: scalar, 1: scalar}  $values
+     */
+    public static function whereNotBetween(string $column, array $values): PaperQueryBuilder
+    {
+        return static::query()->whereNotBetween($column, $values);
+    }
+
+    public static function latest(string $column = 'created_at'): PaperQueryBuilder
+    {
+        return static::query()->latest($column);
+    }
+
+    public static function oldest(string $column = 'created_at'): PaperQueryBuilder
+    {
+        return static::query()->oldest($column);
+    }
+
     public static function first(): ?static
     {
         /** @var ?static */
         return static::query()->first();
+    }
+
+    public static function firstOrFail(): static
+    {
+        /** @var static */
+        return static::query()->firstOrFail();
     }
 
     public static function count(): int
@@ -121,6 +169,11 @@ trait Paper
     public static function pluck(string $column): Collection
     {
         return static::query()->pluck($column);
+    }
+
+    public static function paginate(int $perPage = 15, ?int $page = null): LengthAwarePaginator
+    {
+        return static::query()->paginate($perPage, $page);
     }
 
     public function getKeyName(): string

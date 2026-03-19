@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace JacobJoergensen\LaravelPaper;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Filesystem\Filesystem;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
@@ -13,7 +15,7 @@ use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
 
 final class PaperQueryBuilder
 {
-    /** @var array<int, array{type: string, column: string, operator?: string, value?: scalar|null, values?: array<int, scalar>, boolean: string}> */
+    /** @var list<array{type: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, wheres?: list<array<string, mixed>>, boolean: string}> */
     private array $wheres = [];
 
     /** @var array<int, array{column: string, direction: string}> */
@@ -48,8 +50,12 @@ final class PaperQueryBuilder
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      */
-    public function where(string $column, mixed $operator, mixed $value = null, string $boolean = 'and'): self
+    public function where(string|callable $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): self
     {
+        if (is_callable($column)) {
+            return $this->whereGroup($column, $boolean);
+        }
+
         if ($value === null && ! is_string($operator)) {
             $value = $operator;
             $operator = '=';
@@ -67,12 +73,26 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @param  scalar|null  $operator
-     * @param  scalar|null  $value
+     * @param  ?scalar  $operator
+     * @param  ?scalar  $value
      */
-    public function orWhere(string $column, mixed $operator, mixed $value = null): self
+    public function orWhere(string|callable $column, mixed $operator = null, mixed $value = null): self
     {
         return $this->where($column, $operator, $value, 'or');
+    }
+
+    private function whereGroup(callable $callback, string $boolean): self
+    {
+        $nested = new self($this->files, $this->driver, $this->cache, $this->contentPath, $this->modelClass);
+        $callback($nested);
+
+        $this->wheres[] = [
+            'type' => 'group',
+            'wheres' => $nested->wheres,
+            'boolean' => $boolean,
+        ];
+
+        return $this;
     }
 
     /**
@@ -121,6 +141,107 @@ final class PaperQueryBuilder
         return $this->whereNotIn($column, $values, 'or');
     }
 
+    /**
+     * @param  scalar  $value
+     */
+    public function whereContains(string $column, mixed $value, string $boolean = 'and'): self
+    {
+        $this->wheres[] = [
+            'type' => 'contains',
+            'column' => $column,
+            'value' => $value,
+            'boolean' => $boolean,
+        ];
+
+        return $this;
+    }
+
+    /**
+     * @param  scalar  $value
+     */
+    public function orWhereContains(string $column, mixed $value): self
+    {
+        return $this->whereContains($column, $value, 'or');
+    }
+
+    public function whereNull(string $column, string $boolean = 'and'): self
+    {
+        $this->wheres[] = [
+            'type' => 'null',
+            'column' => $column,
+            'boolean' => $boolean,
+        ];
+
+        return $this;
+    }
+
+    public function orWhereNull(string $column): self
+    {
+        return $this->whereNull($column, 'or');
+    }
+
+    public function whereNotNull(string $column, string $boolean = 'and'): self
+    {
+        $this->wheres[] = [
+            'type' => 'notNull',
+            'column' => $column,
+            'boolean' => $boolean,
+        ];
+
+        return $this;
+    }
+
+    public function orWhereNotNull(string $column): self
+    {
+        return $this->whereNotNull($column, 'or');
+    }
+
+    /**
+     * @param  array{0: scalar, 1: scalar}  $values
+     */
+    public function whereBetween(string $column, array $values, string $boolean = 'and'): self
+    {
+        $this->wheres[] = [
+            'type' => 'between',
+            'column' => $column,
+            'values' => $values,
+            'boolean' => $boolean,
+        ];
+
+        return $this;
+    }
+
+    /**
+     * @param  array{0: scalar, 1: scalar}  $values
+     */
+    public function orWhereBetween(string $column, array $values): self
+    {
+        return $this->whereBetween($column, $values, 'or');
+    }
+
+    /**
+     * @param  array{0: scalar, 1: scalar}  $values
+     */
+    public function whereNotBetween(string $column, array $values, string $boolean = 'and'): self
+    {
+        $this->wheres[] = [
+            'type' => 'notBetween',
+            'column' => $column,
+            'values' => $values,
+            'boolean' => $boolean,
+        ];
+
+        return $this;
+    }
+
+    /**
+     * @param  array{0: scalar, 1: scalar}  $values
+     */
+    public function orWhereNotBetween(string $column, array $values): self
+    {
+        return $this->whereNotBetween($column, $values, 'or');
+    }
+
     public function orderBy(string $column, string $direction = 'asc'): self
     {
         $this->orders[] = [
@@ -129,6 +250,16 @@ final class PaperQueryBuilder
         ];
 
         return $this;
+    }
+
+    public function latest(string $column = 'created_at'): self
+    {
+        return $this->orderBy($column, 'desc');
+    }
+
+    public function oldest(string $column = 'created_at'): self
+    {
+        return $this->orderBy($column);
     }
 
     public function limit(int $value): self
@@ -160,6 +291,20 @@ final class PaperQueryBuilder
         return $this->limit(1)->get()->first();
     }
 
+    public function firstOrFail(): Model
+    {
+        $model = $this->first();
+
+        if ($model === null) {
+            /** @var class-string<Model> $modelClass */
+            $modelClass = $this->modelClass;
+
+            throw (new ModelNotFoundException)->setModel($modelClass);
+        }
+
+        return $model;
+    }
+
     public function count(): int
     {
         return $this->get()->count();
@@ -171,6 +316,33 @@ final class PaperQueryBuilder
     public function pluck(string $column): Collection
     {
         return $this->get()->pluck($column);
+    }
+
+    /**
+     * @return LengthAwarePaginator<int, Model>
+     */
+    public function paginate(int $perPage = 15, ?int $page = null): LengthAwarePaginator
+    {
+        $page ??= request()->integer('page', 1);
+
+        $originalLimit = $this->limitValue;
+        $originalOffset = $this->offsetValue;
+
+        try {
+            $this->limitValue = null;
+            $this->offsetValue = 0;
+
+            $all = $this->get();
+            $total = $all->count();
+            $items = $all->slice(($page - 1) * $perPage)->take($perPage)->values();
+
+            return new LengthAwarePaginator($items, $total, $perPage, $page, [
+                'path' => request()->url(),
+            ]);
+        } finally {
+            $this->limitValue = $originalLimit;
+            $this->offsetValue = $originalOffset;
+        }
     }
 
     /**
@@ -255,15 +427,21 @@ final class PaperQueryBuilder
         return $data;
     }
 
-    private function matchesWheres(Model $model): bool
+    /**
+     * @param  ?array<int, array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>}>  $wheres
+     */
+    private function matchesWheres(Model $model, ?array $wheres = null): bool
     {
-        if (empty($this->wheres)) {
+        $wheres ??= $this->wheres;
+
+        if (empty($wheres)) {
             return true;
         }
 
         $result = true;
 
-        foreach ($this->wheres as $index => $where) {
+        foreach ($wheres as $index => $where) {
+            /** @var array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>} $where */
             $matches = $this->evaluateWhere($model, $where);
 
             if ($index === 0) {
@@ -279,15 +457,27 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @param  array{type: string, column: string, operator?: string, value?: scalar|null, values?: array<int, scalar>, boolean: string}  $where
+     * @param  array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, wheres?: array<int, array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>}>}  $where
      */
     private function evaluateWhere(Model $model, array $where): bool
     {
-        $value = $model->getAttribute($where['column']);
+        if ($where['type'] === 'group') {
+            $nested = $where['wheres'] ?? [];
+
+            return $this->matchesWheres($model, $nested);
+        }
+
+        $column = $where['column'] ?? '';
+        $value = $model->getAttribute($column);
 
         return match ($where['type']) {
             'in' => in_array($value, $where['values'] ?? [], true),
             'notIn' => ! in_array($value, $where['values'] ?? [], true),
+            'contains' => is_array($value) && in_array($where['value'] ?? null, $value, true),
+            'null' => $value === null,
+            'notNull' => $value !== null,
+            'between' => $this->evaluateBetween($value, $where['values'] ?? []),
+            'notBetween' => ! $this->evaluateBetween($value, $where['values'] ?? []),
             default => $this->evaluateCondition($value, $where['operator'] ?? '=', $where['value'] ?? null),
         };
     }
@@ -313,5 +503,17 @@ final class PaperQueryBuilder
         $regex = '/^'.str_replace(['%', '_'], ['.*', '.'], preg_quote($pattern, '/')).'$/i';
 
         return (bool) preg_match($regex, $actual);
+    }
+
+    /**
+     * @param  array<int, scalar>  $values
+     */
+    private function evaluateBetween(mixed $value, array $values): bool
+    {
+        if (count($values) < 2) {
+            return false;
+        }
+
+        return $value >= $values[0] && $value <= $values[1];
     }
 }
