@@ -36,6 +36,13 @@ it('can filter posts with where clause', function (): void {
         ->and($posts->pluck('slug')->toArray())->each->not->toBe('draft-post');
 });
 
+it('can filter posts with two-argument string where', function (): void {
+    $post = Post::where('title', 'Hello World')->first();
+
+    expect($post)->not->toBeNull()
+        ->and($post->slug)->toBe('hello-world');
+});
+
 it('can order posts', function (): void {
     $posts = Post::query()->orderBy('order', 'desc')->get();
 

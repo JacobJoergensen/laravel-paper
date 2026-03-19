@@ -56,7 +56,7 @@ final class PaperQueryBuilder
             return $this->whereGroup($column, $boolean);
         }
 
-        if ($value === null && ! is_string($operator)) {
+        if ($value === null && ! in_array($operator, ['=', '==', '===', '!=', '<>', '!==', '>', '>=', '<', '<=', 'like'], true)) {
             $value = $operator;
             $operator = '=';
         }

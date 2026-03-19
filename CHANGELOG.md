@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+* Fixed two-argument `where` with string values not working correctly
 
 ## Version 1.2.0 (2026-03-19)
 * Added `where(closure)` and `orWhere(closure)` for grouped conditions
