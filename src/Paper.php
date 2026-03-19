@@ -143,6 +143,60 @@ trait Paper
         return false;
     }
 
+    public function save(array $options = []): bool
+    {
+        static::resolveAttributes();
+
+        $files = app(Filesystem::class);
+        $cache = app(CacheContract::class);
+
+        $class = static::class;
+        $driver = static::$paperDrivers[$class];
+        $path = static::$paperContentPaths[$class];
+        $slug = $this->getAttribute($this->getKeyName());
+
+        if (empty($slug)) {
+            return false;
+        }
+
+        $filepath = $path.'/'.$slug.'.'.$driver->extensions()[0];
+        $content = $driver->serialize($this->getAttributes());
+
+        $success = $files->put($filepath, $content) !== false;
+
+        if ($success) {
+            $this->exists = true;
+            $cache->forget($filepath);
+        }
+
+        return $success;
+    }
+
+    public function delete(): bool
+    {
+        static::resolveAttributes();
+
+        $files = app(Filesystem::class);
+        $cache = app(CacheContract::class);
+
+        $class = static::class;
+        $driver = static::$paperDrivers[$class];
+        $path = static::$paperContentPaths[$class];
+        $slug = $this->getAttribute($this->getKeyName());
+
+        foreach ($driver->extensions() as $ext) {
+            $filepath = $path.'/'.$slug.'.'.$ext;
+
+            if ($files->exists($filepath)) {
+                $cache->forget($filepath);
+
+                return $files->delete($filepath);
+            }
+        }
+
+        return false;
+    }
+
     private static function resolveAttributes(): void
     {
         $class = static::class;

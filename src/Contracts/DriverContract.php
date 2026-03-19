@@ -15,4 +15,9 @@ interface DriverContract
      * @return array<string, mixed>
      */
     public function parse(string $filepath): array;
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    public function serialize(array $data): string;
 }

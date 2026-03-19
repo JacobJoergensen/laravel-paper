@@ -7,6 +7,7 @@ namespace JacobJoergensen\LaravelPaper\Drivers;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
 use Spatie\YamlFrontMatter\YamlFrontMatter;
+use Symfony\Component\Yaml\Yaml;
 
 final readonly class MarkdownDriver implements DriverContract
 {
@@ -36,5 +37,18 @@ final readonly class MarkdownDriver implements DriverContract
         $data['content'] = trim($document->body());
 
         return $data;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    public function serialize(array $data): string
+    {
+        $content = isset($data['content']) && is_string($data['content']) ? $data['content'] : '';
+        unset($data['content'], $data['slug']);
+
+        $yaml = Yaml::dump($data);
+
+        return "---\n$yaml---\n\n$content\n";
     }
 }

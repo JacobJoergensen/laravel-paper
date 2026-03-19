@@ -41,4 +41,14 @@ final readonly class JsonDriver implements DriverContract
         /** @var array<string, mixed> */
         return $data;
     }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    public function serialize(array $data): string
+    {
+        unset($data['slug']);
+
+        return json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)."\n";
+    }
 }
