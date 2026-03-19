@@ -13,7 +13,7 @@ use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
 
 final class PaperQueryBuilder
 {
-    /** @var array<int, array{type: string, column: string, operator?: string, value?: scalar|null, values?: array<int, scalar>, boolean: string}> */
+    /** @var list<array{type: string, column?: string, operator?: string, value?: scalar|null, values?: array<int, scalar>, wheres?: list<array<string, mixed>>, boolean: string}> */
     private array $wheres = [];
 
     /** @var array<int, array{column: string, direction: string}> */
@@ -48,8 +48,12 @@ final class PaperQueryBuilder
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      */
-    public function where(string $column, mixed $operator, mixed $value = null, string $boolean = 'and'): self
+    public function where(string|callable $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): self
     {
+        if (is_callable($column)) {
+            return $this->whereGroup($column, $boolean);
+        }
+
         if ($value === null && ! is_string($operator)) {
             $value = $operator;
             $operator = '=';
@@ -67,12 +71,26 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @param  scalar|null  $operator
-     * @param  scalar|null  $value
+     * @param  ?scalar  $operator
+     * @param  ?scalar  $value
      */
-    public function orWhere(string $column, mixed $operator, mixed $value = null): self
+    public function orWhere(string|callable $column, mixed $operator = null, mixed $value = null): self
     {
         return $this->where($column, $operator, $value, 'or');
+    }
+
+    private function whereGroup(callable $callback, string $boolean): self
+    {
+        $nested = new self($this->files, $this->driver, $this->cache, $this->contentPath, $this->modelClass);
+        $callback($nested);
+
+        $this->wheres[] = [
+            'type' => 'group',
+            'wheres' => $nested->wheres,
+            'boolean' => $boolean,
+        ];
+
+        return $this;
     }
 
     /**
@@ -255,15 +273,20 @@ final class PaperQueryBuilder
         return $data;
     }
 
-    private function matchesWheres(Model $model): bool
+    /**
+     * @param  list<array<string, mixed>>|null  $wheres
+     */
+    private function matchesWheres(Model $model, ?array $wheres = null): bool
     {
-        if (empty($this->wheres)) {
+        $wheres ??= $this->wheres;
+
+        if (empty($wheres)) {
             return true;
         }
 
         $result = true;
 
-        foreach ($this->wheres as $index => $where) {
+        foreach ($wheres as $index => $where) {
             $matches = $this->evaluateWhere($model, $where);
 
             if ($index === 0) {
@@ -279,16 +302,31 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @param  array{type: string, column: string, operator?: string, value?: scalar|null, values?: array<int, scalar>, boolean: string}  $where
+     * @param  array<string, mixed>  $where
      */
     private function evaluateWhere(Model $model, array $where): bool
     {
-        $value = $model->getAttribute($where['column']);
+        if ($where['type'] === 'group') {
+            /** @var list<array<string, mixed>> $nested */
+            $nested = $where['wheres'];
+
+            return $this->matchesWheres($model, $nested);
+        }
+
+        /** @var string $column */
+        $column = $where['column'];
+        $value = $model->getAttribute($column);
+
+        /** @var array<int, scalar> $values */
+        $values = $where['values'] ?? [];
+
+        /** @var string $operator */
+        $operator = $where['operator'] ?? '=';
 
         return match ($where['type']) {
-            'in' => in_array($value, $where['values'] ?? [], true),
-            'notIn' => ! in_array($value, $where['values'] ?? [], true),
-            default => $this->evaluateCondition($value, $where['operator'] ?? '=', $where['value'] ?? null),
+            'in' => in_array($value, $values, true),
+            'notIn' => ! in_array($value, $values, true),
+            default => $this->evaluateCondition($value, $operator, $where['value'] ?? null),
         };
     }
 
