@@ -408,7 +408,6 @@ final class PaperQueryBuilder
 
     /**
      * @param  Collection<int, string>  $files
-     *
      * @return Generator<int, Model>
      */
     private function yieldOrdered(Collection $files): Generator
@@ -424,7 +423,6 @@ final class PaperQueryBuilder
 
     /**
      * @param  Collection<int, Model>  $models
-     *
      * @return Collection<int, Model>
      */
     private function applyOrdersAndLimits(Collection $models): Collection
@@ -450,7 +448,6 @@ final class PaperQueryBuilder
 
     /**
      * @param  Collection<int, string>  $files
-     *
      * @return Generator<int, Model>
      */
     private function yieldUnordered(Collection $files): Generator
