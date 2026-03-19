@@ -242,6 +242,27 @@ trait Paper
         return $success;
     }
 
+    public function fresh($with = []): ?static
+    {
+        if (! $this->exists) {
+            return null;
+        }
+
+        return static::find($this->getAttribute($this->getKeyName()));
+    }
+
+    public function refresh(): static
+    {
+        if (! $this->exists) {
+            return $this;
+        }
+
+        $fresh = static::findOrFail($this->getAttribute($this->getKeyName()));
+        $this->setRawAttributes($fresh->getAttributes(), true);
+
+        return $this;
+    }
+
     public function delete(): bool
     {
         static::resolveAttributes();

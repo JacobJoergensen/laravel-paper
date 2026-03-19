@@ -62,3 +62,24 @@ it('uses slug as primary key', function (): void {
     expect($post->getKey())->toBe('hello-world')
         ->and($post->getKeyName())->toBe('slug');
 });
+
+it('can reload model with fresh', function (): void {
+    $post = Post::find('hello-world');
+    $post->title = 'Modified Title';
+
+    $fresh = $post->fresh();
+
+    expect($fresh)->not->toBeNull()
+        ->and($fresh->title)->toBe('Hello World')
+        ->and($post->title)->toBe('Modified Title');
+});
+
+it('can reload model in place with refresh', function (): void {
+    $post = Post::find('hello-world');
+    $post->title = 'Modified Title';
+
+    $returned = $post->refresh();
+
+    expect($returned)->toBe($post)
+        ->and($post->title)->toBe('Hello World');
+});
