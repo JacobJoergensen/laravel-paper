@@ -21,11 +21,17 @@ final class FileModificationCache implements CacheContract
      *
      * @throws InvalidArgumentException
      */
-    public function get(string $filepath): ?array
+    public function getIfFresh(string $filepath): ?array
     {
+        $mtime = @filemtime($filepath);
+
+        if ($mtime === false) {
+            return null;
+        }
+
         $cached = $this->cache->get($this->key($filepath));
 
-        if (! is_array($cached)) {
+        if (! is_array($cached) || ($cached['mtime'] ?? 0) < $mtime) {
             return null;
         }
 
@@ -42,24 +48,6 @@ final class FileModificationCache implements CacheContract
             'mtime' => $mtime,
             'data' => $data,
         ]);
-    }
-
-    /**
-     * @throws InvalidArgumentException
-     */
-    public function isStale(string $filepath): bool
-    {
-        if (! file_exists($filepath)) {
-            return true;
-        }
-
-        $cached = $this->cache->get($this->key($filepath));
-
-        if (! is_array($cached) || ! isset($cached['mtime'])) {
-            return true;
-        }
-
-        return filemtime($filepath) > $cached['mtime'];
     }
 
     public function forget(string $filepath): void
