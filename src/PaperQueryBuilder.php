@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper;
 
+use Generator;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
+use Illuminate\Support\LazyCollection;
 use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
@@ -377,6 +379,56 @@ final class PaperQueryBuilder
             ->map(fn (string $filepath): Model => $this->fileToModel($filepath))
             ->filter(fn (Model $model): bool => $this->matchesWheres($model));
 
+        return $this->applyOrdersAndLimits($models);
+    }
+
+    /**
+     * @return LazyCollection<int, Model>
+     */
+    public function lazy(): LazyCollection
+    {
+        return new LazyCollection($this->yieldModels());
+    }
+
+    /**
+     * @return Generator<int, Model>
+     */
+    private function yieldModels(): Generator
+    {
+        $files = $this->scanFiles();
+
+        if (! empty($this->orders)) {
+            yield from $this->yieldOrdered($files);
+
+            return;
+        }
+
+        yield from $this->yieldUnordered($files);
+    }
+
+    /**
+     * @param  Collection<int, string>  $files
+     *
+     * @return Generator<int, Model>
+     */
+    private function yieldOrdered(Collection $files): Generator
+    {
+        $models = $files
+            ->map(fn (string $filepath): Model => $this->fileToModel($filepath))
+            ->filter(fn (Model $model): bool => $this->matchesWheres($model));
+
+        foreach ($this->applyOrdersAndLimits($models) as $model) {
+            yield $model;
+        }
+    }
+
+    /**
+     * @param  Collection<int, Model>  $models
+     *
+     * @return Collection<int, Model>
+     */
+    private function applyOrdersAndLimits(Collection $models): Collection
+    {
         foreach ($this->orders as $order) {
             $models = $models->sortBy(
                 fn (Model $model): mixed => $model->getAttribute($order['column']),
@@ -384,8 +436,6 @@ final class PaperQueryBuilder
                 $order['direction'] === 'desc'
             );
         }
-
-        $models = $models->values();
 
         if ($this->offsetValue > 0) {
             $models = $models->slice($this->offsetValue);
@@ -396,6 +446,38 @@ final class PaperQueryBuilder
         }
 
         return $models->values();
+    }
+
+    /**
+     * @param  Collection<int, string>  $files
+     *
+     * @return Generator<int, Model>
+     */
+    private function yieldUnordered(Collection $files): Generator
+    {
+        $yielded = 0;
+        $skipped = 0;
+
+        foreach ($files as $filepath) {
+            $model = $this->fileToModel($filepath);
+
+            if (! $this->matchesWheres($model)) {
+                continue;
+            }
+
+            if ($skipped < $this->offsetValue) {
+                $skipped++;
+
+                continue;
+            }
+
+            if ($this->limitValue !== null && $yielded >= $this->limitValue) {
+                return;
+            }
+
+            yield $model;
+            $yielded++;
+        }
     }
 
     /**
