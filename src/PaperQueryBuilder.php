@@ -6,6 +6,7 @@ namespace JacobJoergensen\LaravelPaper;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Filesystem\Filesystem;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
@@ -212,6 +213,33 @@ final class PaperQueryBuilder
     public function pluck(string $column): Collection
     {
         return $this->get()->pluck($column);
+    }
+
+    /**
+     * @return LengthAwarePaginator<int, Model>
+     */
+    public function paginate(int $perPage = 15, ?int $page = null): LengthAwarePaginator
+    {
+        $page ??= request()->integer('page', 1);
+
+        $originalLimit = $this->limitValue;
+        $originalOffset = $this->offsetValue;
+
+        try {
+            $this->limitValue = null;
+            $this->offsetValue = 0;
+
+            $all = $this->get();
+            $total = $all->count();
+            $items = $all->slice(($page - 1) * $perPage)->take($perPage)->values();
+
+            return new LengthAwarePaginator($items, $total, $perPage, $page, [
+                'path' => request()->url(),
+            ]);
+        } finally {
+            $this->limitValue = $originalLimit;
+            $this->offsetValue = $originalOffset;
+        }
     }
 
     /**

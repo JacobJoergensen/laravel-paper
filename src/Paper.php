@@ -7,6 +7,7 @@ namespace JacobJoergensen\LaravelPaper;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Filesystem\Filesystem;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
 use JacobJoergensen\LaravelPaper\Attributes\Driver;
@@ -126,6 +127,11 @@ trait Paper
     public static function pluck(string $column): Collection
     {
         return static::query()->pluck($column);
+    }
+
+    public static function paginate(int $perPage = 15, ?int $page = null): LengthAwarePaginator
+    {
+        return static::query()->paginate($perPage, $page);
     }
 
     public function getKeyName(): string
