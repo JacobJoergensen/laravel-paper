@@ -152,6 +152,12 @@ trait Paper
         return static::query()->first();
     }
 
+    public static function firstOrFail(): static
+    {
+        /** @var static */
+        return static::query()->firstOrFail();
+    }
+
     public static function count(): int
     {
         return static::query()->count();

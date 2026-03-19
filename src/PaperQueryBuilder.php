@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace JacobJoergensen\LaravelPaper;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -288,6 +289,20 @@ final class PaperQueryBuilder
     public function first(): ?Model
     {
         return $this->limit(1)->get()->first();
+    }
+
+    public function firstOrFail(): Model
+    {
+        $model = $this->first();
+
+        if ($model === null) {
+            /** @var class-string<Model> $modelClass */
+            $modelClass = $this->modelClass;
+
+            throw (new ModelNotFoundException)->setModel($modelClass);
+        }
+
+        return $model;
     }
 
     public function count(): int
