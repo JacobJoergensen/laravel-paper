@@ -104,6 +104,11 @@ trait Paper
         return static::query()->whereNotIn($column, $values);
     }
 
+    public static function whereContains(string $column, mixed $value): PaperQueryBuilder
+    {
+        return static::query()->whereContains($column, $value);
+    }
+
     public static function first(): ?static
     {
         /** @var ?static */

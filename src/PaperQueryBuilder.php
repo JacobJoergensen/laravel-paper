@@ -139,6 +139,23 @@ final class PaperQueryBuilder
         return $this->whereNotIn($column, $values, 'or');
     }
 
+    public function whereContains(string $column, mixed $value, string $boolean = 'and'): self
+    {
+        $this->wheres[] = [
+            'type' => 'contains',
+            'column' => $column,
+            'value' => $value,
+            'boolean' => $boolean,
+        ];
+
+        return $this;
+    }
+
+    public function orWhereContains(string $column, mixed $value): self
+    {
+        return $this->whereContains($column, $value, 'or');
+    }
+
     public function orderBy(string $column, string $direction = 'asc'): self
     {
         $this->orders[] = [
@@ -303,7 +320,7 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @param  array{type: string, boolean: string, column?: string, operator?: string, value?: scalar|null, values?: array<int, scalar>, wheres?: array<int, array{type: string, boolean: string, column?: string, operator?: string, value?: scalar|null, values?: array<int, scalar>}>}  $where
+     * @param array{type: string, boolean: string, column?: string, operator?: string, value?: scalar|null, values?: array<int, scalar>, wheres?: array<int, array{type: string, boolean: string, column?: string, operator?: string, value?: scalar|null, values?: array<int, scalar>}>} $where
      */
     private function evaluateWhere(Model $model, array $where): bool
     {
@@ -318,7 +335,8 @@ final class PaperQueryBuilder
 
         return match ($where['type']) {
             'in' => in_array($value, $where['values'] ?? [], true),
-            'notIn' => ! in_array($value, $where['values'] ?? [], true),
+            'notIn' => !in_array($value, $where['values'] ?? [], true),
+            'contains' => is_array($value) && in_array($where['value'] ?? null, $value, true),
             default => $this->evaluateCondition($value, $where['operator'] ?? '=', $where['value'] ?? null),
         };
     }
