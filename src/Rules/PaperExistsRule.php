@@ -18,9 +18,6 @@ final readonly class PaperExistsRule implements ValidationRule
         private string $column,
     ) {}
 
-    /**
-     * @param  ?scalar  $value
-     */
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
         $query = $this->model::query();
