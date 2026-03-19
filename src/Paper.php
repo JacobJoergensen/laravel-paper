@@ -110,6 +110,32 @@ trait Paper
         return static::query()->whereContains($column, $value);
     }
 
+    public static function whereNull(string $column): PaperQueryBuilder
+    {
+        return static::query()->whereNull($column);
+    }
+
+    public static function whereNotNull(string $column): PaperQueryBuilder
+    {
+        return static::query()->whereNotNull($column);
+    }
+
+    /**
+     * @param  array{0: scalar, 1: scalar}  $values
+     */
+    public static function whereBetween(string $column, array $values): PaperQueryBuilder
+    {
+        return static::query()->whereBetween($column, $values);
+    }
+
+    /**
+     * @param  array{0: scalar, 1: scalar}  $values
+     */
+    public static function whereNotBetween(string $column, array $values): PaperQueryBuilder
+    {
+        return static::query()->whereNotBetween($column, $values);
+    }
+
     public static function first(): ?static
     {
         /** @var ?static */

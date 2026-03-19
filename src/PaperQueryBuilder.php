@@ -163,6 +163,84 @@ final class PaperQueryBuilder
         return $this->whereContains($column, $value, 'or');
     }
 
+    public function whereNull(string $column, string $boolean = 'and'): self
+    {
+        $this->wheres[] = [
+            'type' => 'null',
+            'column' => $column,
+            'boolean' => $boolean,
+        ];
+
+        return $this;
+    }
+
+    public function orWhereNull(string $column): self
+    {
+        return $this->whereNull($column, 'or');
+    }
+
+    public function whereNotNull(string $column, string $boolean = 'and'): self
+    {
+        $this->wheres[] = [
+            'type' => 'notNull',
+            'column' => $column,
+            'boolean' => $boolean,
+        ];
+
+        return $this;
+    }
+
+    public function orWhereNotNull(string $column): self
+    {
+        return $this->whereNotNull($column, 'or');
+    }
+
+    /**
+     * @param  array{0: scalar, 1: scalar}  $values
+     */
+    public function whereBetween(string $column, array $values, string $boolean = 'and'): self
+    {
+        $this->wheres[] = [
+            'type' => 'between',
+            'column' => $column,
+            'values' => $values,
+            'boolean' => $boolean,
+        ];
+
+        return $this;
+    }
+
+    /**
+     * @param  array{0: scalar, 1: scalar}  $values
+     */
+    public function orWhereBetween(string $column, array $values): self
+    {
+        return $this->whereBetween($column, $values, 'or');
+    }
+
+    /**
+     * @param  array{0: scalar, 1: scalar}  $values
+     */
+    public function whereNotBetween(string $column, array $values, string $boolean = 'and'): self
+    {
+        $this->wheres[] = [
+            'type' => 'notBetween',
+            'column' => $column,
+            'values' => $values,
+            'boolean' => $boolean,
+        ];
+
+        return $this;
+    }
+
+    /**
+     * @param  array{0: scalar, 1: scalar}  $values
+     */
+    public function orWhereNotBetween(string $column, array $values): self
+    {
+        return $this->whereNotBetween($column, $values, 'or');
+    }
+
     public function orderBy(string $column, string $direction = 'asc'): self
     {
         $this->orders[] = [
@@ -371,6 +449,10 @@ final class PaperQueryBuilder
             'in' => in_array($value, $where['values'] ?? [], true),
             'notIn' => ! in_array($value, $where['values'] ?? [], true),
             'contains' => is_array($value) && in_array($where['value'] ?? null, $value, true),
+            'null' => $value === null,
+            'notNull' => $value !== null,
+            'between' => $this->evaluateBetween($value, $where['values'] ?? []),
+            'notBetween' => ! $this->evaluateBetween($value, $where['values'] ?? []),
             default => $this->evaluateCondition($value, $where['operator'] ?? '=', $where['value'] ?? null),
         };
     }
@@ -396,5 +478,17 @@ final class PaperQueryBuilder
         $regex = '/^'.str_replace(['%', '_'], ['.*', '.'], preg_quote($pattern, '/')).'$/i';
 
         return (bool) preg_match($regex, $actual);
+    }
+
+    /**
+     * @param  array<int, scalar>  $values
+     */
+    private function evaluateBetween(mixed $value, array $values): bool
+    {
+        if (count($values) < 2) {
+            return false;
+        }
+
+        return $value >= $values[0] && $value <= $values[1];
     }
 }
