@@ -159,6 +159,20 @@ trait Paper
             return false;
         }
 
+        $isCreating = ! $this->exists;
+
+        if ($this->fireModelEvent('saving') === false) {
+            return false;
+        }
+
+        if ($isCreating && $this->fireModelEvent('creating') === false) {
+            return false;
+        }
+
+        if (! $isCreating && $this->fireModelEvent('updating') === false) {
+            return false;
+        }
+
         $filepath = $path.'/'.$slug.'.'.$driver->extensions()[0];
         $content = $driver->serialize($this->getAttributes());
 
@@ -167,6 +181,9 @@ trait Paper
         if ($success) {
             $this->exists = true;
             $cache->forget($filepath);
+
+            $this->fireModelEvent($isCreating ? 'created' : 'updated', false);
+            $this->fireModelEvent('saved', false);
         }
 
         return $success;
@@ -175,6 +192,10 @@ trait Paper
     public function delete(): bool
     {
         static::resolveAttributes();
+
+        if ($this->fireModelEvent('deleting') === false) {
+            return false;
+        }
 
         $files = app(Filesystem::class);
         $cache = app(CacheContract::class);
@@ -189,8 +210,13 @@ trait Paper
 
             if ($files->exists($filepath)) {
                 $cache->forget($filepath);
+                $deleted = $files->delete($filepath);
 
-                return $files->delete($filepath);
+                if ($deleted) {
+                    $this->fireModelEvent('deleted', false);
+                }
+
+                return $deleted;
             }
         }
 
