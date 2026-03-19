@@ -251,6 +251,16 @@ final class PaperQueryBuilder
         return $this;
     }
 
+    public function latest(string $column = 'created_at'): self
+    {
+        return $this->orderBy($column, 'desc');
+    }
+
+    public function oldest(string $column = 'created_at'): self
+    {
+        return $this->orderBy($column);
+    }
+
     public function limit(int $value): self
     {
         $this->limitValue = $value;

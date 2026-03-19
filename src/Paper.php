@@ -136,6 +136,16 @@ trait Paper
         return static::query()->whereNotBetween($column, $values);
     }
 
+    public static function latest(string $column = 'created_at'): PaperQueryBuilder
+    {
+        return static::query()->latest($column);
+    }
+
+    public static function oldest(string $column = 'created_at'): PaperQueryBuilder
+    {
+        return static::query()->oldest($column);
+    }
+
     public static function first(): ?static
     {
         /** @var ?static */
