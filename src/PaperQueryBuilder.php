@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper;
 
+use BadMethodCallException;
 use Generator;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -388,6 +389,25 @@ final class PaperQueryBuilder
     public function lazy(): LazyCollection
     {
         return new LazyCollection($this->yieldModels());
+    }
+
+    /**
+     * @param  array<int, mixed>  $parameters
+     */
+    public function __call(string $method, array $parameters): self
+    {
+        $scope = 'scope'.ucfirst($method);
+
+        if (method_exists($this->modelClass, $scope)) {
+            $model = new $this->modelClass;
+            $model->{$scope}($this, ...$parameters);
+
+            return $this;
+        }
+
+        throw new BadMethodCallException(
+            sprintf('Method %s::%s does not exist.', self::class, $method)
+        );
     }
 
     /**

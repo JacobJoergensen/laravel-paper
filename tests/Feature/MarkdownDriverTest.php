@@ -83,3 +83,10 @@ it('can reload model in place with refresh', function (): void {
     expect($returned)->toBe($post)
         ->and($post->title)->toBe('Hello World');
 });
+
+it('can use local scopes', function (): void {
+    $posts = Post::query()->published()->get();
+
+    expect($posts)->toHaveCount(2)
+        ->and($posts->pluck('published')->unique()->toArray())->toBe([true]);
+});
