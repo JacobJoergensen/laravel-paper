@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
 use JacobJoergensen\LaravelPaper\Attributes\Driver;
 use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
@@ -261,6 +262,24 @@ trait Paper
         $this->setRawAttributes($fresh->getAttributes(), true);
 
         return $this;
+    }
+
+    /**
+     * @template TRelated of Model
+     *
+     * @param  class-string<TRelated>  $related
+     * @return ?TRelated
+     */
+    protected function belongsToPaper(string $related, ?string $foreignKey = null): ?Model
+    {
+        $foreignKey ??= Str::snake(class_basename($related)).'_slug';
+        $key = $this->getAttribute($foreignKey);
+
+        if ($key === null) {
+            return null;
+        }
+
+        return $related::find($key);
     }
 
     public function delete(): bool

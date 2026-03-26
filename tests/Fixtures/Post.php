@@ -20,4 +20,9 @@ final class Post extends Model
     {
         return $query->where('published', true);
     }
+
+    public function author(): ?Author
+    {
+        return $this->belongsToPaper(Author::class);
+    }
 }

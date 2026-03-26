@@ -90,3 +90,19 @@ it('can use local scopes', function (): void {
     expect($posts)->toHaveCount(2)
         ->and($posts->pluck('published')->unique()->toArray())->toBe([true]);
 });
+
+it('can resolve belongsTo relationship', function (): void {
+    $post = Post::find('hello-world');
+    $author = $post->author();
+
+    expect($author)->not->toBeNull()
+        ->and($author->slug)->toBe('john-doe')
+        ->and($author->name)->toBe('John Doe');
+});
+
+it('returns null for belongsTo when foreign key is null', function (): void {
+    $post = Post::find('draft-post');
+    $author = $post->author();
+
+    expect($author)->toBeNull();
+});
