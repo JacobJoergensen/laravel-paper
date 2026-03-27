@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## Version 1.5.0 (2026-03-27)
+* Added scope support via `__call` on `PaperQueryBuilder`
+* Added `belongsToPaper` for O(1) relationship lookups
+* Added `hasManyPaper` for one-to-many relationships
+
 ## Version 1.4.0 (2026-03-19)
 * Added `lazy` method for memory-efficient iteration with `LazyCollection`
 * Added `PaperRule` validation with `exists` and `unique` rules for Paper models
