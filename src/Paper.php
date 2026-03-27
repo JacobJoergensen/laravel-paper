@@ -282,6 +282,20 @@ trait Paper
         return $related::find($key);
     }
 
+    /**
+     * @template TRelated of Model
+     *
+     * @param  class-string<TRelated>  $related
+     * @return Collection<int, TRelated>
+     */
+    protected function hasManyPaper(string $related, ?string $foreignKey = null): Collection
+    {
+        $foreignKey ??= Str::snake(class_basename(static::class)).'_slug';
+        $key = $this->getAttribute($this->getKeyName());
+
+        return $related::where($foreignKey, $key)->get();
+    }
+
     public function delete(): bool
     {
         static::resolveAttributes();
