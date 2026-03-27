@@ -12,7 +12,7 @@ composer require jacobjoergensen/laravel-paper
 
 ## Quick Example
 
-You have Markdown files in `content/posts/`:
+Put your Markdown files in `content/posts/`:
 
 ```markdown
 ---
@@ -23,10 +23,10 @@ date: 2024-03-15
 tags: [laravel, markdown]
 ---
 
-Your Markdown content here...
+Your Markdown content goes here...
 ```
 
-Create a model:
+Create a new model:
 
 ```php
 use Illuminate\Database\Eloquent\Model;
@@ -42,7 +42,7 @@ class Post extends Model
 }
 ```
 
-Query it like any Eloquent model:
+Query it like any other Eloquent model:
 
 ```php
 // Get all published posts
