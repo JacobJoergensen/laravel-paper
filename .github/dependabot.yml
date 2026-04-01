@@ -4,8 +4,6 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-      time: "06:00"
-      timezone: "Europe/Copenhagen"
     groups:
       github-actions:
         patterns:
