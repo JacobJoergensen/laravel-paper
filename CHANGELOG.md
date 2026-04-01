@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## Version 1.6.0 (2026-04-01)
+* Added `sole` query method for retrieving exactly one record
+* Optimized `first` to use early termination on unordered queries
+* Fixed `lazy` to pass callable instead of instantiated generator
+
 ## Version 1.5.0 (2026-03-27)
 * Added scope support via `__call` on `PaperQueryBuilder`
 * Added `belongsToPaper` for O(1) relationship lookups
