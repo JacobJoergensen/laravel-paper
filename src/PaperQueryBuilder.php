@@ -291,6 +291,10 @@ final class PaperQueryBuilder
 
     public function first(): ?Model
     {
+        if ($this->orders === []) {
+            return $this->lazy()->first();
+        }
+
         return $this->limit(1)->get()->first();
     }
 
@@ -388,7 +392,7 @@ final class PaperQueryBuilder
      */
     public function lazy(): LazyCollection
     {
-        return new LazyCollection($this->yieldModels());
+        return new LazyCollection($this->yieldModels(...));
     }
 
     /**
@@ -411,7 +415,7 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @return Generator<int, Model>
+     * @return Generator<int, Model, mixed, void>
      */
     private function yieldModels(): Generator
     {
