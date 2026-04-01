@@ -8,12 +8,12 @@ use Illuminate\Contracts\Cache\Repository;
 use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
 use Psr\SimpleCache\InvalidArgumentException;
 
-final class FileModificationCache implements CacheContract
+final readonly class FileModificationCache implements CacheContract
 {
     private const string PREFIX = 'paper:';
 
     public function __construct(
-        private readonly Repository $cache,
+        private Repository $cache,
     ) {}
 
     /**

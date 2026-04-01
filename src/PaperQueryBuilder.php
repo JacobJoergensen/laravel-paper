@@ -417,7 +417,7 @@ final class PaperQueryBuilder
     {
         $files = $this->scanFiles();
 
-        if (! empty($this->orders)) {
+        if ($this->orders !== []) {
             yield from $this->yieldOrdered($files);
 
             return;
@@ -550,7 +550,7 @@ final class PaperQueryBuilder
     {
         $wheres ??= $this->wheres;
 
-        if (empty($wheres)) {
+        if ($wheres === []) {
             return true;
         }
 
