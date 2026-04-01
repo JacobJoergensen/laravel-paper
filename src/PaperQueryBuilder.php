@@ -8,6 +8,7 @@ use BadMethodCallException;
 use Generator;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\MultipleRecordsFoundException;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -310,6 +311,24 @@ final class PaperQueryBuilder
         }
 
         return $model;
+    }
+
+    public function sole(): Model
+    {
+        $items = $this->lazy()->take(2)->all();
+
+        if ($items === []) {
+            /** @var class-string<Model> $modelClass */
+            $modelClass = $this->modelClass;
+
+            throw (new ModelNotFoundException)->setModel($modelClass);
+        }
+
+        if (isset($items[1])) {
+            throw new MultipleRecordsFoundException(2);
+        }
+
+        return $items[0];
     }
 
     public function count(): int

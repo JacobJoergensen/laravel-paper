@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\MultipleRecordsFoundException;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Author;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 
@@ -115,3 +117,17 @@ it('can resolve hasMany relationship', function (): void {
     expect($posts)->toHaveCount(1)
         ->and($posts->first()->slug)->toBe('hello-world');
 });
+
+it('returns sole record when exactly one matches', function (): void {
+    $post = Post::where('slug', 'hello-world')->sole();
+
+    expect($post->slug)->toBe('hello-world');
+});
+
+it('throws ModelNotFoundException when sole finds no records', function (): void {
+    Post::where('slug', 'does-not-exist')->sole();
+})->throws(ModelNotFoundException::class);
+
+it('throws MultipleRecordsFoundException when sole finds multiple records', function (): void {
+    Post::where('published', true)->sole();
+})->throws(MultipleRecordsFoundException::class);
