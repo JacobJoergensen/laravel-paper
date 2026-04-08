@@ -118,6 +118,26 @@ it('can resolve hasMany relationship', function (): void {
         ->and($posts->first()->slug)->toBe('hello-world');
 });
 
+it('counts all posts without parsing files', function (): void {
+    expect(Post::count())->toBe(3);
+});
+
+it('counts only posts matching where clause', function (): void {
+    $count = Post::where('published', true)->count();
+
+    expect($count)->toBe(2);
+});
+
+it('returns true when posts exist', function (): void {
+    expect(Post::exists())->toBeTrue();
+});
+
+it('returns true for doesntExist when no posts match', function (): void {
+    $result = Post::where('slug', 'does-not-exist')->doesntExist();
+
+    expect($result)->toBeTrue();
+});
+
 it('returns sole record when exactly one matches', function (): void {
     $post = Post::where('slug', 'hello-world')->sole();
 
