@@ -333,17 +333,25 @@ final class PaperQueryBuilder
 
     public function count(): int
     {
-        return $this->get()->count();
+        if ($this->wheres === []) {
+            return $this->scanFiles()->count();
+        }
+
+        return $this->lazy()->count();
     }
 
     public function exists(): bool
     {
-        return $this->count() > 0;
+        if ($this->wheres === []) {
+            return $this->scanFiles()->isNotEmpty();
+        }
+
+        return $this->lazy()->isNotEmpty();
     }
 
     public function doesntExist(): bool
     {
-        return $this->count() === 0;
+        return ! $this->exists();
     }
 
     public function delete(): int
