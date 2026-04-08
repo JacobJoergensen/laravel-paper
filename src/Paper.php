@@ -164,6 +164,16 @@ trait Paper
         return static::query()->count();
     }
 
+    public static function exists(): bool
+    {
+        return static::query()->exists();
+    }
+
+    public static function doesntExist(): bool
+    {
+        return static::query()->doesntExist();
+    }
+
     /**
      * @return Collection<int, mixed>
      */
