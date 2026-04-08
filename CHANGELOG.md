@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## Version 1.7.0 (2026-04-08)
+* Added `exists` and `doesntExist` static methods to the Paper trait
+* Optimized `count` to skip file parsing when no where clauses are applied
+* Optimized `exists` and `doesntExist` to short-circuit on first match
+
 ## Version 1.6.0 (2026-04-01)
 * Added `sole` query method for retrieving exactly one record
 * Optimized `first` to use early termination on unordered queries
