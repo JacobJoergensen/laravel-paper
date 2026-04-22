@@ -33,6 +33,12 @@ it('discovers files across every driver extension', function (): void {
         ->and($post->slug)->toBe('draft-post');
 });
 
+it('excludes null fields from comparison operators', function (): void {
+    expect(Post::where('author_slug', 0)->count())->toBe(0)
+        ->and(Post::where('author_slug', '!=', 0)->count())->toBe(1)
+        ->and(Post::where('author_slug', '<', 'mmm')->count())->toBe(1);
+});
+
 it('can get all posts', function (): void {
     $posts = Post::all();
 

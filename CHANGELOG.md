@@ -2,6 +2,7 @@
 
 ## Unreleased
 * Fixed file discovery for drivers with multiple extensions on musl libc (Alpine) containers
+* Fixed `where` comparison operators to exclude null fields, matching SQL semantics
 
 ## Version 1.7.0 (2026-04-08)
 * Added `exists` and `doesntExist` static methods to the Paper trait

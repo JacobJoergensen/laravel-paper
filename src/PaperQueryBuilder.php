@@ -635,15 +635,18 @@ final class PaperQueryBuilder
 
     private function evaluateCondition(mixed $actual, string $operator, mixed $expected): bool
     {
+        $bothPresent = $actual !== null && $expected !== null;
+
         return match ($operator) {
-            '=', '==' => $actual == $expected,
+            '=' => $bothPresent && $actual == $expected,
+            '==' => $actual == $expected,
             '===' => $actual === $expected,
-            '!=', '<>' => $actual != $expected,
+            '!=', '<>' => $bothPresent && $actual != $expected,
             '!==' => $actual !== $expected,
-            '>' => $actual > $expected,
-            '>=' => $actual >= $expected,
-            '<' => $actual < $expected,
-            '<=' => $actual <= $expected,
+            '>' => $bothPresent && $actual > $expected,
+            '>=' => $bothPresent && $actual >= $expected,
+            '<' => $bothPresent && $actual < $expected,
+            '<=' => $bothPresent && $actual <= $expected,
             'like' => is_string($actual) && is_string($expected) && $this->evaluateLike($actual, $expected),
             default => false,
         };
