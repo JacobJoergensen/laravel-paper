@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+* Fixed file discovery for drivers with multiple extensions on musl libc (Alpine) containers
 
 ## Version 1.7.0 (2026-04-08)
 * Added `exists` and `doesntExist` static methods to the Paper trait

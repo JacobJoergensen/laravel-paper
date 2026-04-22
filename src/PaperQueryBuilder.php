@@ -537,11 +537,15 @@ final class PaperQueryBuilder
             throw ContentPathNotFoundException::forPath($this->contentPath, $this->modelClass);
         }
 
-        $extensions = $this->driver->extensions();
-        $pattern = '*.{'.implode(',', $extensions).'}';
+        $matches = [];
+
+        foreach ($this->driver->extensions() as $extension) {
+            $found = $this->files->glob($this->contentPath.'/*.'.$extension) ?: [];
+            $matches = array_merge($matches, $found);
+        }
 
         /** @var Collection<int, string> */
-        return collect($this->files->glob($this->contentPath.'/'.$pattern, GLOB_BRACE) ?: []);
+        return collect($matches);
     }
 
     private function fileToModel(string $filepath): Model

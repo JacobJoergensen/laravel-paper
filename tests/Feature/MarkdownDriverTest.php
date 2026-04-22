@@ -26,6 +26,13 @@ it('returns null for non-existent slug', function (): void {
     expect($post)->toBeNull();
 });
 
+it('discovers files across every driver extension', function (): void {
+    $post = Post::find('draft-post');
+
+    expect($post)->not->toBeNull()
+        ->and($post->slug)->toBe('draft-post');
+});
+
 it('can get all posts', function (): void {
     $posts = Post::all();
 
