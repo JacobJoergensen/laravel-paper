@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\MultipleRecordsFoundException;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\LazyCollection;
 use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
@@ -380,7 +381,7 @@ final class PaperQueryBuilder
      */
     public function paginate(int $perPage = 15, ?int $page = null): LengthAwarePaginator
     {
-        $page ??= request()->integer('page', 1);
+        $page ??= Paginator::resolveCurrentPage();
 
         $originalLimit = $this->limitValue;
         $originalOffset = $this->offsetValue;
@@ -394,7 +395,7 @@ final class PaperQueryBuilder
             $items = $all->slice(($page - 1) * $perPage)->take($perPage)->values();
 
             return new LengthAwarePaginator($items, $total, $perPage, $page, [
-                'path' => request()->url(),
+                'path' => Paginator::resolveCurrentPath(),
             ]);
         } finally {
             $this->limitValue = $originalLimit;

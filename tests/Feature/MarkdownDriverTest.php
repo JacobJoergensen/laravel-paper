@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\MultipleRecordsFoundException;
+use Illuminate\Pagination\Paginator;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Author;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 
@@ -176,6 +177,18 @@ it('throws ModelNotFoundException when sole finds no records', function (): void
 it('throws MultipleRecordsFoundException when sole finds multiple records', function (): void {
     Post::where('published', true)->sole();
 })->throws(MultipleRecordsFoundException::class);
+
+it('paginates using the Paginator resolvers so it works without a request', function (): void {
+    Paginator::currentPageResolver(fn () => 2);
+    Paginator::currentPathResolver(fn () => 'http://example.test/posts');
+
+    $page = Post::paginate(perPage: 1);
+
+    expect($page->currentPage())->toBe(2)
+        ->and($page->path())->toBe('http://example.test/posts')
+        ->and($page->total())->toBe(3)
+        ->and($page)->toHaveCount(1);
+});
 
 it('writes save atomically and leaves no temp files behind', function (): void {
     $post = new Post;
