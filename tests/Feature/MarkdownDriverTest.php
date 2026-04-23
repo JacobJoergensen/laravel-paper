@@ -11,6 +11,18 @@ beforeEach(function (): void {
     Post::resetPaperState();
 });
 
+afterEach(function (): void {
+    $dir = __DIR__.'/../content/posts';
+
+    foreach (glob($dir.'/__save_test__*') ?: [] as $file) {
+        @unlink($file);
+    }
+
+    foreach (glob($dir.'/.paper-*') ?: [] as $file) {
+        @unlink($file);
+    }
+});
+
 it('can find a post by slug', function (): void {
     $post = Post::find('hello-world');
 
@@ -164,3 +176,18 @@ it('throws ModelNotFoundException when sole finds no records', function (): void
 it('throws MultipleRecordsFoundException when sole finds multiple records', function (): void {
     Post::where('published', true)->sole();
 })->throws(MultipleRecordsFoundException::class);
+
+it('writes save atomically and leaves no temp files behind', function (): void {
+    $post = new Post();
+    $post->slug = '__save_test__';
+    $post->title = 'Atomic Write';
+    $post->published = true;
+
+    expect($post->save())->toBeTrue();
+
+    $written = Post::find('__save_test__');
+
+    expect($written)->not->toBeNull()
+        ->and($written->title)->toBe('Atomic Write')
+        ->and(glob(__DIR__.'/../content/posts/.paper-*') ?: [])->toBeEmpty();
+});

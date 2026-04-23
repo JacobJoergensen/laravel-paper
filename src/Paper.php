@@ -211,7 +211,6 @@ trait Paper
     {
         static::resolveAttributes();
 
-        $files = app(Filesystem::class);
         $cache = app(CacheContract::class);
 
         $class = static::class;
@@ -240,7 +239,20 @@ trait Paper
         $filepath = $path.'/'.$slug.'.'.$driver->extensions()[0];
         $content = $driver->serialize($this->getAttributes());
 
-        $success = $files->put($filepath, $content) !== false;
+        $tempPath = @tempnam(dirname($filepath), '.paper-');
+
+        if ($tempPath === false) {
+            return false;
+        }
+
+        @chmod($tempPath, 0666 & ~umask());
+
+        $success = @file_put_contents($tempPath, $content) !== false
+            && @rename($tempPath, $filepath);
+
+        if (! $success) {
+            @unlink($tempPath);
+        }
 
         if ($success) {
             $this->exists = true;
