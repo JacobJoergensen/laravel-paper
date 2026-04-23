@@ -2,6 +2,8 @@
 
 ## Unreleased
 * Documented ignored Eloquent-parity parameters on `all`, `find`, `findOrFail`, and `fresh`
+* Documented that `lazy` lists files up front
+* Documented that `hasManyPaper` reads every related file on each call
 * Fixed file discovery for drivers with multiple extensions on musl libc (Alpine) containers
 * Fixed `where` comparison operators to exclude null fields, matching SQL semantics
 * Fixed `save` to write atomically via temp file + rename

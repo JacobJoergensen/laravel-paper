@@ -315,6 +315,8 @@ trait Paper
     }
 
     /**
+     * Reads every related file on each call. Recommended to not use this in a loop.
+     *
      * @template TRelated of Model
      *
      * @param  class-string<TRelated>  $related

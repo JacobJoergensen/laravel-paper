@@ -416,6 +416,8 @@ final class PaperQueryBuilder
     }
 
     /**
+     * Parses files lazily, but lists them all up front.
+     *
      * @return LazyCollection<int, Model>
      */
     public function lazy(): LazyCollection
