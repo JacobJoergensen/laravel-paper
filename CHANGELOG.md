@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## Version 1.8.0 (2026-04-23)
 * Documented ignored Eloquent-parity parameters on `all`, `find`, `findOrFail`, and `fresh`
 * Documented that `lazy` lists files up front
 * Documented that `hasManyPaper` reads every related file on each call
