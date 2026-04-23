@@ -41,6 +41,7 @@
     },
     "scripts": {
         "fmt": "vendor/bin/pint --parallel",
+        "fmt:check": "vendor/bin/pint --parallel --test",
         "lint": "vendor/bin/phpstan analyse",
         "test": "vendor/bin/pest"
     },

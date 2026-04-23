@@ -1,8 +1,9 @@
 name: tests
 
 on:
-  - push
-  - pull_request
+  push:
+    branches: [ main ]
+  pull_request:
 
 permissions:
   contents: read
@@ -30,9 +31,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -45,10 +43,13 @@ jobs:
           echo "::add-matcher::${{ runner.tool_cache }}/php.json"
           echo "::add-matcher::${{ runner.tool_cache }}/phpunit.json"
 
+      - name: Pin matrix versions
+        run: composer require "laravel/framework:${{ matrix.laravel }}" "orchestra/testbench:${{ matrix.testbench }}" --no-interaction --no-update
+
       - name: Install Dependencies
-        run: |
-          composer require "laravel/framework:${{ matrix.laravel }}" "orchestra/testbench:${{ matrix.testbench }}" --no-interaction --no-update
-          composer update --${{ matrix.dependency-version }} --prefer-dist --no-interaction
+        uses: ramsey/composer-install@v4
+        with:
+          dependency-versions: ${{ matrix.dependency-version == 'prefer-lowest' && 'lowest' || 'highest' }}
 
       - name: Execute tests
         run: composer test
