@@ -178,7 +178,7 @@ it('throws MultipleRecordsFoundException when sole finds multiple records', func
 })->throws(MultipleRecordsFoundException::class);
 
 it('writes save atomically and leaves no temp files behind', function (): void {
-    $post = new Post();
+    $post = new Post;
     $post->slug = '__save_test__';
     $post->title = 'Atomic Write';
     $post->published = true;
