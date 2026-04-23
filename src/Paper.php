@@ -56,6 +56,7 @@ trait Paper
     }
 
     /**
+     * @param  array<int, string>|string  $columns  Ignored, kept for Eloquent parity.
      * @return Collection<int, static>
      */
     public static function all($columns = ['*']): Collection
@@ -63,12 +64,18 @@ trait Paper
         return static::query()->get();
     }
 
+    /**
+     * @param  array<int, string>|string  $columns  Ignored, kept for Eloquent parity.
+     */
     public static function find(mixed $id, $columns = ['*']): ?static
     {
         /** @var ?static */
         return static::query()->find((string) $id);
     }
 
+    /**
+     * @param  array<int, string>|string  $columns  Ignored, kept for Eloquent parity.
+     */
     public static function findOrFail(mixed $id, $columns = ['*']): static
     {
         $model = static::find($id, $columns);
@@ -265,6 +272,9 @@ trait Paper
         return $success;
     }
 
+    /**
+     * @param  array<int, string>|string  $with  Ignored, kept for Eloquent parity.
+     */
     public function fresh($with = []): ?static
     {
         if (! $this->exists) {
