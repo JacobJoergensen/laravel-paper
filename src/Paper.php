@@ -231,6 +231,11 @@ trait Paper
         return static::query()->pluck($column);
     }
 
+    public static function value(string $column): mixed
+    {
+        return static::query()->value($column);
+    }
+
     public static function paginate(int $perPage = 15, ?int $page = null): LengthAwarePaginator
     {
         return static::query()->paginate($perPage, $page);

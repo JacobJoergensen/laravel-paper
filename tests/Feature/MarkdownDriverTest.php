@@ -287,6 +287,11 @@ it('matches across columns with whereAny and whereAll', function (): void {
         ->and(Post::whereAll(['title', 'content'], 'like', '%post%')->count())->toBe(2);
 });
 
+it('returns a single column value from the first match', function (): void {
+    expect(Post::where('slug', 'hello-world')->value('title'))->toBe('Hello World')
+        ->and(Post::where('slug', 'does-not-exist')->value('title'))->toBeNull();
+});
+
 it('returns the first record matching a where condition', function (): void {
     $post = Post::firstWhere('slug', 'hello-world');
 

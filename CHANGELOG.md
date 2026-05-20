@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+* Added `value` for reading a single column from the first match
 * Added `when` for applying query clauses conditionally
 * Added `whereAny`, `orWhereAny`, `whereAll`, and `orWhereAll` for matching a value across multiple columns
 * Added `DriverRegistry` so custom drivers can be registered with `register()`

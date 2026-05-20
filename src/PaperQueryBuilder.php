@@ -396,6 +396,11 @@ final class PaperQueryBuilder
         return $this->where($column, $operator, $value)->first();
     }
 
+    public function value(string $column): mixed
+    {
+        return $this->first()?->getAttribute($column);
+    }
+
     public function firstOrFail(): Model
     {
         $model = $this->first();
