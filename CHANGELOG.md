@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+* Fixed `save` would overwrite the existing file's extension on update instead of writing a duplicate `.md` next to a `.markdown`
 
 ## Version 1.8.0 (2026-04-23)
 * Documented ignored Eloquent-parity parameters on `all`, `find`, `findOrFail`, and `fresh`

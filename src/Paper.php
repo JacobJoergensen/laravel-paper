@@ -243,7 +243,7 @@ trait Paper
             return false;
         }
 
-        $filepath = $path.'/'.$slug.'.'.$driver->extensions()[0];
+        $filepath = $this->paperFilepath($path, $slug, $driver, $isCreating);
         $content = $driver->serialize($this->getAttributes());
 
         $tempPath = @tempnam(dirname($filepath), '.paper-');
@@ -362,6 +362,23 @@ trait Paper
         }
 
         return false;
+    }
+
+    private function paperFilepath(string $directory, string $slug, DriverContract $driver, bool $isCreating): string
+    {
+        $extensions = $driver->extensions();
+
+        if (! $isCreating) {
+            foreach ($extensions as $extension) {
+                $existing = $directory.'/'.$slug.'.'.$extension;
+
+                if (is_file($existing)) {
+                    return $existing;
+                }
+            }
+        }
+
+        return $directory.'/'.$slug.'.'.$extensions[0];
     }
 
     private static function resolveAttributes(): void

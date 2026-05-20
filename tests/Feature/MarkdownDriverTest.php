@@ -204,3 +204,18 @@ it('writes save atomically and leaves no temp files behind', function (): void {
         ->and($written->title)->toBe('Atomic Write')
         ->and(glob(__DIR__.'/../content/posts/.paper-*') ?: [])->toBeEmpty();
 });
+
+it('overwrites the existing .markdown file instead of creating a duplicate', function (): void {
+    $dir = __DIR__.'/../content/posts';
+    file_put_contents($dir.'/__save_test__.markdown', "---\ntitle: Original\n---\n\nBody\n");
+
+    Post::resetPaperState();
+
+    $post = Post::find('__save_test__');
+    $post->title = 'Updated';
+
+    expect($post->save())->toBeTrue()
+        ->and(file_exists($dir.'/__save_test__.markdown'))->toBeTrue()
+        ->and(file_exists($dir.'/__save_test__.md'))->toBeFalse()
+        ->and(glob($dir.'/__save_test__*') ?: [])->toHaveCount(1);
+});
