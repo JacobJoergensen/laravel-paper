@@ -154,6 +154,15 @@ content/posts/
 $post = Post::find('hello-world');
 ```
 
+To change a slug, rename the file. For a URL that differs from the filename, add a frontmatter field and route on that instead:
+
+```yaml
+---
+title: Hello World
+permalink: /blog/2024/hello-world
+---
+```
+
 ## Writing
 
 Paper models save and delete files using the standard Eloquent API.
