@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+* Fixed `delete` to mark the model as no longer existing, matching Eloquent
 * Fixed path traversal in `find`, `save`, and `delete` by validating the slug is a single safe filename segment
 * Added a column argument to `PaperUniqueRule::ignore` for excluding a record by a column other than the slug
 * Added `whereLike` and `orWhereLike` with an optional case-sensitive flag, matching Laravel semantics

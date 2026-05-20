@@ -226,6 +226,19 @@ it('rejects unsafe slugs when finding', function (string $slug): void {
     'null byte' => "foo\0bar",
 ]);
 
+it('marks the model as not existing after a successful delete', function (): void {
+    $post = new Post;
+    $post->slug = '__save_test__';
+    $post->title = 'Temp';
+    $post->save();
+
+    expect($post->exists)->toBeTrue();
+
+    $post->delete();
+
+    expect($post->exists)->toBeFalse();
+});
+
 it('rejects path traversal when saving', function (): void {
     $post = new Post;
     $post->slug = '../../routes/web';

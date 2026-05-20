@@ -382,6 +382,7 @@ trait Paper
                 $deleted = $files->delete($filepath);
 
                 if ($deleted) {
+                    $this->exists = false;
                     $this->fireModelEvent('deleted', false);
                 }
 
