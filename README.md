@@ -100,6 +100,42 @@ $team = TeamMember::all();
 $devs = TeamMember::where('role', 'Developer')->get();
 ```
 
+## Custom Drivers
+
+Markdown and JSON ship by default. To support another format, implement `DriverContract` and register it in a service provider:
+
+```php
+use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
+use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
+
+final class YamlDriver implements DriverContract
+{
+    public function extensions(): array
+    {
+        return ['yaml', 'yml'];
+    }
+
+    public function parse(string $filepath): array
+    {
+        // return the file's data as an array
+    }
+
+    public function serialize(array $data): string
+    {
+        // return the file contents to write
+    }
+}
+```
+
+```php
+public function boot(): void
+{
+    app(DriverRegistry::class)->register('yaml', YamlDriver::class);
+}
+```
+
+Then point a model at it with `#[Driver('yaml')]`.
+
 ## File Naming
 
 The filename (without extension) becomes the model's `slug`:

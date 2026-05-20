@@ -15,7 +15,7 @@ use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
 use JacobJoergensen\LaravelPaper\Attributes\Driver;
 use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
-use JacobJoergensen\LaravelPaper\Exceptions\InvalidDriverException;
+use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
 use ReflectionClass;
 
 /**
@@ -440,12 +440,6 @@ trait Paper
 
     private static function resolveDriver(string $name): DriverContract
     {
-        $drivers = app('paper.drivers');
-
-        if (! isset($drivers[$name])) {
-            throw InvalidDriverException::notFound($name);
-        }
-
-        return app($drivers[$name]);
+        return app(DriverRegistry::class)->resolve($name);
     }
 }

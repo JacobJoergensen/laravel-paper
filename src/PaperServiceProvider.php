@@ -9,6 +9,7 @@ use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
 use JacobJoergensen\LaravelPaper\Cache\FileModificationCache;
 use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
+use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
 use JacobJoergensen\LaravelPaper\Drivers\JsonDriver;
 use JacobJoergensen\LaravelPaper\Drivers\MarkdownDriver;
 
@@ -23,9 +24,12 @@ final class PaperServiceProvider extends ServiceProvider
         $this->app->singleton(MarkdownDriver::class);
         $this->app->singleton(JsonDriver::class);
 
-        $this->app->singleton('paper.drivers', fn (): array => [
-            'markdown' => MarkdownDriver::class,
-            'json' => JsonDriver::class,
-        ]);
+        $this->app->singleton(DriverRegistry::class, function (): DriverRegistry {
+            $registry = new DriverRegistry;
+            $registry->register('markdown', MarkdownDriver::class);
+            $registry->register('json', JsonDriver::class);
+
+            return $registry;
+        });
     }
 }
