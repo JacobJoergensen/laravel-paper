@@ -6,7 +6,7 @@ namespace JacobJoergensen\LaravelPaper\Exceptions;
 
 use RuntimeException;
 
-final class ContentPathNotFoundException extends RuntimeException
+final class ContentPathNotFoundException extends RuntimeException implements PaperException
 {
     public static function forPath(string $path, string $model): self
     {

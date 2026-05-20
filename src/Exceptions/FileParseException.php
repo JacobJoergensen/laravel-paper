@@ -6,7 +6,7 @@ namespace JacobJoergensen\LaravelPaper\Exceptions;
 
 use RuntimeException;
 
-final class FileParseException extends RuntimeException
+final class FileParseException extends RuntimeException implements PaperException
 {
     public static function invalidJson(string $filepath, string $error): self
     {

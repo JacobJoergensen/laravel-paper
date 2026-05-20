@@ -6,7 +6,7 @@ namespace JacobJoergensen\LaravelPaper\Exceptions;
 
 use InvalidArgumentException;
 
-final class InvalidSlugException extends InvalidArgumentException
+final class InvalidSlugException extends InvalidArgumentException implements PaperException
 {
     public static function forSlug(string $slug): self
     {

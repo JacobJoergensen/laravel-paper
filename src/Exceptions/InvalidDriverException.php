@@ -6,7 +6,7 @@ namespace JacobJoergensen\LaravelPaper\Exceptions;
 
 use InvalidArgumentException;
 
-final class InvalidDriverException extends InvalidArgumentException
+final class InvalidDriverException extends InvalidArgumentException implements PaperException
 {
     public static function notFound(string $driver): self
     {
