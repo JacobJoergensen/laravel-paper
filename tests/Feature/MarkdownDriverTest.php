@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\MultipleRecordsFoundException;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\File;
+use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Author;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Draft;
@@ -363,6 +364,14 @@ it('creates the content directory when it does not exist', function (): void {
 
     File::deleteDirectory($dir);
 });
+
+it('throws when querying a model whose content directory is missing', function (): void {
+    File::deleteDirectory(__DIR__.'/../content/drafts');
+
+    Draft::resetPaperState();
+
+    Draft::all();
+})->throws(ContentPathNotFoundException::class);
 
 it('overwrites the existing .markdown file instead of creating a duplicate', function (): void {
     $dir = __DIR__.'/../content/posts';
