@@ -161,6 +161,12 @@ trait Paper
         return static::query()->first();
     }
 
+    public static function firstWhere(string $column, mixed $operator = null, mixed $value = null): ?static
+    {
+        /** @var ?static */
+        return static::query()->firstWhere($column, $operator, $value);
+    }
+
     public static function firstOrFail(): static
     {
         /** @var static */

@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+* Added `firstWhere` to fetch the first record matching a where condition
 * Added `simplePaginate` to paginate without counting every record, reading only the rows the page needs
 * Fixed `save` to overwrite the existing file's extension on update instead of writing a duplicate `.md` next to a `.markdown`
 * Fixed `save` to create the content directory when it is missing instead of failing silently

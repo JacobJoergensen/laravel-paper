@@ -207,6 +207,15 @@ it('writes save atomically and leaves no temp files behind', function (): void {
         ->and(glob(__DIR__.'/../content/posts/.paper-*') ?: [])->toBeEmpty();
 });
 
+it('returns the first record matching a where condition', function (): void {
+    $post = Post::firstWhere('slug', 'hello-world');
+
+    expect($post)->not->toBeNull()
+        ->and($post->slug)->toBe('hello-world');
+
+    expect(Post::firstWhere('slug', 'does-not-exist'))->toBeNull();
+});
+
 it('reports more pages without counting every record', function (): void {
     $first = Post::query()->simplePaginate(perPage: 2, page: 1);
     $second = Post::query()->simplePaginate(perPage: 2, page: 2);

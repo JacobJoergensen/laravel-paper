@@ -300,6 +300,15 @@ final class PaperQueryBuilder
         return $this->limit(1)->get()->first();
     }
 
+    /**
+     * @param  ?scalar  $operator
+     * @param  ?scalar  $value
+     */
+    public function firstWhere(string|callable $column, mixed $operator = null, mixed $value = null): ?Model
+    {
+        return $this->where($column, $operator, $value)->first();
+    }
+
     public function firstOrFail(): Model
     {
         $model = $this->first();
