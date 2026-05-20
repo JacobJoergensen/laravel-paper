@@ -20,7 +20,7 @@ use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
 
 final class PaperQueryBuilder
 {
-    /** @var list<array{type: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, wheres?: list<array<string, mixed>>, boolean: string}> */
+    /** @var list<array{type: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, wheres?: list<array<string, mixed>>, boolean: string}> */
     private array $wheres = [];
 
     /** @var array<int, array{column: string, direction: string}> */
@@ -167,6 +167,24 @@ final class PaperQueryBuilder
     public function orWhereContains(string $column, mixed $value): self
     {
         return $this->whereContains($column, $value, 'or');
+    }
+
+    public function whereLike(string $column, string $value, bool $caseSensitive = false, string $boolean = 'and'): self
+    {
+        $this->wheres[] = [
+            'type' => 'like',
+            'column' => $column,
+            'value' => $value,
+            'caseSensitive' => $caseSensitive,
+            'boolean' => $boolean,
+        ];
+
+        return $this;
+    }
+
+    public function orWhereLike(string $column, string $value, bool $caseSensitive = false): self
+    {
+        return $this->whereLike($column, $value, $caseSensitive, 'or');
     }
 
     public function whereNull(string $column, string $boolean = 'and'): self
@@ -617,7 +635,7 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @param  ?array<int, array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>}>  $wheres
+     * @param  ?array<int, array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool}>  $wheres
      */
     private function matchesWheres(Model $model, ?array $wheres = null): bool
     {
@@ -646,7 +664,7 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @param  array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, wheres?: array<int, array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>}>}  $where
+     * @param  array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, wheres?: array<int, array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>}>}  $where
      */
     private function evaluateWhere(Model $model, array $where): bool
     {
@@ -663,6 +681,7 @@ final class PaperQueryBuilder
             'in' => in_array($value, $where['values'] ?? [], true),
             'notIn' => ! in_array($value, $where['values'] ?? [], true),
             'contains' => is_array($value) && in_array($where['value'] ?? null, $value, true),
+            'like' => is_string($value) && $this->evaluateLike($value, (string) ($where['value'] ?? ''), $where['caseSensitive'] ?? false),
             'null' => $value === null,
             'notNull' => $value !== null,
             'between' => $this->evaluateBetween($value, $where['values'] ?? []),
@@ -690,9 +709,10 @@ final class PaperQueryBuilder
         };
     }
 
-    private function evaluateLike(string $actual, string $pattern): bool
+    private function evaluateLike(string $actual, string $pattern, bool $caseSensitive = false): bool
     {
-        $regex = '/^'.str_replace(['%', '_'], ['.*', '.'], preg_quote($pattern, '/')).'$/i';
+        $modifiers = $caseSensitive ? '' : 'i';
+        $regex = '/^'.str_replace(['%', '_'], ['.*', '.'], preg_quote($pattern, '/')).'$/'.$modifiers;
 
         return (bool) preg_match($regex, $actual);
     }

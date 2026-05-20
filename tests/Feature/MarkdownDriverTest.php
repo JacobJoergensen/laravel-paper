@@ -207,6 +207,16 @@ it('writes save atomically and leaves no temp files behind', function (): void {
         ->and(glob(__DIR__.'/../content/posts/.paper-*') ?: [])->toBeEmpty();
 });
 
+it('matches with whereLike and respects case sensitivity', function (): void {
+    expect(Post::whereLike('title', '%post%')->count())->toBe(2);
+
+    expect(Post::whereLike('title', '%post%', caseSensitive: true)->count())->toBe(0)
+        ->and(Post::whereLike('title', '%Post%', caseSensitive: true)->count())->toBe(2);
+
+    expect(Post::whereLike('title', 'Hello')->count())->toBe(0)
+        ->and(Post::whereLike('title', 'Hello World')->count())->toBe(1);
+});
+
 it('returns the first record matching a where condition', function (): void {
     $post = Post::firstWhere('slug', 'hello-world');
 
