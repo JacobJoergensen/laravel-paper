@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\MultipleRecordsFoundException;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\File;
+use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Author;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Draft;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
@@ -216,6 +217,30 @@ it('matches with whereLike and respects case sensitivity', function (): void {
     expect(Post::whereLike('title', 'Hello')->count())->toBe(0)
         ->and(Post::whereLike('title', 'Hello World')->count())->toBe(1);
 });
+
+it('rejects unsafe slugs when finding', function (string $slug): void {
+    Post::find($slug);
+})->throws(InvalidSlugException::class)->with([
+    'parent traversal' => '../../etc/passwd',
+    'backslash' => '..\\..\\secret',
+    'null byte' => "foo\0bar",
+]);
+
+it('rejects path traversal when saving', function (): void {
+    $post = new Post;
+    $post->slug = '../../routes/web';
+    $post->title = 'Nope';
+
+    $post->save();
+})->throws(InvalidSlugException::class);
+
+it('rejects path traversal when deleting', function (): void {
+    $post = new Post;
+    $post->slug = '../../config/app';
+    $post->exists = true;
+
+    $post->delete();
+})->throws(InvalidSlugException::class);
 
 it('returns the first record matching a where condition', function (): void {
     $post = Post::firstWhere('slug', 'hello-world');

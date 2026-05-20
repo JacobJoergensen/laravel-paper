@@ -251,6 +251,8 @@ trait Paper
             return false;
         }
 
+        PaperQueryBuilder::guardSlug((string) $slug);
+
         $isCreating = ! $this->exists;
 
         if ($this->fireModelEvent('saving') === false) {
@@ -369,6 +371,8 @@ trait Paper
         $driver = static::$paperDrivers[$class];
         $path = static::$paperContentPaths[$class];
         $slug = $this->getAttribute($this->getKeyName());
+
+        PaperQueryBuilder::guardSlug((string) $slug);
 
         foreach ($driver->extensions() as $ext) {
             $filepath = $path.'/'.$slug.'.'.$ext;

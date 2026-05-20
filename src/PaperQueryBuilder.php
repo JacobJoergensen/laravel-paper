@@ -17,6 +17,7 @@ use Illuminate\Support\LazyCollection;
 use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
+use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
 
 final class PaperQueryBuilder
 {
@@ -38,8 +39,26 @@ final class PaperQueryBuilder
         private readonly string $modelClass,
     ) {}
 
+    /**
+     * Rejects slugs that would escape the content directory.
+     */
+    public static function guardSlug(string $slug): void
+    {
+        $invalid = $slug === '.'
+            || $slug === '..'
+            || str_contains($slug, '/')
+            || str_contains($slug, '\\')
+            || str_contains($slug, "\0");
+
+        if ($invalid) {
+            throw InvalidSlugException::forSlug($slug);
+        }
+    }
+
     public function find(string $slug): ?Model
     {
+        self::guardSlug($slug);
+
         foreach ($this->driver->extensions() as $ext) {
             $filepath = $this->contentPath.'/'.$slug.'.'.$ext;
 
