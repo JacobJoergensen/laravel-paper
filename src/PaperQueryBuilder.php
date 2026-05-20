@@ -404,6 +404,32 @@ final class PaperQueryBuilder
     }
 
     /**
+     * @return Paginator<int, Model>
+     */
+    public function simplePaginate(int $perPage = 15, ?int $page = null): Paginator
+    {
+        $page ??= Paginator::resolveCurrentPage();
+
+        $originalLimit = $this->limitValue;
+        $originalOffset = $this->offsetValue;
+
+        try {
+            $this->limitValue = null;
+            $this->offsetValue = 0;
+
+            $offset = ($page - 1) * $perPage;
+            $items = $this->lazy()->skip($offset)->take($perPage + 1)->collect();
+
+            return new Paginator($items, $perPage, $page, [
+                'path' => Paginator::resolveCurrentPath(),
+            ]);
+        } finally {
+            $this->limitValue = $originalLimit;
+            $this->offsetValue = $originalOffset;
+        }
+    }
+
+    /**
      * @return Collection<int, Model>
      */
     public function get(): Collection

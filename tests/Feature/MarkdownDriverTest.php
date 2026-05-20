@@ -207,6 +207,16 @@ it('writes save atomically and leaves no temp files behind', function (): void {
         ->and(glob(__DIR__.'/../content/posts/.paper-*') ?: [])->toBeEmpty();
 });
 
+it('reports more pages without counting every record', function (): void {
+    $first = Post::query()->simplePaginate(perPage: 2, page: 1);
+    $second = Post::query()->simplePaginate(perPage: 2, page: 2);
+
+    expect($first)->toHaveCount(2)
+        ->and($first->hasMorePages())->toBeTrue()
+        ->and($second)->toHaveCount(1)
+        ->and($second->hasMorePages())->toBeFalse();
+});
+
 it('creates the content directory when it does not exist', function (): void {
     $dir = __DIR__.'/../content/drafts';
     File::deleteDirectory($dir);

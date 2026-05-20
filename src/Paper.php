@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
@@ -192,6 +193,11 @@ trait Paper
     public static function paginate(int $perPage = 15, ?int $page = null): LengthAwarePaginator
     {
         return static::query()->paginate($perPage, $page);
+    }
+
+    public static function simplePaginate(int $perPage = 15, ?int $page = null): Paginator
+    {
+        return static::query()->simplePaginate($perPage, $page);
     }
 
     public function getKeyName(): string
