@@ -65,3 +65,18 @@ it('validates unique rule with ignore fails for different existing model', funct
 
     expect($validator->fails())->toBeTrue();
 });
+
+it('ignores a record by a custom column', function (): void {
+    $ignored = Validator::make(
+        ['title' => 'Hello World'],
+        ['title' => PaperRule::unique(Post::class, 'title')->ignore(1, 'order')]
+    );
+
+    $notIgnored = Validator::make(
+        ['title' => 'Hello World'],
+        ['title' => PaperRule::unique(Post::class, 'title')->ignore(2, 'order')]
+    );
+
+    expect($ignored->passes())->toBeTrue()
+        ->and($notIgnored->fails())->toBeTrue();
+});

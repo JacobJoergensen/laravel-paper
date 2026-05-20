@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+* Added a column argument to `PaperUniqueRule::ignore` for excluding a record by a column other than the slug
 * Added `whereLike` and `orWhereLike` with an optional case-sensitive flag, matching Laravel semantics
 * Added `firstWhere` to fetch the first record matching a where condition
 * Added `simplePaginate` to paginate without counting every record, reading only the rows the page needs

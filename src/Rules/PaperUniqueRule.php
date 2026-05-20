@@ -12,6 +12,8 @@ final class PaperUniqueRule implements ValidationRule
 {
     private string|int|null $ignore = null;
 
+    private ?string $ignoreColumn = null;
+
     /**
      * @param  class-string<Model>  $model
      */
@@ -20,9 +22,10 @@ final class PaperUniqueRule implements ValidationRule
         private readonly string $column,
     ) {}
 
-    public function ignore(string|int $value): self
+    public function ignore(string|int $value, ?string $column = null): self
     {
         $this->ignore = $value;
+        $this->ignoreColumn = $column;
 
         return $this;
     }
@@ -33,7 +36,8 @@ final class PaperUniqueRule implements ValidationRule
         $query->where($this->column, $value);
 
         if ($this->ignore !== null) {
-            $query->where('slug', '!=', $this->ignore);
+            $column = $this->ignoreColumn ?? (new $this->model)->getKeyName();
+            $query->where($column, '!=', $this->ignore);
         }
 
         if ($query->exists()) {
