@@ -55,8 +55,11 @@ $posts = Post::where('published', true)
 // Find by slug
 $post = Post::where('slug', 'flat-file-blog')->first();
 
-// Filter by tag
+// Filter by tag (whereContains checks membership of an array field)
 $laravelPosts = Post::whereContains('tags', 'laravel')->get();
+
+// Match a substring in a string field
+$intro = Post::whereLike('title', '%hello%')->get();
 ```
 
 Use it in your views:

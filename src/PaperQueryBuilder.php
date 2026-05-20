@@ -147,6 +147,8 @@ final class PaperQueryBuilder
     }
 
     /**
+     * Matches rows where the array field includes the given value.
+     *
      * @param  scalar  $value
      */
     public function whereContains(string $column, mixed $value, string $boolean = 'and'): self
