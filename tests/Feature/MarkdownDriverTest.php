@@ -287,6 +287,26 @@ it('matches across columns with whereAny and whereAll', function (): void {
         ->and(Post::whereAll(['title', 'content'], 'like', '%post%')->count())->toBe(2);
 });
 
+it('filters with whereIn and whereNotIn', function (): void {
+    expect(Post::whereIn('order', [1, 2])->count())->toBe(2)
+        ->and(Post::whereNotIn('order', [1])->count())->toBe(2);
+});
+
+it('filters with whereBetween and whereNotBetween', function (): void {
+    expect(Post::whereBetween('order', [1, 2])->count())->toBe(2)
+        ->and(Post::whereNotBetween('order', [1, 2])->count())->toBe(1);
+});
+
+it('filters with whereNull and whereNotNull', function (): void {
+    expect(Post::whereNull('author_slug')->count())->toBe(2)
+        ->and(Post::whereNotNull('author_slug')->count())->toBe(1);
+});
+
+it('filters with whereContains on an array field', function (): void {
+    expect(Post::whereContains('tags', 'laravel')->count())->toBe(1)
+        ->and(Post::whereContains('tags', 'php')->count())->toBe(0);
+});
+
 it('returns a single column value from the first match', function (): void {
     expect(Post::where('slug', 'hello-world')->value('title'))->toBe('Hello World')
         ->and(Post::where('slug', 'does-not-exist')->value('title'))->toBeNull();
