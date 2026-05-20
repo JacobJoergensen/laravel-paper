@@ -274,6 +274,22 @@ it('reports more pages without counting every record', function (): void {
         ->and($second->hasMorePages())->toBeFalse();
 });
 
+it('saves a model whose slug is "0"', function (): void {
+    $dir = __DIR__.'/../content/drafts';
+    File::deleteDirectory($dir);
+
+    Draft::resetPaperState();
+
+    $draft = new Draft;
+    $draft->slug = '0';
+    $draft->title = 'Zero';
+
+    expect($draft->save())->toBeTrue()
+        ->and(Draft::find('0'))->not->toBeNull();
+
+    File::deleteDirectory($dir);
+});
+
 it('creates the content directory when it does not exist', function (): void {
     $dir = __DIR__.'/../content/drafts';
     File::deleteDirectory($dir);

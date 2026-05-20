@@ -245,13 +245,13 @@ trait Paper
         $class = static::class;
         $driver = static::$paperDrivers[$class];
         $path = static::$paperContentPaths[$class];
-        $slug = $this->getAttribute($this->getKeyName());
+        $slug = (string) $this->getAttribute($this->getKeyName());
 
-        if (empty($slug)) {
+        if ($slug === '') {
             return false;
         }
 
-        PaperQueryBuilder::guardSlug((string) $slug);
+        PaperQueryBuilder::guardSlug($slug);
 
         $isCreating = ! $this->exists;
 
