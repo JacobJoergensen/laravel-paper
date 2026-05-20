@@ -39,3 +39,16 @@ it('throws exception for unreadable file', function (): void {
     $driver = new JsonDriver;
     $driver->parse('/nonexistent/file.json');
 })->throws(FileParseException::class);
+
+it('throws when the json root is not an object', function (): void {
+    $tempFile = tempnam(sys_get_temp_dir(), 'json_');
+    file_put_contents($tempFile, '"just a string"');
+
+    $driver = new JsonDriver;
+
+    try {
+        $driver->parse($tempFile);
+    } finally {
+        unlink($tempFile);
+    }
+})->throws(FileParseException::class);
