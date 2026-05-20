@@ -1,21 +1,24 @@
 # Changelog
 
 ## Unreleased
-* Added `value` for reading a single column from the first match
-* Added `when` for applying query clauses conditionally
-* Added `whereAny`, `orWhereAny`, `whereAll`, and `orWhereAll` for matching a value across multiple columns
+
+## Version 1.9.0 (2026-05-20)
 * Added `DriverRegistry` so custom drivers can be registered with `register()`
 * Added `PaperException` interface implemented by all package exceptions
-* Fixed `save` to sync model state so `isDirty`, `wasChanged`, and `wasRecentlyCreated` are correct afterwards
-* Fixed `save` to accept "0" as a slug instead of rejecting it as empty
+* Added a column argument to `PaperUniqueRule::ignore` for excluding a record by a column other than the slug
+* Added `simplePaginate` to paginate without counting every record, reading only the rows the page needs
+* Added `inRandomOrder` for returning records in random order
+* Added `value` for reading a single column from the first match
+* Added `firstWhere` to fetch the first record matching a where condition
+* Added `when` for applying query clauses conditionally
+* Added `whereAny`, `orWhereAny`, `whereAll`, and `orWhereAll` for matching a value across multiple columns
+* Added `whereLike` and `orWhereLike` with an optional case-sensitive flag, matching Laravel semantics
 * Fixed `delete` to mark the model as no longer existing, matching Eloquent
 * Fixed path traversal in `find`, `save`, and `delete` by validating the slug is a single safe filename segment
-* Added a column argument to `PaperUniqueRule::ignore` for excluding a record by a column other than the slug
-* Added `whereLike` and `orWhereLike` with an optional case-sensitive flag, matching Laravel semantics
-* Added `firstWhere` to fetch the first record matching a where condition
-* Added `simplePaginate` to paginate without counting every record, reading only the rows the page needs
-* Fixed `save` to overwrite the existing file's extension on update instead of writing a duplicate `.md` next to a `.markdown`
+* Fixed `save` to accept "0" as a slug instead of rejecting it as empty
 * Fixed `save` to create the content directory when it is missing instead of failing silently
+* Fixed `save` to overwrite the existing file's extension on update instead of writing a duplicate `.md` next to a `.markdown`
+* Fixed `save` to sync model state so `isDirty`, `wasChanged`, and `wasRecentlyCreated` are correct afterward
 
 ## Version 1.8.0 (2026-04-23)
 * Documented ignored Eloquent-parity parameters on `all`, `find`, `findOrFail`, and `fresh`
