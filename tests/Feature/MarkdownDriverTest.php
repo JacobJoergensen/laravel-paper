@@ -226,6 +226,23 @@ it('rejects unsafe slugs when finding', function (string $slug): void {
     'null byte' => "foo\0bar",
 ]);
 
+it('clears dirty state and records changes after saving', function (): void {
+    $post = new Post;
+    $post->slug = '__save_test__';
+    $post->title = 'First';
+    $post->save();
+
+    expect($post->wasRecentlyCreated)->toBeTrue()
+        ->and($post->isDirty())->toBeFalse();
+
+    $post->title = 'Second';
+    $post->save();
+
+    expect($post->isDirty())->toBeFalse()
+        ->and($post->wasChanged('title'))->toBeTrue()
+        ->and($post->getOriginal('title'))->toBe('Second');
+});
+
 it('marks the model as not existing after a successful delete', function (): void {
     $post = new Post;
     $post->slug = '__save_test__';

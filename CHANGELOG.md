@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+* Fixed `save` to sync model state so `isDirty`, `wasChanged`, and `wasRecentlyCreated` are correct afterwards
 * Fixed `save` to accept "0" as a slug instead of rejecting it as empty
 * Fixed `delete` to mark the model as no longer existing, matching Eloquent
 * Fixed path traversal in `find`, `save`, and `delete` by validating the slug is a single safe filename segment

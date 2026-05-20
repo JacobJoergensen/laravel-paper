@@ -291,8 +291,16 @@ trait Paper
             $this->exists = true;
             $cache->forget($filepath);
 
+            if ($isCreating) {
+                $this->wasRecentlyCreated = true;
+            } else {
+                $this->syncChanges();
+            }
+
             $this->fireModelEvent($isCreating ? 'created' : 'updated', false);
             $this->fireModelEvent('saved', false);
+
+            $this->syncOriginal();
         }
 
         return $success;
