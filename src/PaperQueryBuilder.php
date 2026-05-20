@@ -548,6 +548,21 @@ final class PaperQueryBuilder
     }
 
     /**
+     * @param  (callable(self, mixed): mixed)|null  $callback
+     * @param  (callable(self, mixed): mixed)|null  $default
+     */
+    public function when(mixed $value, ?callable $callback = null, ?callable $default = null): self
+    {
+        $active = $value ? $callback : $default;
+
+        if ($active !== null) {
+            $active($this, $value);
+        }
+
+        return $this;
+    }
+
+    /**
      * @param  array<int, mixed>  $parameters
      */
     public function __call(string $method, array $parameters): self

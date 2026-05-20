@@ -99,6 +99,15 @@ trait Paper
     }
 
     /**
+     * @param  (callable(PaperQueryBuilder, mixed): mixed)|null  $callback
+     * @param  (callable(PaperQueryBuilder, mixed): mixed)|null  $default
+     */
+    public static function when(mixed $value, ?callable $callback = null, ?callable $default = null): PaperQueryBuilder
+    {
+        return static::query()->when($value, $callback, $default);
+    }
+
+    /**
      * @param  array<int, scalar>  $values
      */
     public static function whereIn(string $column, array $values): PaperQueryBuilder

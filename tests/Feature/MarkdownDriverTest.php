@@ -272,6 +272,16 @@ it('rejects path traversal when deleting', function (): void {
     $post->delete();
 })->throws(InvalidSlugException::class);
 
+it('runs the callback when truthy and the default when falsy', function (): void {
+    $whenTrue = Post::query()->when(true, fn ($q) => $q->where('published', true))->count();
+    $whenFalse = Post::query()->when(false, fn ($q) => $q->where('published', true))->count();
+    $withDefault = Post::query()->when(false, fn ($q) => $q->where('published', true), fn ($q) => $q->where('published', false))->count();
+
+    expect($whenTrue)->toBe(2)
+        ->and($whenFalse)->toBe(3)
+        ->and($withDefault)->toBe(1);
+});
+
 it('matches across columns with whereAny and whereAll', function (): void {
     expect(Post::whereAny(['title', 'content'], 'like', '%post%')->count())->toBe(3)
         ->and(Post::whereAll(['title', 'content'], 'like', '%post%')->count())->toBe(2);
