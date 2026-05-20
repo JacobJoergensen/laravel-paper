@@ -1,7 +1,8 @@
 # Changelog
 
 ## Unreleased
-* Fixed `save` would overwrite the existing file's extension on update instead of writing a duplicate `.md` next to a `.markdown`
+* Fixed `save` to overwrite the existing file's extension on update instead of writing a duplicate `.md` next to a `.markdown`
+* Fixed `save` to create the content directory when it is missing instead of failing silently
 
 ## Version 1.8.0 (2026-04-23)
 * Documented ignored Eloquent-parity parameters on `all`, `find`, `findOrFail`, and `fresh`

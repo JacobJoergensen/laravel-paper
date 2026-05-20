@@ -5,7 +5,9 @@ declare(strict_types=1);
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\MultipleRecordsFoundException;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\File;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Author;
+use JacobJoergensen\LaravelPaper\Tests\Fixtures\Draft;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 
 beforeEach(function (): void {
@@ -203,6 +205,23 @@ it('writes save atomically and leaves no temp files behind', function (): void {
     expect($written)->not->toBeNull()
         ->and($written->title)->toBe('Atomic Write')
         ->and(glob(__DIR__.'/../content/posts/.paper-*') ?: [])->toBeEmpty();
+});
+
+it('creates the content directory when it does not exist', function (): void {
+    $dir = __DIR__.'/../content/drafts';
+    File::deleteDirectory($dir);
+
+    Draft::resetPaperState();
+
+    $draft = new Draft;
+    $draft->slug = 'first-draft';
+    $draft->title = 'First Draft';
+
+    expect($draft->save())->toBeTrue()
+        ->and(is_dir($dir))->toBeTrue()
+        ->and(Draft::find('first-draft'))->not->toBeNull();
+
+    File::deleteDirectory($dir);
 });
 
 it('overwrites the existing .markdown file instead of creating a duplicate', function (): void {

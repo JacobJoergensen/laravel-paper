@@ -246,6 +246,8 @@ trait Paper
         $filepath = $this->paperFilepath($path, $slug, $driver, $isCreating);
         $content = $driver->serialize($this->getAttributes());
 
+        app(Filesystem::class)->ensureDirectoryExists($path);
+
         $tempPath = @tempnam(dirname($filepath), '.paper-');
 
         if ($tempPath === false) {
