@@ -31,6 +31,8 @@ final class PaperQueryBuilder
 
     private int $offsetValue = 0;
 
+    private bool $randomOrder = false;
+
     public function __construct(
         private readonly Filesystem $files,
         private readonly DriverContract $driver,
@@ -354,6 +356,13 @@ final class PaperQueryBuilder
         return $this->orderBy($column);
     }
 
+    public function inRandomOrder(): self
+    {
+        $this->randomOrder = true;
+
+        return $this;
+    }
+
     public function limit(int $value): self
     {
         $this->limitValue = $value;
@@ -593,7 +602,7 @@ final class PaperQueryBuilder
     {
         $files = $this->scanFiles();
 
-        if ($this->orders !== []) {
+        if ($this->orders !== [] || $this->randomOrder) {
             yield from $this->yieldOrdered($files);
 
             return;
@@ -629,6 +638,10 @@ final class PaperQueryBuilder
                 SORT_REGULAR,
                 $order['direction'] === 'desc'
             );
+        }
+
+        if ($this->randomOrder) {
+            $models = $models->shuffle();
         }
 
         if ($this->offsetValue > 0) {

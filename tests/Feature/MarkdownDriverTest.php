@@ -308,6 +308,15 @@ it('filters with whereContains on an array field', function (): void {
         ->and(Post::whereContains('tags', 'php')->count())->toBe(0);
 });
 
+it('returns every record when ordered randomly', function (): void {
+    $random = Post::inRandomOrder()->get();
+    $all = Post::all();
+
+    expect($random->pluck('slug')->sort()->values()->toArray())
+        ->toBe($all->pluck('slug')->sort()->values()->toArray())
+        ->and(Post::inRandomOrder()->limit(2)->get())->toHaveCount(2);
+});
+
 it('returns a single column value from the first match', function (): void {
     expect(Post::where('slug', 'hello-world')->value('title'))->toBe('Hello World')
         ->and(Post::where('slug', 'does-not-exist')->value('title'))->toBeNull();

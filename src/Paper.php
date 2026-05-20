@@ -190,6 +190,11 @@ trait Paper
         return static::query()->oldest($column);
     }
 
+    public static function inRandomOrder(): PaperQueryBuilder
+    {
+        return static::query()->inRandomOrder();
+    }
+
     public static function first(): ?static
     {
         /** @var ?static */
