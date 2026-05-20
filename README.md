@@ -60,6 +60,9 @@ $laravelPosts = Post::whereContains('tags', 'laravel')->get();
 
 // Match a substring in a string field
 $intro = Post::whereLike('title', '%hello%')->get();
+
+// Search a value across multiple columns
+$results = Post::whereAny(['title', 'content'], 'like', '%flat-file%')->get();
 ```
 
 Use it in your views:

@@ -129,6 +129,22 @@ trait Paper
         return static::query()->orWhereLike($column, $value, $caseSensitive);
     }
 
+    /**
+     * @param  array<int, string>  $columns
+     */
+    public static function whereAny(array $columns, mixed $operator = null, mixed $value = null): PaperQueryBuilder
+    {
+        return static::query()->whereAny($columns, $operator, $value);
+    }
+
+    /**
+     * @param  array<int, string>  $columns
+     */
+    public static function whereAll(array $columns, mixed $operator = null, mixed $value = null): PaperQueryBuilder
+    {
+        return static::query()->whereAll($columns, $operator, $value);
+    }
+
     public static function whereNull(string $column): PaperQueryBuilder
     {
         return static::query()->whereNull($column);

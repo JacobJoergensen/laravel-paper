@@ -272,6 +272,11 @@ it('rejects path traversal when deleting', function (): void {
     $post->delete();
 })->throws(InvalidSlugException::class);
 
+it('matches across columns with whereAny and whereAll', function (): void {
+    expect(Post::whereAny(['title', 'content'], 'like', '%post%')->count())->toBe(3)
+        ->and(Post::whereAll(['title', 'content'], 'like', '%post%')->count())->toBe(2);
+});
+
 it('returns the first record matching a where condition', function (): void {
     $post = Post::firstWhere('slug', 'hello-world');
 

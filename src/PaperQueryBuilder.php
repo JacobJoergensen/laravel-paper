@@ -208,6 +208,54 @@ final class PaperQueryBuilder
         return $this->whereLike($column, $value, $caseSensitive, 'or');
     }
 
+    /**
+     * @param  array<int, string>  $columns
+     * @param  ?scalar  $operator
+     * @param  ?scalar  $value
+     */
+    public function whereAny(array $columns, mixed $operator = null, mixed $value = null, string $boolean = 'and'): self
+    {
+        return $this->where(function (self $query) use ($columns, $operator, $value): void {
+            foreach ($columns as $column) {
+                $query->orWhere($column, $operator, $value);
+            }
+        }, boolean: $boolean);
+    }
+
+    /**
+     * @param  array<int, string>  $columns
+     * @param  ?scalar  $operator
+     * @param  ?scalar  $value
+     */
+    public function orWhereAny(array $columns, mixed $operator = null, mixed $value = null): self
+    {
+        return $this->whereAny($columns, $operator, $value, 'or');
+    }
+
+    /**
+     * @param  array<int, string>  $columns
+     * @param  ?scalar  $operator
+     * @param  ?scalar  $value
+     */
+    public function whereAll(array $columns, mixed $operator = null, mixed $value = null, string $boolean = 'and'): self
+    {
+        return $this->where(function (self $query) use ($columns, $operator, $value): void {
+            foreach ($columns as $column) {
+                $query->where($column, $operator, $value);
+            }
+        }, boolean: $boolean);
+    }
+
+    /**
+     * @param  array<int, string>  $columns
+     * @param  ?scalar  $operator
+     * @param  ?scalar  $value
+     */
+    public function orWhereAll(array $columns, mixed $operator = null, mixed $value = null): self
+    {
+        return $this->whereAll($columns, $operator, $value, 'or');
+    }
+
     public function whereNull(string $column, string $boolean = 'and'): self
     {
         $this->wheres[] = [
