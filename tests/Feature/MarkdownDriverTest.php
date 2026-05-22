@@ -124,6 +124,13 @@ it('can use local scopes', function (): void {
         ->and($posts->pluck('published')->unique()->toArray())->toBe([true]);
 });
 
+it('resolves protected scopes declared with the #[Scope] attribute', function (): void {
+    $posts = Post::query()->withOrder(2)->get();
+
+    expect($posts)->toHaveCount(1)
+        ->and($posts->first()->slug)->toBe('second-post');
+});
+
 it('can resolve belongsTo relationship', function (): void {
     $post = Post::find('hello-world');
     $author = $post->author();

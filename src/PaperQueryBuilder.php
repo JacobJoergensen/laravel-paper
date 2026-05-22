@@ -6,6 +6,7 @@ namespace JacobJoergensen\LaravelPaper;
 
 use BadMethodCallException;
 use Generator;
+use Illuminate\Database\Eloquent\Attributes\Scope as ScopeAttribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\MultipleRecordsFoundException;
@@ -18,6 +19,7 @@ use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
+use ReflectionMethod;
 
 final class PaperQueryBuilder
 {
@@ -581,18 +583,39 @@ final class PaperQueryBuilder
      */
     public function __call(string $method, array $parameters): self
     {
-        $scope = 'scope'.ucfirst($method);
+        $scope = $this->resolveScope($method);
 
-        if (method_exists($this->modelClass, $scope)) {
-            $model = new $this->modelClass;
-            $model->{$scope}($this, ...$parameters);
-
-            return $this;
+        if ($scope === null) {
+            throw new BadMethodCallException(
+                sprintf('Method %s::%s does not exist.', self::class, $method)
+            );
         }
 
-        throw new BadMethodCallException(
-            sprintf('Method %s::%s does not exist.', self::class, $method)
-        );
+        $model = new $this->modelClass;
+        $scope->invoke($model, $this, ...$parameters);
+
+        return $this;
+    }
+
+    private function resolveScope(string $method): ?ReflectionMethod
+    {
+        $prefixed = 'scope'.ucfirst($method);
+
+        if (method_exists($this->modelClass, $prefixed)) {
+            return new ReflectionMethod($this->modelClass, $prefixed);
+        }
+
+        if (! method_exists($this->modelClass, $method)) {
+            return null;
+        }
+
+        $reflection = new ReflectionMethod($this->modelClass, $method);
+
+        if ($reflection->getAttributes(ScopeAttribute::class) === []) {
+            return null;
+        }
+
+        return $reflection;
     }
 
     /**

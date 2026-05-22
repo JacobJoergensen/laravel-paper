@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+* Added support for query scopes declared with Laravel's `#[Scope]` attribute, including protected methods
 
 ## Version 1.9.0 (2026-05-20)
 * Added `DriverRegistry` so custom drivers can be registered with `register()`
