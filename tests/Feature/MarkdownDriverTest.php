@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\MultipleRecordsFoundException;
 use Illuminate\Pagination\Paginator;
@@ -146,7 +147,7 @@ it('excludes attributes declared with the #[Hidden] attribute from the array for
     expect($post->toArray())
         ->toHaveKey('title')
         ->not->toHaveKey('order');
-});
+})->skip(! class_exists(Hidden::class), 'The #[Hidden] attribute requires Laravel 13.');
 
 it('fires lifecycle events to observers registered with #[ObservedBy]', function (): void {
     PostObserver::$events = [];
