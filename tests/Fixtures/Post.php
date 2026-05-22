@@ -23,6 +23,9 @@ final class Post extends Model
 {
     use Paper;
 
+    /** @var list<string> */
+    protected $guarded = [];
+
     /**
      * @return array<string, string>
      */

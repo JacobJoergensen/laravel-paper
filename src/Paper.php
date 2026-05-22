@@ -16,6 +16,7 @@ use JacobJoergensen\LaravelPaper\Attributes\Driver;
 use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
+use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
 use ReflectionClass;
 
 /**
@@ -251,6 +252,58 @@ trait Paper
         return static::query()->simplePaginate($perPage, $page);
     }
 
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    public static function create(array $attributes = []): static
+    {
+        $model = new static;
+        $model->fill($attributes);
+
+        $slug = (string) $model->getAttribute($model->getKeyName());
+
+        if ($slug === '') {
+            throw InvalidSlugException::missing();
+        }
+
+        $model->save();
+
+        return $model;
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     * @param  array<string, mixed>  $values
+     */
+    public static function firstOrCreate(array $attributes, array $values = []): static
+    {
+        $existing = static::firstWhereAttributes($attributes);
+
+        if ($existing !== null) {
+            return $existing;
+        }
+
+        return static::create(array_merge($attributes, $values));
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     * @param  array<string, mixed>  $values
+     */
+    public static function updateOrCreate(array $attributes, array $values = []): static
+    {
+        $existing = static::firstWhereAttributes($attributes);
+
+        if ($existing !== null) {
+            $existing->fill($values);
+            $existing->save();
+
+            return $existing;
+        }
+
+        return static::create(array_merge($attributes, $values));
+    }
+
     public function getKeyName(): string
     {
         return 'slug';
@@ -477,5 +530,20 @@ trait Paper
     private static function resolveDriver(string $name): DriverContract
     {
         return app(DriverRegistry::class)->resolve($name);
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    private static function firstWhereAttributes(array $attributes): ?static
+    {
+        $query = static::query();
+
+        foreach ($attributes as $column => $value) {
+            $query->where($column, $value);
+        }
+
+        /** @var ?static */
+        return $query->first();
     }
 }

@@ -180,6 +180,41 @@ it('writes array-cast attributes as native structures, not JSON strings', functi
         ->and(Post::find('__save_test__cast')->tags)->toBe(['php', 'laravel']);
 });
 
+it('creates a record with create()', function (): void {
+    $post = Post::create([
+        'slug' => '__save_test__created',
+        'title' => 'Created',
+    ]);
+
+    expect($post->exists)->toBeTrue()
+        ->and(Post::find('__save_test__created')->title)->toBe('Created');
+});
+
+it('throws when creating without a slug', function (): void {
+    Post::create(['title' => 'No Slug']);
+})->throws(InvalidSlugException::class);
+
+it('returns the existing record or creates one with firstOrCreate', function (): void {
+    $existing = Post::firstOrCreate(['slug' => 'hello-world'], ['title' => 'Ignored']);
+
+    expect($existing->title)->toBe('Hello World');
+
+    $created = Post::firstOrCreate(['slug' => '__save_test__foc'], ['title' => 'Made']);
+
+    expect($created->title)->toBe('Made')
+        ->and(Post::find('__save_test__foc'))->not->toBeNull();
+});
+
+it('updates the existing record or creates one with updateOrCreate', function (): void {
+    $created = Post::updateOrCreate(['slug' => '__save_test__uoc'], ['title' => 'First']);
+
+    expect($created->title)->toBe('First');
+
+    Post::updateOrCreate(['slug' => '__save_test__uoc'], ['title' => 'Second']);
+
+    expect(Post::find('__save_test__uoc')->title)->toBe('Second');
+});
+
 it('can resolve belongsTo relationship', function (): void {
     $post = Post::find('hello-world');
     $author = $post->author();

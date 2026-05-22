@@ -3,6 +3,9 @@
 ## Unreleased
 * Added support for query scopes declared with Laravel's `#[Scope]` attribute, including protected methods
 * Added support for the `#[CollectedBy]` attribute so queries return the model's custom collection
+* Added `create` for saving a new record from an attribute array
+* Added `firstOrCreate` to return the first matching record or create it
+* Added `updateOrCreate` to update the first matching record or create it
 * Fixed `array`, `json`, `object`, and `collection` casts so they read from and write to flat files as native structures
 
 ## Version 1.9.0 (2026-05-20)

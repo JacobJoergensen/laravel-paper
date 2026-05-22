@@ -14,4 +14,9 @@ final class InvalidSlugException extends InvalidArgumentException implements Pap
             "The slug '$slug' is not a valid filename. It must be a single segment without slashes, '..', or null bytes."
         );
     }
+
+    public static function missing(): self
+    {
+        return new self('A slug is required to create a record.');
+    }
 }
