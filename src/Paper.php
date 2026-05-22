@@ -395,6 +395,23 @@ trait Paper
         return $success;
     }
 
+    public function saveQuietly(array $options = []): bool
+    {
+        $dispatcher = static::getEventDispatcher();
+
+        if ($dispatcher !== null) {
+            static::unsetEventDispatcher();
+        }
+
+        try {
+            return $this->save($options);
+        } finally {
+            if ($dispatcher !== null) {
+                static::setEventDispatcher($dispatcher);
+            }
+        }
+    }
+
     /**
      * @param  array<int, string>|string  $with  Ignored, kept for Eloquent parity.
      */

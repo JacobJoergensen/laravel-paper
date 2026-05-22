@@ -161,6 +161,18 @@ it('fires lifecycle events to observers registered with #[ObservedBy]', function
     expect(PostObserver::$events)->toBe(['created', 'deleted']);
 });
 
+it('does not fire events when saved with saveQuietly', function (): void {
+    PostObserver::$events = [];
+
+    $post = new Post;
+    $post->slug = '__save_test__quiet';
+    $post->title = 'Quiet';
+    $post->saveQuietly();
+
+    expect(PostObserver::$events)->toBe([])
+        ->and(Post::find('__save_test__quiet'))->not->toBeNull();
+});
+
 it('reads a hand-authored YAML list into an array-cast attribute', function (): void {
     $post = Post::find('hello-world');
 
