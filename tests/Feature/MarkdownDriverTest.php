@@ -173,6 +173,19 @@ it('does not fire events when saved with saveQuietly', function (): void {
         ->and(Post::find('__save_test__quiet'))->not->toBeNull();
 });
 
+it('does not fire events when deleted with deleteQuietly', function (): void {
+    $post = new Post;
+    $post->slug = '__save_test__quietdelete';
+    $post->title = 'Quiet Delete';
+    $post->save();
+
+    PostObserver::$events = [];
+    $post->deleteQuietly();
+
+    expect(PostObserver::$events)->toBe([])
+        ->and(Post::find('__save_test__quietdelete'))->toBeNull();
+});
+
 it('reads a hand-authored YAML list into an array-cast attribute', function (): void {
     $post = Post::find('hello-world');
 

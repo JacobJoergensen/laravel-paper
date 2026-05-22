@@ -397,19 +397,7 @@ trait Paper
 
     public function saveQuietly(array $options = []): bool
     {
-        $dispatcher = static::getEventDispatcher();
-
-        if ($dispatcher !== null) {
-            static::unsetEventDispatcher();
-        }
-
-        try {
-            return $this->save($options);
-        } finally {
-            if ($dispatcher !== null) {
-                static::setEventDispatcher($dispatcher);
-            }
-        }
+        return $this->quietly(fn (): bool => $this->save($options));
     }
 
     /**
@@ -505,6 +493,31 @@ trait Paper
         }
 
         return false;
+    }
+
+    public function deleteQuietly(): bool
+    {
+        return $this->quietly(fn (): bool => $this->delete());
+    }
+
+    /**
+     * @param  callable(): bool  $callback
+     */
+    private function quietly(callable $callback): bool
+    {
+        $dispatcher = static::getEventDispatcher();
+
+        if ($dispatcher !== null) {
+            static::unsetEventDispatcher();
+        }
+
+        try {
+            return $callback();
+        } finally {
+            if ($dispatcher !== null) {
+                static::setEventDispatcher($dispatcher);
+            }
+        }
     }
 
     private function paperFilepath(string $directory, string $slug, DriverContract $driver, bool $isCreating): string

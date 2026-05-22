@@ -7,6 +7,7 @@
 * Added `firstOrCreate` to return the first matching record or create it
 * Added `updateOrCreate` to update the first matching record or create it
 * Added `saveQuietly` to persist a record without firing model events
+* Added `deleteQuietly` to delete a record without firing model events
 * Fixed `array`, `json`, `object`, and `collection` casts so they read from and write to flat files as native structures
 
 ## Version 1.9.0 (2026-05-20)
