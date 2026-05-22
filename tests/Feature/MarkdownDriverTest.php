@@ -12,6 +12,7 @@ use JacobJoergensen\LaravelPaper\Tests\Fixtures\Author;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Draft;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\PostCollection;
+use JacobJoergensen\LaravelPaper\Tests\Fixtures\PostObserver;
 
 beforeEach(function (): void {
     Post::resetPaperState();
@@ -139,6 +140,45 @@ it('returns the collection declared with the #[CollectedBy] attribute', function
         ->and($posts->published())->toHaveCount(2);
 });
 
+it('excludes attributes declared with the #[Hidden] attribute from the array form', function (): void {
+    $post = Post::find('hello-world');
+
+    expect($post->toArray())
+        ->toHaveKey('title')
+        ->not->toHaveKey('order');
+});
+
+it('fires lifecycle events to observers registered with #[ObservedBy]', function (): void {
+    PostObserver::$events = [];
+
+    $post = new Post;
+    $post->slug = '__save_test__observed';
+    $post->title = 'Observed';
+    $post->save();
+    $post->delete();
+
+    expect(PostObserver::$events)->toBe(['created', 'deleted']);
+});
+
+it('reads a hand-authored YAML list into an array-cast attribute', function (): void {
+    $post = Post::find('hello-world');
+
+    expect($post->tags)->toBe(['laravel', 'markdown']);
+});
+
+it('writes array-cast attributes as native structures, not JSON strings', function (): void {
+    $post = new Post;
+    $post->slug = '__save_test__cast';
+    $post->title = 'Cast';
+    $post->tags = ['php', 'laravel'];
+    $post->save();
+
+    $raw = file_get_contents(__DIR__.'/../content/posts/__save_test__cast.md');
+
+    expect($raw)->toContain('- php')->not->toContain('["')
+        ->and(Post::find('__save_test__cast')->tags)->toBe(['php', 'laravel']);
+});
+
 it('can resolve belongsTo relationship', function (): void {
     $post = Post::find('hello-world');
     $author = $post->author();
@@ -225,12 +265,10 @@ it('writes save atomically and leaves no temp files behind', function (): void {
 });
 
 it('matches with whereLike and respects case sensitivity', function (): void {
-    expect(Post::whereLike('title', '%post%')->count())->toBe(2);
-
-    expect(Post::whereLike('title', '%post%', caseSensitive: true)->count())->toBe(0)
-        ->and(Post::whereLike('title', '%Post%', caseSensitive: true)->count())->toBe(2);
-
-    expect(Post::whereLike('title', 'Hello')->count())->toBe(0)
+    expect(Post::whereLike('title', '%post%')->count())->toBe(2)
+        ->and(Post::whereLike('title', '%post%', caseSensitive: true)->count())->toBe(0)
+        ->and(Post::whereLike('title', '%Post%', caseSensitive: true)->count())->toBe(2)
+        ->and(Post::whereLike('title', 'Hello')->count())->toBe(0)
         ->and(Post::whereLike('title', 'Hello World')->count())->toBe(1);
 });
 
@@ -341,9 +379,9 @@ it('returns the first record matching a where condition', function (): void {
     $post = Post::firstWhere('slug', 'hello-world');
 
     expect($post)->not->toBeNull()
-        ->and($post->slug)->toBe('hello-world');
+        ->and($post->slug)->toBe('hello-world')
+        ->and(Post::firstWhere('slug', 'does-not-exist'))->toBeNull();
 
-    expect(Post::firstWhere('slug', 'does-not-exist'))->toBeNull();
 });
 
 it('reports more pages without counting every record', function (): void {

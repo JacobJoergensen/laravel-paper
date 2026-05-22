@@ -743,7 +743,8 @@ final class PaperQueryBuilder
 
         /** @var Model $model */
         $model = new $this->modelClass;
-        $model->setRawAttributes($data, true);
+        $attributes = PaperCasts::fromStorage($model, $data);
+        $model->setRawAttributes($attributes, true);
         $model->exists = true;
 
         return $model;

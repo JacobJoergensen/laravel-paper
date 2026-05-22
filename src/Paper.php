@@ -303,7 +303,8 @@ trait Paper
         }
 
         $filepath = $this->paperFilepath($path, $slug, $driver, $isCreating);
-        $content = $driver->serialize($this->getAttributes());
+        $attributes = PaperCasts::toStorage($this, $this->getAttributes());
+        $content = $driver->serialize($attributes);
 
         app(Filesystem::class)->ensureDirectoryExists($path);
 
