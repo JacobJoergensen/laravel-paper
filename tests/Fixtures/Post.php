@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper\Tests\Fixtures;
 
+use Illuminate\Database\Eloquent\Attributes\CollectedBy;
 use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Model;
 use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
@@ -13,6 +14,7 @@ use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 
 #[Driver('markdown')]
 #[ContentPath('tests/content/posts')]
+#[CollectedBy(PostCollection::class)]
 final class Post extends Model
 {
     use Paper;

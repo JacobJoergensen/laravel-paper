@@ -11,6 +11,7 @@ use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Author;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Draft;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
+use JacobJoergensen\LaravelPaper\Tests\Fixtures\PostCollection;
 
 beforeEach(function (): void {
     Post::resetPaperState();
@@ -129,6 +130,13 @@ it('resolves protected scopes declared with the #[Scope] attribute', function ()
 
     expect($posts)->toHaveCount(1)
         ->and($posts->first()->slug)->toBe('second-post');
+});
+
+it('returns the collection declared with the #[CollectedBy] attribute', function (): void {
+    $posts = Post::all();
+
+    expect($posts)->toBeInstanceOf(PostCollection::class)
+        ->and($posts->published())->toHaveCount(2);
 });
 
 it('can resolve belongsTo relationship', function (): void {

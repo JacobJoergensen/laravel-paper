@@ -550,7 +550,12 @@ final class PaperQueryBuilder
             ->map(fn (string $filepath): Model => $this->fileToModel($filepath))
             ->filter(fn (Model $model): bool => $this->matchesWheres($model));
 
-        return $this->applyOrdersAndLimits($models);
+        $results = $this->applyOrdersAndLimits($models);
+
+        /** @var Model $instance */
+        $instance = new $this->modelClass;
+
+        return $instance->newCollection($results->all());
     }
 
     /**
