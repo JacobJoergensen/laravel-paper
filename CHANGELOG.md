@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## Version 1.10.0 (2026-05-22)
 * Added support for query scopes declared with Laravel's `#[Scope]` attribute, including protected methods
 * Added support for the `#[CollectedBy]` attribute so queries return the model's custom collection
 * Added `create` for saving a new record from an attribute array
