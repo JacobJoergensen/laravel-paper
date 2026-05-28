@@ -8,12 +8,15 @@ use Illuminate\Contracts\Cache\Repository;
 use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
 use Psr\SimpleCache\InvalidArgumentException;
 
-final readonly class FileModificationCache implements CacheContract
+final class FileModificationCache implements CacheContract
 {
     private const string PREFIX = 'paper:';
 
+    /** @var array<string, array{mtime: int, data: array<string, mixed>}> */
+    private array $memo = [];
+
     public function __construct(
-        private Repository $cache,
+        private readonly Repository $cache,
     ) {}
 
     /**
@@ -29,14 +32,33 @@ final readonly class FileModificationCache implements CacheContract
             return null;
         }
 
+        $memoed = $this->memo[$filepath] ?? null;
+
+        if ($memoed !== null && $memoed['mtime'] >= $mtime) {
+            return $memoed['data'];
+        }
+
         $cached = $this->cache->get($this->key($filepath));
 
-        if (! is_array($cached) || ($cached['mtime'] ?? 0) < $mtime) {
+        if (! is_array($cached)) {
             return null;
         }
 
-        /** @var ?array<string, mixed> */
-        return $cached['data'] ?? null;
+        $cachedMtime = is_int($cached['mtime'] ?? null) ? $cached['mtime'] : 0;
+
+        if ($cachedMtime < $mtime) {
+            return null;
+        }
+
+        /** @var array<string, mixed> $data */
+        $data = $cached['data'] ?? [];
+
+        $this->memo[$filepath] = [
+            'mtime' => $cachedMtime,
+            'data' => $data,
+        ];
+
+        return $data;
     }
 
     /**
@@ -44,6 +66,11 @@ final readonly class FileModificationCache implements CacheContract
      */
     public function set(string $filepath, array $data, int $mtime): void
     {
+        $this->memo[$filepath] = [
+            'mtime' => $mtime,
+            'data' => $data,
+        ];
+
         $this->cache->forever($this->key($filepath), [
             'mtime' => $mtime,
             'data' => $data,
@@ -52,6 +79,8 @@ final readonly class FileModificationCache implements CacheContract
 
     public function forget(string $filepath): void
     {
+        unset($this->memo[$filepath]);
+
         $this->cache->forget($this->key($filepath));
     }
 

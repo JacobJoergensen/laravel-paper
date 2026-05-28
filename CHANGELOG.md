@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+* Added in-process memo to FileModificationCache to avoid repeated cache lookups within the same request
 
 ## Version 1.10.0 (2026-05-22)
 * Added support for query scopes declared with Laravel's `#[Scope]` attribute, including protected methods
