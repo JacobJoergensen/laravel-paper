@@ -50,8 +50,12 @@ final class FileModificationCache implements CacheContract
             return null;
         }
 
-        /** @var array<string, mixed> $data */
-        $data = $cached['data'] ?? [];
+        /** @var ?array<string, mixed> $data */
+        $data = $cached['data'] ?? null;
+
+        if ($data === null) {
+            return null;
+        }
 
         $this->memo[$filepath] = [
             'mtime' => $cachedMtime,
@@ -66,15 +70,10 @@ final class FileModificationCache implements CacheContract
      */
     public function set(string $filepath, array $data, int $mtime): void
     {
-        $this->memo[$filepath] = [
-            'mtime' => $mtime,
-            'data' => $data,
-        ];
+        $entry = ['mtime' => $mtime, 'data' => $data];
 
-        $this->cache->forever($this->key($filepath), [
-            'mtime' => $mtime,
-            'data' => $data,
-        ]);
+        $this->memo[$filepath] = $entry;
+        $this->cache->forever($this->key($filepath), $entry);
     }
 
     public function forget(string $filepath): void
