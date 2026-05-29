@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\MultipleRecordsFoundException;
@@ -148,6 +149,19 @@ it('excludes attributes declared with the #[Hidden] attribute from the array for
         ->toHaveKey('title')
         ->not->toHaveKey('order');
 })->skip(! class_exists(Hidden::class), 'The #[Hidden] attribute requires Laravel 13.');
+
+it('accepts only attributes listed in #[Fillable] when filling from an array', function (): void {
+    $post = new Post;
+    $post->fill([
+        'slug' => 'allowed',
+        'title' => 'Allowed',
+        'secret' => 'Dropped',
+    ]);
+
+    expect($post->slug)->toBe('allowed')
+        ->and($post->title)->toBe('Allowed')
+        ->and($post->secret)->toBeNull();
+})->skip(! class_exists(Fillable::class), 'The #[Fillable] attribute requires Laravel 13.');
 
 it('fires lifecycle events to observers registered with #[ObservedBy]', function (): void {
     PostObserver::$events = [];
