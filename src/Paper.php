@@ -11,50 +11,25 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
-use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
-use JacobJoergensen\LaravelPaper\Attributes\Driver;
 use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
-use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
-use ReflectionClass;
+use JacobJoergensen\LaravelPaper\Relations\BelongsToPaper;
+use JacobJoergensen\LaravelPaper\Relations\HasManyPaper;
 
 /**
  * @mixin Model
  */
 trait Paper
 {
-    /** @var array<class-string, DriverContract> */
-    protected static array $paperDrivers = [];
-
-    /** @var array<class-string, string> */
-    protected static array $paperContentPaths = [];
-
-    public static function bootPaper(): void
-    {
-        static::resolveAttributes();
-    }
-
     public static function resetPaperState(): void
     {
-        unset(self::$paperDrivers[static::class]);
-        unset(self::$paperContentPaths[static::class]);
+        PaperQueryBuilder::forgetCache(static::class);
     }
 
     public static function query(): PaperQueryBuilder
     {
-        static::resolveAttributes();
-
-        /** @var class-string<Model> $class */
-        $class = static::class;
-
-        return new PaperQueryBuilder(
-            app(Filesystem::class),
-            static::$paperDrivers[$class],
-            app(CacheContract::class),
-            static::$paperContentPaths[$class],
-            $class,
-        );
+        return PaperQueryBuilder::forModel(static::class);
     }
 
     /**
@@ -253,6 +228,14 @@ trait Paper
     }
 
     /**
+     * @param  array<int, string>|string  $relations
+     */
+    public static function with($relations): PaperQueryBuilder
+    {
+        return static::query()->with(is_string($relations) ? func_get_args() : $relations);
+    }
+
+    /**
      * @param  array<string, mixed>  $attributes
      */
     public static function create(array $attributes = []): static
@@ -326,13 +309,11 @@ trait Paper
 
     public function save(array $options = []): bool
     {
-        static::resolveAttributes();
-
         $cache = app(CacheContract::class);
 
-        $class = static::class;
-        $driver = static::$paperDrivers[$class];
-        $path = static::$paperContentPaths[$class];
+        $resolved = PaperQueryBuilder::resolveFor(static::class);
+        $driver = $resolved['driver'];
+        $path = $resolved['contentPath'];
         $slug = (string) $this->getAttribute($this->getKeyName());
 
         if ($slug === '') {
@@ -425,43 +406,27 @@ trait Paper
     }
 
     /**
-     * @template TRelated of Model
-     *
-     * @param  class-string<TRelated>  $related
-     * @return ?TRelated
+     * @param  class-string<Model>  $related
      */
-    protected function belongsToPaper(string $related, ?string $foreignKey = null): ?Model
+    protected function belongsToPaper(string $related, ?string $foreignKey = null): BelongsToPaper
     {
         $foreignKey ??= Str::snake(class_basename($related)).'_slug';
-        $key = $this->getAttribute($foreignKey);
 
-        if ($key === null) {
-            return null;
-        }
-
-        return $related::find($key);
+        return new BelongsToPaper($this, $related, $foreignKey);
     }
 
     /**
-     * Reads every related file on each call. Recommended to not use this in a loop.
-     *
-     * @template TRelated of Model
-     *
-     * @param  class-string<TRelated>  $related
-     * @return Collection<int, TRelated>
+     * @param  class-string<Model>  $related
      */
-    protected function hasManyPaper(string $related, ?string $foreignKey = null): Collection
+    protected function hasManyPaper(string $related, ?string $foreignKey = null): HasManyPaper
     {
         $foreignKey ??= Str::snake(class_basename(static::class)).'_slug';
-        $key = $this->getAttribute($this->getKeyName());
 
-        return $related::where($foreignKey, $key)->get();
+        return new HasManyPaper($this, $related, $foreignKey);
     }
 
     public function delete(): bool
     {
-        static::resolveAttributes();
-
         if ($this->fireModelEvent('deleting') === false) {
             return false;
         }
@@ -469,9 +434,9 @@ trait Paper
         $files = app(Filesystem::class);
         $cache = app(CacheContract::class);
 
-        $class = static::class;
-        $driver = static::$paperDrivers[$class];
-        $path = static::$paperContentPaths[$class];
+        $resolved = PaperQueryBuilder::resolveFor(static::class);
+        $driver = $resolved['driver'];
+        $path = $resolved['contentPath'];
         $slug = $this->getAttribute($this->getKeyName());
 
         PaperQueryBuilder::guardSlug((string) $slug);
@@ -535,31 +500,6 @@ trait Paper
         }
 
         return $directory.'/'.$slug.'.'.$extensions[0];
-    }
-
-    private static function resolveAttributes(): void
-    {
-        $class = static::class;
-
-        if (isset(static::$paperDrivers[$class], static::$paperContentPaths[$class])) {
-            return;
-        }
-
-        $reflection = new ReflectionClass($class);
-
-        $driverAttribute = $reflection->getAttributes(Driver::class)[0] ?? null;
-        $pathAttribute = $reflection->getAttributes(ContentPath::class)[0] ?? null;
-
-        $driverName = $driverAttribute?->newInstance()->name ?? 'markdown';
-        $contentPath = $pathAttribute?->newInstance()->path ?? 'content';
-
-        static::$paperDrivers[$class] = static::resolveDriver($driverName);
-        static::$paperContentPaths[$class] = base_path($contentPath);
-    }
-
-    private static function resolveDriver(string $name): DriverContract
-    {
-        return app(DriverRegistry::class)->resolve($name);
     }
 
     /**

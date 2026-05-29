@@ -15,10 +15,15 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\LazyCollection;
+use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
+use JacobJoergensen\LaravelPaper\Attributes\Driver;
 use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
+use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
 use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
+use JacobJoergensen\LaravelPaper\Relations\PaperRelation;
+use ReflectionClass;
 use ReflectionMethod;
 
 final class PaperQueryBuilder
@@ -35,6 +40,15 @@ final class PaperQueryBuilder
 
     private bool $randomOrder = false;
 
+    /** @var list<string> */
+    private array $with = [];
+
+    /** @var array<class-string<Model>, DriverContract> */
+    private static array $driverCache = [];
+
+    /** @var array<class-string<Model>, string> */
+    private static array $contentPathCache = [];
+
     public function __construct(
         private readonly Filesystem $files,
         private readonly DriverContract $driver,
@@ -42,6 +56,62 @@ final class PaperQueryBuilder
         private readonly string $contentPath,
         private readonly string $modelClass,
     ) {}
+
+    /**
+     * @param  class-string<Model>  $modelClass
+     */
+    public static function forModel(string $modelClass): self
+    {
+        $resolved = self::resolveFor($modelClass);
+
+        return new self(
+            app(Filesystem::class),
+            $resolved['driver'],
+            app(CacheContract::class),
+            $resolved['contentPath'],
+            $modelClass,
+        );
+    }
+
+    /**
+     * @param  class-string<Model>  $modelClass
+     * @return array{driver: DriverContract, contentPath: string}
+     */
+    public static function resolveFor(string $modelClass): array
+    {
+        if (! isset(self::$driverCache[$modelClass])) {
+            $reflection = new ReflectionClass($modelClass);
+
+            $driverAttribute = $reflection->getAttributes(Driver::class)[0] ?? null;
+            $pathAttribute = $reflection->getAttributes(ContentPath::class)[0] ?? null;
+
+            $driverName = $driverAttribute?->newInstance()->name ?? 'markdown';
+            $contentPath = $pathAttribute?->newInstance()->path ?? 'content';
+
+            self::$driverCache[$modelClass] = app(DriverRegistry::class)->resolve($driverName);
+            self::$contentPathCache[$modelClass] = base_path($contentPath);
+        }
+
+        return [
+            'driver' => self::$driverCache[$modelClass],
+            'contentPath' => self::$contentPathCache[$modelClass],
+        ];
+    }
+
+    /**
+     * @param  ?class-string<Model>  $modelClass
+     */
+    public static function forgetCache(?string $modelClass = null): void
+    {
+        if ($modelClass === null) {
+            self::$driverCache = [];
+            self::$contentPathCache = [];
+
+            return;
+        }
+
+        unset(self::$driverCache[$modelClass], self::$contentPathCache[$modelClass]);
+    }
 
     /**
      * Rejects slugs that would escape the content directory.
@@ -67,7 +137,13 @@ final class PaperQueryBuilder
             $filepath = $this->contentPath.'/'.$slug.'.'.$ext;
 
             if ($this->files->exists($filepath)) {
-                return $this->fileToModel($filepath);
+                $model = $this->fileToModel($filepath);
+
+                if ($this->with !== []) {
+                    $this->eagerLoadRelations(collect([$model]));
+                }
+
+                return $model;
             }
         }
 
@@ -389,9 +465,29 @@ final class PaperQueryBuilder
         return $this->offset($value);
     }
 
+    /**
+     * @param  array<int, string>|string  $relations
+     */
+    public function with($relations): self
+    {
+        $relations = is_string($relations) ? func_get_args() : $relations;
+
+        foreach ($relations as $relation) {
+            if (! is_string($relation)) {
+                continue;
+            }
+
+            if (! in_array($relation, $this->with, true)) {
+                $this->with[] = $relation;
+            }
+        }
+
+        return $this;
+    }
+
     public function first(): ?Model
     {
-        if ($this->orders === []) {
+        if ($this->orders === [] && $this->with === []) {
             return $this->lazy()->first();
         }
 
@@ -555,7 +651,11 @@ final class PaperQueryBuilder
         /** @var Model $instance */
         $instance = new $this->modelClass;
 
-        return $instance->newCollection($results->all());
+        $collection = $instance->newCollection($results->all());
+
+        $this->eagerLoadRelations($collection);
+
+        return $collection;
     }
 
     /**
@@ -763,6 +863,41 @@ final class PaperQueryBuilder
         $this->cache->set($filepath, $data, (int) filemtime($filepath));
 
         return $data;
+    }
+
+    /**
+     * @param  Collection<int, Model>  $models
+     */
+    private function eagerLoadRelations(Collection $models): void
+    {
+        if ($this->with === [] || $models->isEmpty()) {
+            return;
+        }
+
+        $first = $models->first();
+
+        foreach ($this->with as $name) {
+            if (! method_exists($first, $name)) {
+                throw new BadMethodCallException(
+                    sprintf('Relation %s::%s does not exist.', $first::class, $name)
+                );
+            }
+
+            $relation = $first->{$name}();
+
+            if (! $relation instanceof PaperRelation) {
+                throw new BadMethodCallException(
+                    sprintf(
+                        'Relation %s::%s must return %s for eager loading.',
+                        $first::class,
+                        $name,
+                        PaperRelation::class,
+                    )
+                );
+            }
+
+            $relation->eagerLoad($models, $name);
+        }
     }
 
     /**

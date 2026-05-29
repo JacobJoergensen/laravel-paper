@@ -2,6 +2,11 @@
 
 ## Unreleased
 * Added in-process memo to FileModificationCache to avoid repeated cache lookups within the same request
+* Added `with` for eager loading relations, batching reads to avoid N+1 in loops
+* Added `PaperRelation` abstract base for relation descriptors, with `BelongsToPaper` and `HasManyPaper` as concrete types exposing `getResults()` for lazy resolution and property access after eager loading
+* Changed `belongsToPaper` and `hasManyPaper` to return relation descriptors; call ->getResults() for direct resolution or use with() to eager load
+* Moved driver and content path resolution to PaperQueryBuilder as a single shared cache
+* Removed `bootPaper`, resolution is now lazy on first query
 
 ## Version 1.10.0 (2026-05-22)
 * Added support for query scopes declared with Laravel's `#[Scope]` attribute, including protected methods

@@ -13,6 +13,7 @@ use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
 use JacobJoergensen\LaravelPaper\Attributes\Driver;
 use JacobJoergensen\LaravelPaper\Paper;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
+use JacobJoergensen\LaravelPaper\Relations\BelongsToPaper;
 
 #[Driver('markdown')]
 #[ContentPath('tests/content/posts')]
@@ -45,7 +46,7 @@ final class Post extends Model
         return $query->where('order', $order);
     }
 
-    public function author(): ?Author
+    public function author(): BelongsToPaper
     {
         return $this->belongsToPaper(Author::class);
     }
