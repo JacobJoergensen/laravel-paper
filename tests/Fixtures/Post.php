@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace JacobJoergensen\LaravelPaper\Tests\Fixtures;
 
 use Illuminate\Database\Eloquent\Attributes\CollectedBy;
+use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Attributes\Scope;
@@ -17,6 +18,7 @@ use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 #[Driver('markdown')]
 #[ContentPath('tests/content/posts')]
 #[CollectedBy(PostCollection::class)]
+#[Fillable(['slug', 'title'])]
 #[Hidden(['order'])]
 #[ObservedBy(PostObserver::class)]
 final class Post extends Model
