@@ -28,8 +28,5 @@ jobs:
       - name: Install Dependencies
         uses: ramsey/composer-install@v4
 
-      - name: Run PHPStan
-        run: composer lint
-
-      - name: Check Formatting
-        run: composer fmt:check
+      - name: Run Checks
+        run: composer test
