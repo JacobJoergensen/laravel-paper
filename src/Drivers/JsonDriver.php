@@ -20,22 +20,16 @@ final readonly class JsonDriver implements DriverContract
     /**
      * @return array<string, mixed>
      */
-    public function parse(string $filepath): array
+    public function parse(string $contents): array
     {
-        $content = @file_get_contents($filepath);
-
-        if ($content === false) {
-            throw FileParseException::unreadable($filepath);
-        }
-
-        $data = json_decode($content, true);
+        $data = json_decode($contents, true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
-            throw FileParseException::invalidJson($filepath, json_last_error_msg());
+            throw FileParseException::invalidJson(json_last_error_msg());
         }
 
         if (! is_array($data)) {
-            throw FileParseException::invalidJson($filepath, 'Root must be an object');
+            throw FileParseException::invalidJson('Root must be an object');
         }
 
         /** @var array<string, mixed> */

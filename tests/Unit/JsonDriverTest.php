@@ -11,11 +11,11 @@ it('returns correct extensions', function (): void {
     expect($driver->extensions())->toBe(['json']);
 });
 
-it('parses json file', function (): void {
-    $filepath = __DIR__.'/../content/pages/about.json';
+it('parses json contents', function (): void {
+    $contents = file_get_contents(__DIR__.'/../content/pages/about.json');
     $driver = new JsonDriver;
 
-    $data = $driver->parse($filepath);
+    $data = $driver->parse($contents);
 
     expect($data)
         ->toHaveKey('title', 'About Us')
@@ -23,32 +23,9 @@ it('parses json file', function (): void {
 });
 
 it('throws exception for invalid json', function (): void {
-    $tempFile = tempnam(sys_get_temp_dir(), 'json_');
-    file_put_contents($tempFile, '{ invalid json }');
-
-    $driver = new JsonDriver;
-
-    try {
-        $driver->parse($tempFile);
-    } finally {
-        unlink($tempFile);
-    }
-})->throws(FileParseException::class);
-
-it('throws exception for unreadable file', function (): void {
-    $driver = new JsonDriver;
-    $driver->parse('/nonexistent/file.json');
+    new JsonDriver()->parse('{ invalid json }');
 })->throws(FileParseException::class);
 
 it('throws when the json root is not an object', function (): void {
-    $tempFile = tempnam(sys_get_temp_dir(), 'json_');
-    file_put_contents($tempFile, '"just a string"');
-
-    $driver = new JsonDriver;
-
-    try {
-        $driver->parse($tempFile);
-    } finally {
-        unlink($tempFile);
-    }
+    new JsonDriver()->parse('"just a string"');
 })->throws(FileParseException::class);

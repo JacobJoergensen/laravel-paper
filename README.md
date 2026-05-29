@@ -286,6 +286,28 @@ public function boot(): void
 
 Then point a model at it with `#[Driver('yaml')]`.
 
+## Storage Disks
+
+By default, Paper stores files on the local filesystem under your project's `base_path()`. To use any disk configured in `config/filesystems.php` instead, add the `#[Disk]` attribute:
+
+```php
+#[Driver('markdown')]
+#[ContentPath('articles')]
+#[Disk('s3')]
+class Article extends Model
+{
+    use Paper;
+}
+```
+
+With `#[Disk]` set, the content path is resolved relative to the disk root (no `base_path()` prefix). All reads, writes, and listings go through `Storage::disk(...)`.
+
+Two caveats worth knowing before you point Paper at a remote disk:
+
+**No atomic writes on remote disks.** The local adapter writes through a temp file and atomic rename, so a crash mid-write leaves the previous file intact. Remote disks (S3 et al.) use a single `put()` call. A failed write can leave a partial object. This is a physical limitation of remote object stores, not a bug.
+
+**Cache staleness checks are slower on remote disks.** Paper checks file modification time on every cached read to detect changes. On local FS that's a microsecond syscall; on S3 it's a `HeadObject` API call (tens of milliseconds, billed per request). If you have hot content on a remote disk, expect noticeably more latency than the local case. Increasing the underlying Laravel cache TTL helps if your content rarely changes.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for filing bugs and submitting PRs.

@@ -6,6 +6,7 @@ namespace JacobJoergensen\LaravelPaper;
 
 use BadMethodCallException;
 use Generator;
+use Illuminate\Contracts\Filesystem\Factory as StorageFactory;
 use Illuminate\Database\Eloquent\Attributes\Scope as ScopeAttribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -16,13 +17,18 @@ use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\LazyCollection;
 use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
+use JacobJoergensen\LaravelPaper\Attributes\Disk;
 use JacobJoergensen\LaravelPaper\Attributes\Driver;
 use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
+use JacobJoergensen\LaravelPaper\Contracts\StorageAdapterContract;
 use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
 use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
+use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
 use JacobJoergensen\LaravelPaper\Relations\PaperRelation;
+use JacobJoergensen\LaravelPaper\StorageAdapters\DiskAdapter;
+use JacobJoergensen\LaravelPaper\StorageAdapters\LocalAdapter;
 use ReflectionClass;
 use ReflectionMethod;
 
@@ -49,8 +55,11 @@ final class PaperQueryBuilder
     /** @var array<class-string<Model>, string> */
     private static array $contentPathCache = [];
 
+    /** @var array<class-string<Model>, StorageAdapterContract> */
+    private static array $adapterCache = [];
+
     public function __construct(
-        private readonly Filesystem $files,
+        private readonly StorageAdapterContract $adapter,
         private readonly DriverContract $driver,
         private readonly CacheContract $cache,
         private readonly string $contentPath,
@@ -65,7 +74,7 @@ final class PaperQueryBuilder
         $resolved = self::resolveFor($modelClass);
 
         return new self(
-            app(Filesystem::class),
+            $resolved['adapter'],
             $resolved['driver'],
             app(CacheContract::class),
             $resolved['contentPath'],
@@ -75,7 +84,7 @@ final class PaperQueryBuilder
 
     /**
      * @param  class-string<Model>  $modelClass
-     * @return array{driver: DriverContract, contentPath: string}
+     * @return array{driver: DriverContract, contentPath: string, adapter: StorageAdapterContract}
      */
     public static function resolveFor(string $modelClass): array
     {
@@ -84,17 +93,28 @@ final class PaperQueryBuilder
 
             $driverAttribute = $reflection->getAttributes(Driver::class)[0] ?? null;
             $pathAttribute = $reflection->getAttributes(ContentPath::class)[0] ?? null;
+            $diskAttribute = $reflection->getAttributes(Disk::class)[0] ?? null;
 
             $driverName = $driverAttribute?->newInstance()->name ?? 'markdown';
             $contentPath = $pathAttribute?->newInstance()->path ?? 'content';
+            $diskName = $diskAttribute?->newInstance()->name;
 
             self::$driverCache[$modelClass] = app(DriverRegistry::class)->resolve($driverName);
-            self::$contentPathCache[$modelClass] = base_path($contentPath);
+
+            if ($diskName === null) {
+                self::$adapterCache[$modelClass] = new LocalAdapter(app(Filesystem::class));
+                self::$contentPathCache[$modelClass] = base_path($contentPath);
+            } else {
+                $disk = app(StorageFactory::class)->disk($diskName);
+                self::$adapterCache[$modelClass] = new DiskAdapter($disk, $diskName);
+                self::$contentPathCache[$modelClass] = $contentPath;
+            }
         }
 
         return [
             'driver' => self::$driverCache[$modelClass],
             'contentPath' => self::$contentPathCache[$modelClass],
+            'adapter' => self::$adapterCache[$modelClass],
         ];
     }
 
@@ -106,11 +126,16 @@ final class PaperQueryBuilder
         if ($modelClass === null) {
             self::$driverCache = [];
             self::$contentPathCache = [];
+            self::$adapterCache = [];
 
             return;
         }
 
-        unset(self::$driverCache[$modelClass], self::$contentPathCache[$modelClass]);
+        unset(
+            self::$driverCache[$modelClass],
+            self::$contentPathCache[$modelClass],
+            self::$adapterCache[$modelClass],
+        );
     }
 
     /**
@@ -136,7 +161,7 @@ final class PaperQueryBuilder
         foreach ($this->driver->extensions() as $ext) {
             $filepath = $this->contentPath.'/'.$slug.'.'.$ext;
 
-            if ($this->files->exists($filepath)) {
+            if ($this->adapter->exists($filepath)) {
                 $model = $this->fileToModel($filepath);
 
                 if ($this->with !== []) {
@@ -187,7 +212,7 @@ final class PaperQueryBuilder
 
     private function whereGroup(callable $callback, string $boolean): self
     {
-        $nested = new self($this->files, $this->driver, $this->cache, $this->contentPath, $this->modelClass);
+        $nested = new self($this->adapter, $this->driver, $this->cache, $this->contentPath, $this->modelClass);
         $callback($nested);
 
         $this->wheres[] = [
@@ -468,7 +493,7 @@ final class PaperQueryBuilder
     /**
      * @param  array<int, string>|string  $relations
      */
-    public function with($relations): self
+    public function with(array|string $relations): self
     {
         $relations = is_string($relations) ? func_get_args() : $relations;
 
@@ -819,19 +844,11 @@ final class PaperQueryBuilder
      */
     private function scanFiles(): Collection
     {
-        if (! $this->files->isDirectory($this->contentPath)) {
+        try {
+            return collect($this->adapter->list($this->contentPath, $this->driver->extensions()));
+        } catch (ContentPathNotFoundException) {
             throw ContentPathNotFoundException::forPath($this->contentPath, $this->modelClass);
         }
-
-        $matches = [];
-
-        foreach ($this->driver->extensions() as $extension) {
-            $found = $this->files->glob($this->contentPath.'/*.'.$extension) ?: [];
-            $matches = array_merge($matches, $found);
-        }
-
-        /** @var Collection<int, string> */
-        return collect($matches);
     }
 
     private function fileToModel(string $filepath): Model
@@ -855,12 +872,22 @@ final class PaperQueryBuilder
      */
     private function loadFileData(string $filepath): array
     {
-        if (($cached = $this->cache->getIfFresh($filepath)) !== null) {
+        $mtime = $this->adapter->lastModified($filepath) ?? 0;
+        $cacheKey = $this->adapter->cacheKey($filepath);
+
+        if (($cached = $this->cache->getIfFresh($cacheKey, $mtime)) !== null) {
             return $cached;
         }
 
-        $data = $this->driver->parse($filepath);
-        $this->cache->set($filepath, $data, (int) filemtime($filepath));
+        $contents = $this->adapter->read($filepath) ?? '';
+
+        try {
+            $data = $this->driver->parse($contents);
+        } catch (FileParseException $e) {
+            throw FileParseException::inFile($filepath, $e);
+        }
+
+        $this->cache->set($cacheKey, $data, $mtime);
 
         return $data;
     }

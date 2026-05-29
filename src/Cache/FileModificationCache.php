@@ -24,14 +24,8 @@ final class FileModificationCache implements CacheContract
      *
      * @throws InvalidArgumentException
      */
-    public function getIfFresh(string $filepath): ?array
+    public function getIfFresh(string $filepath, int $mtime): ?array
     {
-        $mtime = @filemtime($filepath);
-
-        if ($mtime === false) {
-            return null;
-        }
-
         $memoed = $this->memo[$filepath] ?? null;
 
         if ($memoed !== null && $memoed['mtime'] >= $mtime) {

@@ -6,13 +6,13 @@ namespace JacobJoergensen\LaravelPaper;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Illuminate\Filesystem\Filesystem;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
+use JacobJoergensen\LaravelPaper\Contracts\StorageAdapterContract;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
 use JacobJoergensen\LaravelPaper\Relations\BelongsToPaper;
 use JacobJoergensen\LaravelPaper\Relations\HasManyPaper;
@@ -314,6 +314,7 @@ trait Paper
         $resolved = PaperQueryBuilder::resolveFor(static::class);
         $driver = $resolved['driver'];
         $path = $resolved['contentPath'];
+        $adapter = $resolved['adapter'];
         $slug = (string) $this->getAttribute($this->getKeyName());
 
         if ($slug === '') {
@@ -336,30 +337,17 @@ trait Paper
             return false;
         }
 
-        $filepath = $this->paperFilepath($path, $slug, $driver, $isCreating);
+        $filepath = $this->paperFilepath($path, $slug, $driver, $isCreating, $adapter);
         $attributes = PaperCasts::toStorage($this, $this->getAttributes());
         $content = $driver->serialize($attributes);
 
-        app(Filesystem::class)->ensureDirectoryExists($path);
+        $adapter->ensureDirectoryExists($path);
 
-        $tempPath = @tempnam(dirname($filepath), '.paper-');
-
-        if ($tempPath === false) {
-            return false;
-        }
-
-        @chmod($tempPath, 0666 & ~umask());
-
-        $success = @file_put_contents($tempPath, $content) !== false
-            && @rename($tempPath, $filepath);
-
-        if (! $success) {
-            @unlink($tempPath);
-        }
+        $success = $adapter->write($filepath, $content);
 
         if ($success) {
             $this->exists = true;
-            $cache->forget($filepath);
+            $cache->forget($adapter->cacheKey($filepath));
 
             if ($isCreating) {
                 $this->wasRecentlyCreated = true;
@@ -431,12 +419,12 @@ trait Paper
             return false;
         }
 
-        $files = app(Filesystem::class);
         $cache = app(CacheContract::class);
 
         $resolved = PaperQueryBuilder::resolveFor(static::class);
         $driver = $resolved['driver'];
         $path = $resolved['contentPath'];
+        $adapter = $resolved['adapter'];
         $slug = $this->getAttribute($this->getKeyName());
 
         PaperQueryBuilder::guardSlug((string) $slug);
@@ -444,9 +432,9 @@ trait Paper
         foreach ($driver->extensions() as $ext) {
             $filepath = $path.'/'.$slug.'.'.$ext;
 
-            if ($files->exists($filepath)) {
-                $cache->forget($filepath);
-                $deleted = $files->delete($filepath);
+            if ($adapter->exists($filepath)) {
+                $cache->forget($adapter->cacheKey($filepath));
+                $deleted = $adapter->delete($filepath);
 
                 if ($deleted) {
                     $this->exists = false;
@@ -485,7 +473,7 @@ trait Paper
         }
     }
 
-    private function paperFilepath(string $directory, string $slug, DriverContract $driver, bool $isCreating): string
+    private function paperFilepath(string $directory, string $slug, DriverContract $driver, bool $isCreating, StorageAdapterContract $adapter): string
     {
         $extensions = $driver->extensions();
 
@@ -493,7 +481,7 @@ trait Paper
             foreach ($extensions as $extension) {
                 $existing = $directory.'/'.$slug.'.'.$extension;
 
-                if (is_file($existing)) {
+                if ($adapter->exists($existing)) {
                     return $existing;
                 }
             }

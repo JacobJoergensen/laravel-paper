@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use JacobJoergensen\LaravelPaper\Drivers\MarkdownDriver;
-use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
 
 it('returns correct extensions', function (): void {
     $driver = new MarkdownDriver;
@@ -12,10 +11,10 @@ it('returns correct extensions', function (): void {
 });
 
 it('parses frontmatter and content', function (): void {
-    $filepath = __DIR__.'/../content/posts/hello-world.md';
+    $contents = file_get_contents(__DIR__.'/../content/posts/hello-world.md');
     $driver = new MarkdownDriver;
 
-    $data = $driver->parse($filepath);
+    $data = $driver->parse($contents);
 
     expect($data)
         ->toHaveKey('title', 'Hello World')
@@ -23,19 +22,9 @@ it('parses frontmatter and content', function (): void {
         ->toHaveKey('content');
 });
 
-it('handles files without frontmatter', function (): void {
-    $tempFile = tempnam(sys_get_temp_dir(), 'md_');
-    file_put_contents($tempFile, 'Just content, no frontmatter.');
-
+it('handles content without frontmatter', function (): void {
     $driver = new MarkdownDriver;
-    $data = $driver->parse($tempFile);
-
-    unlink($tempFile);
+    $data = $driver->parse('Just content, no frontmatter.');
 
     expect($data)->toBe(['content' => 'Just content, no frontmatter.']);
 });
-
-it('throws exception for unreadable file', function (): void {
-    $driver = new MarkdownDriver;
-    $driver->parse('/nonexistent/file.md');
-})->throws(FileParseException::class);

@@ -8,17 +8,16 @@ use RuntimeException;
 
 final class FileParseException extends RuntimeException implements PaperException
 {
-    public static function invalidJson(string $filepath, string $error): self
+    public static function invalidJson(string $error): self
     {
-        return new self(
-            "Failed to parse JSON file '$filepath': $error"
-        );
+        return new self("Failed to parse JSON: $error");
     }
 
-    public static function unreadable(string $filepath): self
+    public static function inFile(string $filepath, self $previous): self
     {
         return new self(
-            "Cannot read file '$filepath'. Ensure the file exists and is readable."
+            "Failed to parse file '$filepath': {$previous->getMessage()}",
+            previous: $previous,
         );
     }
 }

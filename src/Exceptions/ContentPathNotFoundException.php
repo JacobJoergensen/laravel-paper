@@ -8,10 +8,12 @@ use RuntimeException;
 
 final class ContentPathNotFoundException extends RuntimeException implements PaperException
 {
-    public static function forPath(string $path, string $model): self
+    public static function forPath(string $path, ?string $model = null): self
     {
+        $suffix = $model !== null ? " for model $model" : '';
+
         return new self(
-            "Content path '$path' not found for model $model. Ensure the directory exists and is readable."
+            "Content path '$path' not found$suffix. Ensure the directory exists and is readable."
         );
     }
 }
