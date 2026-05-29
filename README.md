@@ -1,34 +1,24 @@
 # Laravel Paper
 
-Laravel-Paper is a Laravel package that adds flat-file driver support for Eloquent. It supports Markdown and JSON files and works with Laravel 12+ on PHP 8.4+.
+[![Latest Version](https://img.shields.io/packagist/v/jacobjoergensen/laravel-paper.svg)](https://packagist.org/packages/jacobjoergensen/laravel-paper)
+[![Tests](https://github.com/JacobJoergensen/laravel-paper/actions/workflows/tests.yml/badge.svg)](https://github.com/JacobJoergensen/laravel-paper/actions)
+[![License](https://img.shields.io/github/license/JacobJoergensen/laravel-paper)](LICENSE)
 
-## Why Laravel-Paper?
+Laravel Paper is a Laravel package that adds flat-file driver support for Eloquent. It supports Markdown and JSON files and works with Laravel 12+ on PHP 8.4+.
+
+## Why Laravel Paper?
 
 Two PHP 8 attributes and a trait. No custom database connection, no schema, your flat files use Eloquent's familiar query API.
 
 ## Get Started
-To get started run the following command in your project
 
 ```sh
 composer require jacobjoergensen/laravel-paper
 ```
 
-## Quick Example
+## Defining a Model
 
-Put your Markdown files in `content/posts/`:
-
-```markdown
----
-title: Building a Blog with Flat Files
-published: true
-date: 2024-03-15
-tags: [laravel, markdown]
----
-
-Your Markdown content goes here...
-```
-
-Create a new model:
+Put files in a content directory and point a model at it:
 
 ```php
 use Illuminate\Database\Eloquent\Model;
@@ -42,6 +32,23 @@ class Post extends Model
 {
     use Paper;
 }
+```
+
+The filename without extension becomes the slug, which is the primary key.
+
+## Markdown Example
+
+A post:
+
+```markdown
+---
+title: Building a Blog with Flat Files
+published: true
+date: 2024-03-15
+tags: [laravel, markdown]
+---
+
+Your Markdown content goes here...
 ```
 
 Query it like any other Eloquent model:
@@ -103,45 +110,9 @@ $team = TeamMember::all();
 $devs = TeamMember::where('role', 'Developer')->get();
 ```
 
-## Custom Drivers
+## File Naming and Slugs
 
-Markdown and JSON ship by default. To support another format, implement `DriverContract` and register it in a service provider:
-
-```php
-use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
-use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
-
-final class YamlDriver implements DriverContract
-{
-    public function extensions(): array
-    {
-        return ['yaml', 'yml'];
-    }
-
-    public function parse(string $filepath): array
-    {
-        // return the file's data as an array
-    }
-
-    public function serialize(array $data): string
-    {
-        // return the file contents to write
-    }
-}
-```
-
-```php
-public function boot(): void
-{
-    app(DriverRegistry::class)->register('yaml', YamlDriver::class);
-}
-```
-
-Then point a model at it with `#[Driver('yaml')]`.
-
-## File Naming
-
-The filename (without extension) becomes the model's `slug`:
+The filename (without extension) is the slug:
 
 ```
 content/posts/
@@ -165,7 +136,7 @@ permalink: /blog/2024/hello-world
 
 ## Writing
 
-Paper models save and delete files using the standard Eloquent API.
+Paper models save and delete files using the standard Eloquent API:
 
 ```php
 $post = new Post();
@@ -181,6 +152,48 @@ $post->delete();
 ```
 
 Save and delete fire the usual model events.
+
+For attribute-array creation:
+
+```php
+Post::create([
+    'slug' => 'hello-world',
+    'title' => 'Hello World',
+]);
+
+Post::firstOrCreate(
+    ['slug' => 'hello-world'],
+    ['title' => 'Hello World'],
+);
+
+Post::updateOrCreate(
+    ['slug' => 'hello-world'],
+    ['title' => 'Updated title'],
+);
+```
+
+To save or delete without firing events:
+
+```php
+$post->saveQuietly();
+$post->deleteQuietly();
+```
+
+To reload from disk, `fresh()` returns a new instance and `refresh()` updates the current one in place:
+
+```php
+$fresh = $post->fresh();
+$post->refresh();
+```
+
+## Pagination
+
+```php
+$posts = Post::paginate(15);
+$posts = Post::simplePaginate(15);
+```
+
+Use `simplePaginate` for large directories where the count is expensive, and you don't need a total.
 
 ## Relationships
 
@@ -237,6 +250,46 @@ To skip the current record on update:
 PaperRule::unique(Post::class)->ignore($post->slug);
 ```
 
+## Custom Drivers
+
+Markdown and JSON ship by default. To support another format, implement `DriverContract` and register it in a service provider:
+
+```php
+use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
+use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
+
+final class YamlDriver implements DriverContract
+{
+    public function extensions(): array
+    {
+        return ['yaml', 'yml'];
+    }
+
+    public function parse(string $filepath): array
+    {
+        // return the file's data as an array
+    }
+
+    public function serialize(array $data): string
+    {
+        // return the file contents to write
+    }
+}
+```
+
+```php
+public function boot(): void
+{
+    app(DriverRegistry::class)->register('yaml', YamlDriver::class);
+}
+```
+
+Then point a model at it with `#[Driver('yaml')]`.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for filing bugs and submitting PRs.
+
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE.md) file for details.
+MIT. See [LICENSE](LICENSE.md).
