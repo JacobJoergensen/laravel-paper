@@ -5,10 +5,9 @@ declare(strict_types=1);
 use Illuminate\Support\Facades\Storage;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Article;
-use JacobJoergensen\LaravelPaper\Tests\Fixtures\Mirror;
 
 beforeEach(function (): void {
-    PaperQueryBuilder::forgetCache();
+    PaperQueryBuilder::forgetCache(Article::class);
     Storage::fake('paper');
 });
 
@@ -40,14 +39,4 @@ it('lists only files with the driver extension on the disk', function (): void {
 
     expect($articles)->toHaveCount(2)
         ->and($articles->pluck('slug')->sort()->values()->toArray())->toBe(['one', 'two']);
-});
-
-it('does not share cached data between disks with the same path and slug', function (): void {
-    Storage::fake('mirror');
-
-    Storage::disk('paper')->put('articles/shared.md', "---\ntitle: From paper\n---\n");
-    Storage::disk('mirror')->put('articles/shared.md', "---\ntitle: From mirror\n---\n");
-
-    expect(Article::find('shared')->title)->toBe('From paper')
-        ->and(Mirror::find('shared')->title)->toBe('From mirror');
 });

@@ -37,3 +37,10 @@ it('returns an empty list for a missing directory instead of throwing', function
 it('returns null for lastModified when the file is missing', function (): void {
     expect($this->adapter->lastModified('missing.md'))->toBeNull();
 });
+
+it('namespaces the cache key by disk so identical paths do not collide', function (): void {
+    $other = new DiskAdapter(Storage::disk('paper'), 'backup');
+
+    expect($this->adapter->cacheKey('articles/post.md'))
+        ->not->toBe($other->cacheKey('articles/post.md'));
+});
