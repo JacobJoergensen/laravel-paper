@@ -156,7 +156,13 @@ final class PaperQueryBuilder
 
     public function find(string $slug): ?Model
     {
-        return $this->locate($slug);
+        $model = $this->locate($slug);
+
+        if ($model !== null && $this->with !== []) {
+            $this->eagerLoadRelations(collect([$model]));
+        }
+
+        return $model;
     }
 
     /**
@@ -178,7 +184,11 @@ final class PaperQueryBuilder
         /** @var Model $instance */
         $instance = new $this->modelClass;
 
-        return $instance->newCollection($models);
+        $collection = $instance->newCollection($models);
+
+        $this->eagerLoadRelations($collection);
+
+        return $collection;
     }
 
     private function locate(string $slug): ?Model
@@ -189,13 +199,7 @@ final class PaperQueryBuilder
             $filepath = $this->contentPath.'/'.$slug.'.'.$ext;
 
             if ($this->adapter->exists($filepath)) {
-                $model = $this->fileToModel($filepath);
-
-                if ($this->with !== []) {
-                    $this->eagerLoadRelations(collect([$model]));
-                }
-
-                return $model;
+                return $this->fileToModel($filepath);
             }
         }
 

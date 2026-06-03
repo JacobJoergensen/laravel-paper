@@ -30,6 +30,14 @@ it('attaches children grouped by parent and an empty collection when there are n
         ->and($jane->posts)->toHaveCount(0);
 });
 
+it('eager loads relations across every model returned by findMany', function (): void {
+    $posts = Post::with('author')->findMany(['hello-world', 'draft-post']);
+
+    expect($posts->every(fn (Post $post): bool => $post->relationLoaded('author')))->toBeTrue()
+        ->and($posts->firstWhere('slug', 'hello-world')->author->slug)->toBe('john-doe')
+        ->and($posts->firstWhere('slug', 'draft-post')->author)->toBeNull();
+});
+
 it('throws when with references a missing method', function (): void {
     Post::with('nonexistent')->get();
 })->throws(BadMethodCallException::class);
