@@ -825,6 +825,16 @@ final class PaperQueryBuilder
 
         /** @var Model $model */
         $model = new $this->modelClass;
+
+        if ($model->usesTimestamps()) {
+            $column = $model->getUpdatedAtColumn();
+            $mtime = @filemtime($filepath);
+
+            if ($column !== null && $mtime !== false) {
+                $data[$column] = $mtime;
+            }
+        }
+
         $attributes = PaperCasts::fromStorage($model, $data);
         $model->setRawAttributes($attributes, true);
         $model->exists = true;

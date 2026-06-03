@@ -123,6 +123,7 @@ content/posts/
 
 ```php
 $post = Post::find('hello-world');
+$posts = Post::findMany(['hello-world', 'my-second-post']);
 ```
 
 To change a slug, rename the file. For a URL that differs from the filename, add a frontmatter field and route on that instead:
@@ -151,7 +152,7 @@ $post->save();
 $post->delete();
 ```
 
-Save and delete fire the usual model events.
+Save and delete fire the usual model events, and loading a record fires `retrieved`.
 
 For attribute-array creation:
 
@@ -185,6 +186,31 @@ To reload from disk, `fresh()` returns a new instance and `refresh()` updates th
 $fresh = $post->fresh();
 $post->refresh();
 ```
+
+## Timestamps
+
+Paper models have no timestamps by default. Add `#[Timestamps]` to expose the file's modification time as `updated_at`:
+
+```php
+use JacobJoergensen\LaravelPaper\Attributes\Timestamps;
+
+#[Driver('markdown')]
+#[ContentPath('content/posts')]
+#[Timestamps]
+class Post extends Model
+{
+    use Paper;
+}
+```
+
+```php
+$post = Post::find('hello-world');
+$post->updated_at;                          // Carbon instance from the file's mtime
+
+$recent = Post::latest('updated_at')->get();
+```
+
+`updated_at` comes from the file's mtime and is never written to frontmatter. `created_at` isn't derived; set it in frontmatter if you need it. A Git checkout resets mtimes to the deploy time, so use this for content edited in place and keep a frontmatter `date` for Git-deployed content.
 
 ## Pagination
 

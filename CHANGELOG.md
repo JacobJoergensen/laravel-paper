@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+* Added `#[Timestamps]` attribute to expose a model's file modification time as `updated_at`; `created_at` stays a frontmatter field
 * Added `retrieved` model event, fired for each model a query returns and skipped on `count`, `exists`, `pluck`, and bulk `delete`
 * Added `findMany` for loading multiple records by slug in one call
 * Added `orderByDesc` as a descending order shortcut

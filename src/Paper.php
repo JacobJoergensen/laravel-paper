@@ -13,6 +13,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
 use JacobJoergensen\LaravelPaper\Attributes\Driver;
+use JacobJoergensen\LaravelPaper\Attributes\Timestamps;
 use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
@@ -30,6 +31,9 @@ trait Paper
     /** @var array<class-string, string> */
     protected static array $paperContentPaths = [];
 
+    /** @var array<class-string, bool> */
+    protected static array $paperTimestamps = [];
+
     public static function bootPaper(): void
     {
         static::resolveAttributes();
@@ -39,6 +43,7 @@ trait Paper
     {
         unset(self::$paperDrivers[static::class]);
         unset(self::$paperContentPaths[static::class]);
+        unset(self::$paperTimestamps[static::class]);
     }
 
     public static function query(): PaperQueryBuilder
@@ -331,7 +336,9 @@ trait Paper
 
     public function usesTimestamps(): bool
     {
-        return false;
+        static::resolveAttributes();
+
+        return static::$paperTimestamps[static::class];
     }
 
     public function save(array $options = []): bool
@@ -367,6 +374,11 @@ trait Paper
 
         $filepath = $this->paperFilepath($path, $slug, $driver, $isCreating);
         $attributes = PaperCasts::toStorage($this, $this->getAttributes());
+
+        if ($this->usesTimestamps()) {
+            unset($attributes[$this->getUpdatedAtColumn()]);
+        }
+
         $content = $driver->serialize($attributes);
 
         app(Filesystem::class)->ensureDirectoryExists($path);
@@ -565,6 +577,7 @@ trait Paper
 
         static::$paperDrivers[$class] = static::resolveDriver($driverName);
         static::$paperContentPaths[$class] = base_path($contentPath);
+        static::$paperTimestamps[$class] = $reflection->getAttributes(Timestamps::class) !== [];
     }
 
     private static function resolveDriver(string $name): DriverContract
