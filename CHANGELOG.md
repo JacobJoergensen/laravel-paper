@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+* Added `findMany` for loading multiple records by slug in one call
+* Added `orderByDesc` as a descending order shortcut
 * Added in-process memo to FileModificationCache to avoid repeated cache lookups within the same request
 
 ## Version 1.10.0 (2026-05-22)

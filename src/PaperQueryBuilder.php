@@ -61,6 +61,33 @@ final class PaperQueryBuilder
 
     public function find(string $slug): ?Model
     {
+        return $this->locate($slug);
+    }
+
+    /**
+     * @param  array<int, scalar>  $ids
+     * @return Collection<int, Model>
+     */
+    public function findMany(array $ids): Collection
+    {
+        $models = [];
+
+        foreach (array_unique(array_map(strval(...), $ids)) as $slug) {
+            $model = $this->locate($slug);
+
+            if ($model !== null) {
+                $models[] = $model;
+            }
+        }
+
+        /** @var Model $instance */
+        $instance = new $this->modelClass;
+
+        return $instance->newCollection($models);
+    }
+
+    private function locate(string $slug): ?Model
+    {
         self::guardSlug($slug);
 
         foreach ($this->driver->extensions() as $ext) {
@@ -346,6 +373,11 @@ final class PaperQueryBuilder
         ];
 
         return $this;
+    }
+
+    public function orderByDesc(string $column): self
+    {
+        return $this->orderBy($column, 'desc');
     }
 
     public function latest(string $column = 'created_at'): self

@@ -89,6 +89,16 @@ trait Paper
         return $model;
     }
 
+    /**
+     * @param  array<int, scalar>  $ids
+     * @return Collection<int, static>
+     */
+    public static function findMany(array $ids): Collection
+    {
+        /** @var Collection<int, static> */
+        return static::query()->findMany($ids);
+    }
+
     public static function where(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
     {
         return static::query()->where($column, $operator, $value);
