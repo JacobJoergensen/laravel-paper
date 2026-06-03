@@ -7,6 +7,16 @@
 * Added in-process memo to FileModificationCache to avoid repeated cache lookups within the same request
 * Improved `MarkdownDriver` serialization to keep nested frontmatter in block style for cleaner diffs
 * Fixed `MarkdownDriver` to omit the frontmatter block for content-only models instead of writing an empty `{  }` block
+* Added `with` for eager loading relations, batching reads to avoid N+1 in loops
+* Added `PaperRelation` abstract base for relation descriptors, with `BelongsToPaper` and `HasManyPaper` as concrete types exposing `getResults()` for lazy resolution and property access after eager loading
+* Added `#[Disk]` attribute to point a model at any Laravel filesystem disk; default behavior (local FS) is unchanged when the attribute is absent
+* Added `StorageAdapterContract` with `LocalAdapter` and `DiskAdapter` implementations so reads, writes, listing, and existence checks go through one abstraction
+* Changed `belongsToPaper` and `hasManyPaper` to return relation descriptors; call ->getResults() for direct resolution or use with() to eager load
+* Changed `DriverContract::parse` signature to `parse(string $contents)`; drivers no longer perform I/O, the adapter reads files. `PaperQueryBuilder` wraps format errors with the filepath via `FileParseException::inFile`
+* Changed `CacheContract::getIfFresh` signature to `getIfFresh(string $filepath, int $mtime)`; the caller passes mtime from the adapter
+* Moved driver and content path resolution to PaperQueryBuilder as a single shared cache
+* Removed `bootPaper`, resolution is now lazy on first query
+* Removed `FileParseException::unreadable` since drivers no longer perform I/O
 
 ## Version 1.10.0 (2026-05-22)
 * Added support for query scopes declared with Laravel's `#[Scope]` attribute, including protected methods
