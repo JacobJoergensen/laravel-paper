@@ -9,6 +9,11 @@ final class PostObserver
     /** @var array<int, string> */
     public static array $events = [];
 
+    public function retrieved(Post $post): void
+    {
+        self::$events[] = 'retrieved';
+    }
+
     public function created(Post $post): void
     {
         self::$events[] = 'created';

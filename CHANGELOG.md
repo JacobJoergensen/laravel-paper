@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+* Added `retrieved` model event, fired for each model a query returns and skipped on `count`, `exists`, `pluck`, and bulk `delete`
 * Added `findMany` for loading multiple records by slug in one call
 * Added `orderByDesc` as a descending order shortcut
 * Added in-process memo to FileModificationCache to avoid repeated cache lookups within the same request
