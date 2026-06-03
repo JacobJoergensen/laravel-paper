@@ -523,6 +523,24 @@ final class PaperQueryBuilder
     }
 
     /**
+     * @param  array<string, mixed>  $values
+     */
+    public function update(array $values): int
+    {
+        $updated = 0;
+
+        foreach ($this->getModels() as $model) {
+            $model->forceFill($values);
+
+            if ($model->save()) {
+                $updated++;
+            }
+        }
+
+        return $updated;
+    }
+
+    /**
      * @return Collection<int, mixed>
      */
     public function pluck(string $column): Collection

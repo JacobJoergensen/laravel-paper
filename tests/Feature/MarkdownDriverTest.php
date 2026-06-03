@@ -405,6 +405,22 @@ it('clears dirty state and records changes after saving', function (): void {
         ->and($post->getOriginal('title'))->toBe('Second');
 });
 
+it('mass updates only the records matching the query, bypassing fillable', function (): void {
+    foreach (['a' => 'bulk', 'b' => 'bulk', 'c' => 'other'] as $key => $group) {
+        $post = new Post;
+        $post->slug = "__save_test__bulk_$key";
+        $post->group = $group;
+        $post->status = 'draft';
+        $post->save();
+    }
+
+    $count = Post::where('group', 'bulk')->update(['status' => 'published']);
+
+    expect($count)->toBe(2)
+        ->and(Post::find('__save_test__bulk_a')->status)->toBe('published')
+        ->and(Post::find('__save_test__bulk_c')->status)->toBe('draft');
+});
+
 it('marks the model as not existing after a successful delete', function (): void {
     $post = new Post;
     $post->slug = '__save_test__';
