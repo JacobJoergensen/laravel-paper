@@ -10,12 +10,14 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
+use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
 use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Contracts\StorageAdapterContract;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
 use JacobJoergensen\LaravelPaper\Relations\BelongsToPaper;
 use JacobJoergensen\LaravelPaper\Relations\HasManyPaper;
+use ReflectionClass;
 
 /**
  * @mixin Model
@@ -302,6 +304,13 @@ trait Paper
         return 'slug';
     }
 
+    public function getContentPath(): string
+    {
+        $attribute = (new ReflectionClass(static::class))->getAttributes(ContentPath::class)[0] ?? null;
+
+        return $attribute?->newInstance()->path ?? 'content';
+    }
+
     public function getIncrementing(): bool
     {
         return false;
@@ -323,7 +332,7 @@ trait Paper
 
         $resolved = PaperQueryBuilder::resolveFor(static::class);
         $driver = $resolved['driver'];
-        $path = $resolved['contentPath'];
+        $path = PaperQueryBuilder::contentPathFor(static::class);
         $adapter = $resolved['adapter'];
         $slug = (string) $this->getAttribute($this->getKeyName());
 
@@ -438,7 +447,7 @@ trait Paper
 
         $resolved = PaperQueryBuilder::resolveFor(static::class);
         $driver = $resolved['driver'];
-        $path = $resolved['contentPath'];
+        $path = PaperQueryBuilder::contentPathFor(static::class);
         $adapter = $resolved['adapter'];
         $slug = $this->getAttribute($this->getKeyName());
 

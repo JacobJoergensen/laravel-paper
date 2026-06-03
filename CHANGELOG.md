@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+* Added `getContentPath` so a model can resolve its content directory at runtime, e.g. a per-tenant root; defaults to the `#[ContentPath]` attribute
 * Added `#[Timestamps]` attribute to expose a model's file modification time as `updated_at`; `created_at` stays a frontmatter field
 * Added `retrieved` model event, fired for each model a query returns and skipped on `count`, `exists`, `pluck`, and bulk `delete`
 * Added `findMany` for loading multiple records by slug in one call
@@ -15,7 +16,8 @@
 * Changed `belongsToPaper` and `hasManyPaper` to return relation descriptors; call ->getResults() for direct resolution or use with() to eager load
 * Changed `DriverContract::parse` signature to `parse(string $contents)`; drivers no longer perform I/O, the adapter reads files. `PaperQueryBuilder` wraps format errors with the filepath via `FileParseException::inFile`
 * Changed `CacheContract::getIfFresh` signature to `getIfFresh(string $filepath, int $mtime)`; the caller passes mtime from the adapter
-* Changed `latest` and `oldest` to order by `updated_at` by default instead of `created_at`, so they work out of the box with `#[Timestamps]`
+* Changed `latest` and `oldest` to default to `updated_at`; pairs with `#[Timestamps]` for mtime-based ordering
+* Changed `PaperQueryBuilder::resolveFor` to no longer return the content path; it resolves per call via `getContentPath` so it can vary at runtime
 * Moved driver and content path resolution to PaperQueryBuilder as a single shared cache
 * Removed `bootPaper`, resolution is now lazy on first query
 * Removed `FileParseException::unreadable` since drivers no longer perform I/O

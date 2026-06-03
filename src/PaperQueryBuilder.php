@@ -16,7 +16,6 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\LazyCollection;
-use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
 use JacobJoergensen\LaravelPaper\Attributes\Disk;
 use JacobJoergensen\LaravelPaper\Attributes\Driver;
 use JacobJoergensen\LaravelPaper\Attributes\Timestamps;
@@ -53,8 +52,8 @@ final class PaperQueryBuilder
     /** @var array<class-string<Model>, DriverContract> */
     private static array $driverCache = [];
 
-    /** @var array<class-string<Model>, string> */
-    private static array $contentPathCache = [];
+    /** @var array<class-string<Model>, bool> */
+    private static array $usesDiskCache = [];
 
     /** @var array<class-string<Model>, StorageAdapterContract> */
     private static array $adapterCache = [];
@@ -81,14 +80,14 @@ final class PaperQueryBuilder
             $resolved['adapter'],
             $resolved['driver'],
             app(CacheContract::class),
-            $resolved['contentPath'],
+            self::contentPathFor($modelClass),
             $modelClass,
         );
     }
 
     /**
      * @param  class-string<Model>  $modelClass
-     * @return array{driver: DriverContract, contentPath: string, adapter: StorageAdapterContract}
+     * @return array{driver: DriverContract, adapter: StorageAdapterContract, usesDisk: bool}
      */
     public static function resolveFor(string $modelClass): array
     {
@@ -96,11 +95,9 @@ final class PaperQueryBuilder
             $reflection = new ReflectionClass($modelClass);
 
             $driverAttribute = $reflection->getAttributes(Driver::class)[0] ?? null;
-            $pathAttribute = $reflection->getAttributes(ContentPath::class)[0] ?? null;
             $diskAttribute = $reflection->getAttributes(Disk::class)[0] ?? null;
 
             $driverName = $driverAttribute?->newInstance()->name ?? 'markdown';
-            $contentPath = $pathAttribute?->newInstance()->path ?? 'content';
             $diskName = $diskAttribute?->newInstance()->name;
 
             self::$driverCache[$modelClass] = app(DriverRegistry::class)->resolve($driverName);
@@ -108,19 +105,33 @@ final class PaperQueryBuilder
 
             if ($diskName === null) {
                 self::$adapterCache[$modelClass] = new LocalAdapter(app(Filesystem::class));
-                self::$contentPathCache[$modelClass] = base_path($contentPath);
+                self::$usesDiskCache[$modelClass] = false;
             } else {
                 $disk = app(StorageFactory::class)->disk($diskName);
                 self::$adapterCache[$modelClass] = new DiskAdapter($disk, $diskName);
-                self::$contentPathCache[$modelClass] = $contentPath;
+                self::$usesDiskCache[$modelClass] = true;
             }
         }
 
         return [
             'driver' => self::$driverCache[$modelClass],
-            'contentPath' => self::$contentPathCache[$modelClass],
             'adapter' => self::$adapterCache[$modelClass],
+            'usesDisk' => self::$usesDiskCache[$modelClass],
         ];
+    }
+
+    /**
+     * @param  class-string<Model>  $modelClass
+     */
+    public static function contentPathFor(string $modelClass): string
+    {
+        $usesDisk = self::resolveFor($modelClass)['usesDisk'];
+
+        $model = new $modelClass;
+        $resolved = (new ReflectionMethod($model, 'getContentPath'))->invoke($model);
+        $path = is_string($resolved) ? $resolved : 'content';
+
+        return $usesDisk ? $path : base_path($path);
     }
 
     /**
@@ -140,7 +151,7 @@ final class PaperQueryBuilder
     {
         if ($modelClass === null) {
             self::$driverCache = [];
-            self::$contentPathCache = [];
+            self::$usesDiskCache = [];
             self::$adapterCache = [];
             self::$timestampsCache = [];
 
@@ -149,7 +160,7 @@ final class PaperQueryBuilder
 
         unset(
             self::$driverCache[$modelClass],
-            self::$contentPathCache[$modelClass],
+            self::$usesDiskCache[$modelClass],
             self::$adapterCache[$modelClass],
             self::$timestampsCache[$modelClass],
         );
