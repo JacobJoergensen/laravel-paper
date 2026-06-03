@@ -47,6 +47,10 @@ final readonly class MarkdownDriver implements DriverContract
         $content = isset($data['content']) && is_string($data['content']) ? $data['content'] : '';
         unset($data['content'], $data['slug']);
 
+        if ($data === []) {
+            return "$content\n";
+        }
+
         $yaml = Yaml::dump($data, PHP_INT_MAX);
 
         return "---\n$yaml---\n\n$content\n";

@@ -58,3 +58,17 @@ it('serializes nested frontmatter as block yaml that round-trips', function (): 
     expect($serialized)->not->toContain('{')
         ->and($parsed['seo'])->toBe(['og' => ['title' => 'T', 'tags' => ['a', 'b']]]);
 });
+
+it('serializes a content-only model without an empty frontmatter block', function (): void {
+    $driver = new MarkdownDriver;
+
+    $serialized = $driver->serialize(['content' => 'Body', 'slug' => 'page']);
+
+    $tempFile = tempnam(sys_get_temp_dir(), 'md_');
+    file_put_contents($tempFile, $serialized);
+    $parsed = $driver->parse($tempFile);
+    unlink($tempFile);
+
+    expect($serialized)->not->toContain('---')
+        ->and($parsed['content'])->toBe('Body');
+});
