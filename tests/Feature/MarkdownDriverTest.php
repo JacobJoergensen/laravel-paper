@@ -54,6 +54,13 @@ it('discovers files across every driver extension', function (): void {
         ->and($post->slug)->toBe('draft-post');
 });
 
+it('finds many posts by slug, omitting missing and duplicate ids', function (): void {
+    $posts = Post::findMany(['hello-world', 'does-not-exist', 'second-post', 'hello-world']);
+
+    expect($posts)->toHaveCount(2)
+        ->and($posts->pluck('slug')->sort()->values()->toArray())->toBe(['hello-world', 'second-post']);
+});
+
 it('excludes null fields from comparison operators', function (): void {
     expect(Post::where('author_slug', 0)->count())->toBe(0)
         ->and(Post::where('author_slug', '!=', 0)->count())->toBe(1)

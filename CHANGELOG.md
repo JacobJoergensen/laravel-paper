@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+* Added `findMany` for loading multiple records by slug in one call
+* Added `orderByDesc` as a descending order shortcut
 * Added in-process memo to FileModificationCache to avoid repeated cache lookups within the same request
 * Added `with` for eager loading relations, batching reads to avoid N+1 in loops
 * Added `PaperRelation` abstract base for relation descriptors, with `BelongsToPaper` and `HasManyPaper` as concrete types exposing `getResults()` for lazy resolution and property access after eager loading
