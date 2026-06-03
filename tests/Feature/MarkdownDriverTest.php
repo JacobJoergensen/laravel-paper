@@ -182,6 +182,32 @@ it('fires lifecycle events to observers registered with #[ObservedBy]', function
     expect(PostObserver::$events)->toBe(['created', 'deleted']);
 });
 
+it('fires a retrieved event for each model a query hands back', function (): void {
+    PostObserver::$events = [];
+
+    Post::find('hello-world');
+    Post::all();
+
+    expect(PostObserver::$events)->toBe(['retrieved', 'retrieved', 'retrieved', 'retrieved']);
+});
+
+it('does not fire retrieved when only counting or checking existence', function (): void {
+    PostObserver::$events = [];
+
+    Post::where('published', true)->count();
+    Post::where('published', true)->exists();
+
+    expect(PostObserver::$events)->toBe([]);
+});
+
+it('fires retrieved only for the models on the requested page', function (): void {
+    PostObserver::$events = [];
+
+    Post::paginate(2);
+
+    expect(PostObserver::$events)->toHaveCount(2);
+});
+
 it('does not fire events when saved with saveQuietly', function (): void {
     PostObserver::$events = [];
 

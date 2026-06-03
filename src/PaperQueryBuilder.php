@@ -61,7 +61,13 @@ final class PaperQueryBuilder
 
     public function find(string $slug): ?Model
     {
-        return $this->locate($slug);
+        $model = $this->locate($slug);
+
+        if ($model !== null) {
+            $this->fireRetrieved($model);
+        }
+
+        return $model;
     }
 
     /**
@@ -83,7 +89,11 @@ final class PaperQueryBuilder
         /** @var Model $instance */
         $instance = new $this->modelClass;
 
-        return $instance->newCollection($models);
+        $collection = $instance->newCollection($models);
+
+        $collection->each($this->fireRetrieved(...));
+
+        return $collection;
     }
 
     private function locate(string $slug): ?Model
@@ -482,7 +492,7 @@ final class PaperQueryBuilder
             return $this->scanFiles()->count();
         }
 
-        return $this->lazy()->count();
+        return $this->lazyModels()->count();
     }
 
     public function exists(): bool
@@ -491,7 +501,7 @@ final class PaperQueryBuilder
             return $this->scanFiles()->isNotEmpty();
         }
 
-        return $this->lazy()->isNotEmpty();
+        return $this->lazyModels()->isNotEmpty();
     }
 
     public function doesntExist(): bool
@@ -503,7 +513,7 @@ final class PaperQueryBuilder
     {
         $deleted = 0;
 
-        foreach ($this->get() as $model) {
+        foreach ($this->getModels() as $model) {
             if ($model->delete()) {
                 $deleted++;
             }
@@ -517,7 +527,7 @@ final class PaperQueryBuilder
      */
     public function pluck(string $column): Collection
     {
-        return $this->get()->pluck($column);
+        return $this->getModels()->pluck($column);
     }
 
     /**
@@ -534,9 +544,11 @@ final class PaperQueryBuilder
             $this->limitValue = null;
             $this->offsetValue = 0;
 
-            $all = $this->get();
+            $all = $this->getModels();
             $total = $all->count();
             $items = $all->slice(($page - 1) * $perPage)->take($perPage)->values();
+
+            $items->each($this->fireRetrieved(...));
 
             return new LengthAwarePaginator($items, $total, $perPage, $page, [
                 'path' => Paginator::resolveCurrentPath(),
@@ -562,7 +574,9 @@ final class PaperQueryBuilder
             $this->offsetValue = 0;
 
             $offset = ($page - 1) * $perPage;
-            $items = $this->lazy()->skip($offset)->take($perPage + 1)->collect();
+            $items = $this->lazyModels()->skip($offset)->take($perPage + 1)->collect();
+
+            $items->each($this->fireRetrieved(...));
 
             return new Paginator($items, $perPage, $page, [
                 'path' => Paginator::resolveCurrentPath(),
@@ -577,6 +591,18 @@ final class PaperQueryBuilder
      * @return Collection<int, Model>
      */
     public function get(): Collection
+    {
+        $models = $this->getModels();
+
+        $models->each($this->fireRetrieved(...));
+
+        return $models;
+    }
+
+    /**
+     * @return Collection<int, Model>
+     */
+    private function getModels(): Collection
     {
         $models = $this->scanFiles()
             ->map(fn (string $filepath): Model => $this->fileToModel($filepath))
@@ -596,6 +622,20 @@ final class PaperQueryBuilder
      * @return LazyCollection<int, Model>
      */
     public function lazy(): LazyCollection
+    {
+        return new LazyCollection(function (): Generator {
+            foreach ($this->yieldModels() as $model) {
+                $this->fireRetrieved($model);
+
+                yield $model;
+            }
+        });
+    }
+
+    /**
+     * @return LazyCollection<int, Model>
+     */
+    private function lazyModels(): LazyCollection
     {
         return new LazyCollection($this->yieldModels(...));
     }
@@ -764,6 +804,16 @@ final class PaperQueryBuilder
 
         /** @var Collection<int, string> */
         return collect($matches);
+    }
+
+    /**
+     * Fires the retrieved event via a bound closure, matching Eloquent's newFromBuilder approach.
+     */
+    private function fireRetrieved(Model $model): void
+    {
+        (function (): void {
+            $this->fireModelEvent('retrieved', false);
+        })->call($model);
     }
 
     private function fileToModel(string $filepath): Model
