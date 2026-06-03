@@ -39,3 +39,22 @@ it('throws exception for unreadable file', function (): void {
     $driver = new MarkdownDriver;
     $driver->parse('/nonexistent/file.md');
 })->throws(FileParseException::class);
+
+it('serializes nested frontmatter as block yaml that round-trips', function (): void {
+    $driver = new MarkdownDriver;
+    $data = [
+        'title' => 'Hello',
+        'seo' => ['og' => ['title' => 'T', 'tags' => ['a', 'b']]],
+        'content' => 'Body',
+    ];
+
+    $serialized = $driver->serialize($data);
+
+    $tempFile = tempnam(sys_get_temp_dir(), 'md_');
+    file_put_contents($tempFile, $serialized);
+    $parsed = $driver->parse($tempFile);
+    unlink($tempFile);
+
+    expect($serialized)->not->toContain('{')
+        ->and($parsed['seo'])->toBe(['og' => ['title' => 'T', 'tags' => ['a', 'b']]]);
+});
