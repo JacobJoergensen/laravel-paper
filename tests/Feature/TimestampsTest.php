@@ -24,6 +24,20 @@ it('exposes the file modification time as updated_at when timestamps are enabled
         ->and($post->updated_at->getTimestamp())->toBe(filemtime($path));
 });
 
+it('orders by updated_at by default with latest and oldest', function (): void {
+    $dir = base_path('tests/content/posts');
+    file_put_contents("$dir/__ts_test__old.md", "---\ntitle: Old\n---\n\nx\n");
+    file_put_contents("$dir/__ts_test__new.md", "---\ntitle: New\n---\n\nx\n");
+    touch("$dir/__ts_test__old.md", 1_000_000_000);
+    touch("$dir/__ts_test__new.md", 2_000_000_000);
+
+    $latest = TimestampedPost::latest()->get()->pluck('slug');
+    $oldest = TimestampedPost::oldest()->get()->pluck('slug');
+
+    expect($latest->search('__ts_test__new'))->toBeLessThan($latest->search('__ts_test__old'))
+        ->and($oldest->search('__ts_test__old'))->toBeLessThan($oldest->search('__ts_test__new'));
+});
+
 it('does not persist the derived updated_at into the file on save', function (): void {
     $post = new TimestampedPost;
     $post->slug = '__ts_test__';

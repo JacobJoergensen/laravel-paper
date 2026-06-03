@@ -166,12 +166,12 @@ trait Paper
         return static::query()->whereNotBetween($column, $values);
     }
 
-    public static function latest(string $column = 'created_at'): PaperQueryBuilder
+    public static function latest(string $column = 'updated_at'): PaperQueryBuilder
     {
         return static::query()->latest($column);
     }
 
-    public static function oldest(string $column = 'created_at'): PaperQueryBuilder
+    public static function oldest(string $column = 'updated_at'): PaperQueryBuilder
     {
         return static::query()->oldest($column);
     }
@@ -314,7 +314,7 @@ trait Paper
 
     public function usesTimestamps(): bool
     {
-        return false;
+        return PaperQueryBuilder::usesTimestamps(static::class);
     }
 
     public function save(array $options = []): bool
@@ -349,6 +349,11 @@ trait Paper
 
         $filepath = $this->paperFilepath($path, $slug, $driver, $isCreating, $adapter);
         $attributes = PaperCasts::toStorage($this, $this->getAttributes());
+
+        if ($this->usesTimestamps()) {
+            unset($attributes[$this->getUpdatedAtColumn()]);
+        }
+
         $content = $driver->serialize($attributes);
 
         $adapter->ensureDirectoryExists($path);

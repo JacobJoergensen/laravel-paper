@@ -19,6 +19,7 @@ use Illuminate\Support\LazyCollection;
 use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
 use JacobJoergensen\LaravelPaper\Attributes\Disk;
 use JacobJoergensen\LaravelPaper\Attributes\Driver;
+use JacobJoergensen\LaravelPaper\Attributes\Timestamps;
 use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Contracts\StorageAdapterContract;
@@ -57,6 +58,9 @@ final class PaperQueryBuilder
 
     /** @var array<class-string<Model>, StorageAdapterContract> */
     private static array $adapterCache = [];
+
+    /** @var array<class-string<Model>, bool> */
+    private static array $timestampsCache = [];
 
     public function __construct(
         private readonly StorageAdapterContract $adapter,
@@ -100,6 +104,7 @@ final class PaperQueryBuilder
             $diskName = $diskAttribute?->newInstance()->name;
 
             self::$driverCache[$modelClass] = app(DriverRegistry::class)->resolve($driverName);
+            self::$timestampsCache[$modelClass] = $reflection->getAttributes(Timestamps::class) !== [];
 
             if ($diskName === null) {
                 self::$adapterCache[$modelClass] = new LocalAdapter(app(Filesystem::class));
@@ -119,6 +124,16 @@ final class PaperQueryBuilder
     }
 
     /**
+     * @param  class-string<Model>  $modelClass
+     */
+    public static function usesTimestamps(string $modelClass): bool
+    {
+        self::resolveFor($modelClass);
+
+        return self::$timestampsCache[$modelClass];
+    }
+
+    /**
      * @param  ?class-string<Model>  $modelClass
      */
     public static function forgetCache(?string $modelClass = null): void
@@ -127,6 +142,7 @@ final class PaperQueryBuilder
             self::$driverCache = [];
             self::$contentPathCache = [];
             self::$adapterCache = [];
+            self::$timestampsCache = [];
 
             return;
         }
@@ -135,6 +151,7 @@ final class PaperQueryBuilder
             self::$driverCache[$modelClass],
             self::$contentPathCache[$modelClass],
             self::$adapterCache[$modelClass],
+            self::$timestampsCache[$modelClass],
         );
     }
 
@@ -491,12 +508,12 @@ final class PaperQueryBuilder
         return $this->orderBy($column, 'desc');
     }
 
-    public function latest(string $column = 'created_at'): self
+    public function latest(string $column = 'updated_at'): self
     {
         return $this->orderBy($column, 'desc');
     }
 
-    public function oldest(string $column = 'created_at'): self
+    public function oldest(string $column = 'updated_at'): self
     {
         return $this->orderBy($column);
     }
@@ -945,9 +962,9 @@ final class PaperQueryBuilder
 
         if ($model->usesTimestamps()) {
             $column = $model->getUpdatedAtColumn();
-            $mtime = @filemtime($filepath);
+            $mtime = $this->adapter->lastModified($filepath);
 
-            if ($column !== null && $mtime !== false) {
+            if ($column !== null && $mtime !== null) {
                 $data[$column] = $mtime;
             }
         }
