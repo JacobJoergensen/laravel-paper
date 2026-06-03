@@ -38,6 +38,16 @@ it('eager loads relations across every model returned by findMany', function ():
         ->and($posts->firstWhere('slug', 'draft-post')->author)->toBeNull();
 });
 
+it('eager loads relations for the current page of paginators', function (): void {
+    $paginated = Post::with('author')->paginate(2)->getCollection();
+    $simple = Post::with('author')->simplePaginate(2)->getCollection();
+
+    expect($paginated)->toHaveCount(2)
+        ->and($paginated->every(fn (Post $post): bool => $post->relationLoaded('author')))->toBeTrue()
+        ->and($simple)->toHaveCount(2)
+        ->and($simple->every(fn (Post $post): bool => $post->relationLoaded('author')))->toBeTrue();
+});
+
 it('throws when with references a missing method', function (): void {
     Post::with('nonexistent')->get();
 })->throws(BadMethodCallException::class);

@@ -669,6 +669,7 @@ final class PaperQueryBuilder
             $total = $all->count();
             $items = $all->slice(($page - 1) * $perPage)->take($perPage)->values();
 
+            $this->eagerLoadRelations($items);
             $items->each($this->fireRetrieved(...));
 
             return new LengthAwarePaginator($items, $total, $perPage, $page, [
@@ -697,6 +698,7 @@ final class PaperQueryBuilder
             $offset = ($page - 1) * $perPage;
             $items = $this->lazyModels()->skip($offset)->take($perPage + 1)->collect();
 
+            $this->eagerLoadRelations($items);
             $items->each($this->fireRetrieved(...));
 
             return new Paginator($items, $perPage, $page, [
@@ -714,6 +716,8 @@ final class PaperQueryBuilder
     public function get(): Collection
     {
         $models = $this->getModels();
+
+        $this->eagerLoadRelations($models);
 
         $models->each($this->fireRetrieved(...));
 
@@ -734,11 +738,7 @@ final class PaperQueryBuilder
         /** @var Model $instance */
         $instance = new $this->modelClass;
 
-        $collection = $instance->newCollection($results->all());
-
-        $this->eagerLoadRelations($collection);
-
-        return $collection;
+        return $instance->newCollection($results->all());
     }
 
     /**
