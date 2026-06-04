@@ -42,7 +42,7 @@ abstract readonly class PaperRelation
         return $keys;
     }
 
-    protected function keyOf(Model $model, string $column): int|string|null
+    protected function keyOf(Model $model, string $column): null|int|string
     {
         $value = $model->getAttribute($column);
 
