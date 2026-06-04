@@ -1,6 +1,10 @@
 {
     "preset": "laravel",
-    "declare_strict_types": true,
-    "no_superfluous_elseif": true,
-    "no_useless_else": true
+    "rules": {
+        "attribute_empty_parentheses": true,
+        "declare_strict_types": true,
+        "no_superfluous_elseif": true,
+        "no_useless_else": true,
+        "ordered_types": true
+    }
 }

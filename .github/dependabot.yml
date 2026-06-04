@@ -8,12 +8,3 @@ updates:
       github-actions:
         patterns:
           - "**"
-
-  - package-ecosystem: "composer"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    groups:
-      composer:
-        patterns:
-          - "**"

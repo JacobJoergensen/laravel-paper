@@ -6,7 +6,9 @@
         "laravel",
         "eloquent",
         "flat-file",
+        "cms",
         "markdown",
+        "frontmatter",
         "content"
     ],
     "authors": [

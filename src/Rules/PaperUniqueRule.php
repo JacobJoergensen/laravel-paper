@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 
 final class PaperUniqueRule implements ValidationRule
 {
-    private string|int|null $ignore = null;
+    private null|int|string $ignore = null;
 
     private ?string $ignoreColumn = null;
 
@@ -22,7 +22,7 @@ final class PaperUniqueRule implements ValidationRule
         private readonly string $column,
     ) {}
 
-    public function ignore(string|int $value, ?string $column = null): self
+    public function ignore(int|string $value, ?string $column = null): self
     {
         $this->ignore = $value;
         $this->ignoreColumn = $column;

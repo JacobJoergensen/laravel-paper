@@ -173,6 +173,14 @@ Post::updateOrCreate(
 );
 ```
 
+For bulk edits, `update` sets values across every matching record:
+
+```php
+Post::where('draft', true)->update(['published' => true]);
+```
+
+It writes each matching file in a loop, so model events fire per record and `$fillable` does not apply. It is not a single atomic operation.
+
 To save or delete without firing events:
 
 ```php

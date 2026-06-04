@@ -4,7 +4,10 @@
          beStrictAboutTestsThatDoNotTestAnything="true"
          beStrictAboutOutputDuringTests="true"
          bootstrap="vendor/autoload.php"
+         cacheDirectory=".phpunit.cache"
          colors="true"
+         executionOrder="random"
+         failOnEmptyTestSuite="true"
          failOnRisky="true"
          failOnWarning="true"
 >
