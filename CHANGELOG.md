@@ -1,12 +1,14 @@
 # Changelog
 
 ## Unreleased
+
+## Version 1.11.0 (2026-06-04)
 * Added `#[Timestamps]` attribute to expose a model's file modification time as `updated_at`; `created_at` stays a frontmatter field
 * Added `retrieved` model event, fired for each model a query returns and skipped on `count`, `exists`, `pluck`, and bulk `delete`
 * Added bulk `update` to set values across all matching records
 * Added `findMany` for loading multiple records by slug in one call
 * Added `orderByDesc` as a descending order shortcut
-* Added in-process memo to FileModificationCache to avoid repeated cache lookups within the same request
+* Improved `FileModificationCache` with an in-process memo to avoid repeated cache lookups within the same request
 * Improved `MarkdownDriver` serialization to keep nested frontmatter in block style for cleaner diffs
 * Fixed `MarkdownDriver` to omit the frontmatter block for content-only models instead of writing an empty `{  }` block
 
