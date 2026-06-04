@@ -1,0 +1,32 @@
+name: Feature or change proposal
+description: Propose a feature or a change before you open a PR.
+labels: ["proposal"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For anything beyond a small fix, start here. It saves time on both sides if the approach turns out to be a no.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: The use case behind the request, not just the feature itself.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What do you have in mind?
+      description: How it would work, and what the API would look like if it adds one.
+    validations:
+      required: true
+  - type: dropdown
+    id: public-api
+    attributes:
+      label: Does this change the public API?
+      options:
+        - "No"
+        - "Yes"
+        - "Not sure"
+    validations:
+      required: true

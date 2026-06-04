@@ -115,7 +115,7 @@ final class PaperQueryBuilder
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      */
-    public function where(string|callable $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): self
+    public function where(callable|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): self
     {
         if (is_callable($column)) {
             return $this->whereGroup($column, $boolean);
@@ -141,7 +141,7 @@ final class PaperQueryBuilder
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      */
-    public function orWhere(string|callable $column, mixed $operator = null, mixed $value = null): self
+    public function orWhere(callable|string $column, mixed $operator = null, mixed $value = null): self
     {
         return $this->where($column, $operator, $value, 'or');
     }
@@ -444,7 +444,7 @@ final class PaperQueryBuilder
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      */
-    public function firstWhere(string|callable $column, mixed $operator = null, mixed $value = null): ?Model
+    public function firstWhere(callable|string $column, mixed $operator = null, mixed $value = null): ?Model
     {
         return $this->where($column, $operator, $value)->first();
     }
@@ -523,6 +523,8 @@ final class PaperQueryBuilder
     }
 
     /**
+     * Saves each matching record in turn, so a mid-loop failure leaves earlier writes applied.
+     *
      * @param  array<string, mixed>  $values
      */
     public function update(array $values): int
