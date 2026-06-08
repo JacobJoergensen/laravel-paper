@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+* Added Laravel Boost skill `laravel-paper-development` to give AI agents Paper-specific guidance
 
 ## Version 1.11.0 (2026-06-04)
 * Added `#[Timestamps]` attribute to expose a model's file modification time as `updated_at`; `created_at` stays a frontmatter field

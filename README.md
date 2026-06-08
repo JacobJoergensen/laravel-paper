@@ -320,6 +320,12 @@ public function boot(): void
 
 Then point a model at it with `#[Driver('yaml')]`.
 
+## AI-Assisted Development
+
+Paper ships a [Laravel Boost](https://laravel.com/docs/boost) skill. If your project uses
+Boost, `php artisan boost:install` offers to install it, giving your AI agent Paper-specific
+guidance for writing and querying flat-file models.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for filing bugs and submitting PRs.
