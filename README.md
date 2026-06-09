@@ -173,6 +173,8 @@ Post::updateOrCreate(
 );
 ```
 
+`create` requires a `slug` and does not derive one from other fields. If your source data has no slug, generate one yourself with `Str::slug($title)`.
+
 For bulk edits, `update` sets values across every matching record:
 
 ```php
