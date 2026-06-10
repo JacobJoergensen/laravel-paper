@@ -4,6 +4,7 @@
 * Added Laravel Boost skill `laravel-paper-development` to give AI agents Paper-specific guidance
 * Fixed multi-column `orderBy` to treat the first column as primary and later columns as tiebreakers, matching Eloquent
 * Fixed queries returning a duplicate record when one slug exists under multiple driver extensions
+* Fixed `whereIn` and `whereNotIn` to compare loosely like `where`, so `'1'` matches an integer `1` read from frontmatter
 
 ## Version 1.11.0 (2026-06-04)
 * Added `#[Timestamps]` attribute to expose a model's file modification time as `updated_at`; `created_at` stays a frontmatter field

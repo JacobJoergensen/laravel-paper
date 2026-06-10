@@ -227,6 +227,11 @@ it('filters with whereIn and whereNotIn', function (): void {
         ->and(Post::whereNotIn('order', [1])->count())->toBe(2);
 });
 
+it('matches whereIn loosely so frontmatter type quirks do not exclude records', function (): void {
+    expect(Post::whereIn('order', ['1'])->pluck('slug')->toArray())->toBe(['hello-world'])
+        ->and(Post::whereNotIn('order', ['1'])->count())->toBe(2);
+});
+
 it('filters with whereBetween and whereNotBetween', function (): void {
     expect(Post::whereBetween('order', [1, 2])->count())->toBe(2)
         ->and(Post::whereNotBetween('order', [1, 2])->count())->toBe(1);
