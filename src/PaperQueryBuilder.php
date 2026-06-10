@@ -819,6 +819,7 @@ final class PaperQueryBuilder
         $seen = [];
 
         foreach ($this->driver->extensions() as $extension) {
+            /** @var list<string> $found */
             $found = $this->files->glob($this->contentPath.'/*.'.$extension) ?: [];
 
             foreach ($found as $filepath) {
