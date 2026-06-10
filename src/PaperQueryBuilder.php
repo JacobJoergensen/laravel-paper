@@ -752,7 +752,7 @@ final class PaperQueryBuilder
      */
     private function applyOrdersAndLimits(Collection $models): Collection
     {
-        foreach ($this->orders as $order) {
+        foreach (array_reverse($this->orders) as $order) {
             $models = $models->sortBy(
                 fn (Model $model): mixed => $model->getAttribute($order['column']),
                 SORT_REGULAR,

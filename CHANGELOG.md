@@ -2,6 +2,7 @@
 
 ## Unreleased
 * Added Laravel Boost skill `laravel-paper-development` to give AI agents Paper-specific guidance
+* Fixed multi-column `orderBy` to treat the first column as primary and later columns as tiebreakers, matching Eloquent
 
 ## Version 1.11.0 (2026-06-04)
 * Added `#[Timestamps]` attribute to expose a model's file modification time as `updated_at`; `created_at` stays a frontmatter field

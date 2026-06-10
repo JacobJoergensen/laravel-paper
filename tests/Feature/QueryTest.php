@@ -77,6 +77,12 @@ it('can order posts', function (): void {
         ->and($posts->last()->slug)->toBe('hello-world');
 });
 
+it('treats the first orderBy as primary and later ones as tiebreakers', function (): void {
+    $posts = Post::query()->orderBy('published')->orderBy('date')->get();
+
+    expect($posts->pluck('slug')->toArray())->toBe(['draft-post', 'hello-world', 'second-post']);
+});
+
 it('can limit results', function (): void {
     $posts = Post::query()->limit(2)->get();
 
