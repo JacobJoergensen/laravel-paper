@@ -816,10 +816,21 @@ final class PaperQueryBuilder
         }
 
         $matches = [];
+        $seen = [];
 
         foreach ($this->driver->extensions() as $extension) {
             $found = $this->files->glob($this->contentPath.'/*.'.$extension) ?: [];
-            $matches = array_merge($matches, $found);
+
+            foreach ($found as $filepath) {
+                $slug = pathinfo($filepath, PATHINFO_FILENAME);
+
+                if (isset($seen[$slug])) {
+                    continue;
+                }
+
+                $seen[$slug] = true;
+                $matches[] = $filepath;
+            }
         }
 
         /** @var Collection<int, string> */

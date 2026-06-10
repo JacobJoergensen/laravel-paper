@@ -83,6 +83,20 @@ it('treats the first orderBy as primary and later ones as tiebreakers', function
     expect($posts->pluck('slug')->toArray())->toBe(['draft-post', 'hello-world', 'second-post']);
 });
 
+it('returns one model per slug when the same slug exists under multiple extensions', function (): void {
+    $duplicate = __DIR__.'/../content/posts/hello-world.markdown';
+    File::put($duplicate, File::get(__DIR__.'/../content/posts/hello-world.md'));
+
+    try {
+        $posts = Post::all();
+
+        expect($posts)->toHaveCount(3)
+            ->and($posts->where('slug', 'hello-world'))->toHaveCount(1);
+    } finally {
+        File::delete($duplicate);
+    }
+});
+
 it('can limit results', function (): void {
     $posts = Post::query()->limit(2)->get();
 
