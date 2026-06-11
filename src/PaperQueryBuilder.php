@@ -933,8 +933,8 @@ final class PaperQueryBuilder
         $value = $model->getAttribute($column);
 
         return match ($where['type']) {
-            'in' => $value !== null && in_array($value, $where['values'] ?? [], false),
-            'notIn' => $value !== null && ! in_array($value, $where['values'] ?? [], false),
+            'in' => $value !== null && in_array($value, $where['values'] ?? []),
+            'notIn' => $value !== null && ! in_array($value, $where['values'] ?? []),
             'contains' => is_array($value) && in_array($where['value'] ?? null, $value, true),
             'like' => is_string($value) && $this->evaluateLike($value, (string) ($where['value'] ?? ''), $where['caseSensitive'] ?? false),
             'null' => $value === null,

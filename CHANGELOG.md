@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+* Added route model binding so `{model}` and `{model:field}` resolve the matching record; scoped child bindings now throw `UnsupportedRouteBindingException`
 * Added Laravel Boost skill `laravel-paper-development` to give AI agents Paper-specific guidance
 * Fixed multi-column `orderBy` to treat the first column as primary and later columns as tiebreakers, matching Eloquent
 * Fixed queries returning a duplicate record when one slug exists under multiple driver extensions

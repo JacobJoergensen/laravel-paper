@@ -18,6 +18,7 @@ use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
+use JacobJoergensen\LaravelPaper\Exceptions\UnsupportedRouteBindingException;
 use ReflectionClass;
 
 /**
@@ -322,6 +323,23 @@ trait Paper
     public function getKeyName(): string
     {
         return 'slug';
+    }
+
+    /**
+     * @param  ?string  $field
+     */
+    public function resolveRouteBinding(mixed $value, $field = null): ?static
+    {
+        /** @var ?static */
+        return static::query()->where($field ?? $this->getRouteKeyName(), $value)->first();
+    }
+
+    /**
+     * @param  string  $childType
+     */
+    public function resolveChildRouteBinding($childType, mixed $value, mixed $field): never
+    {
+        throw UnsupportedRouteBindingException::scopedChild($childType);
     }
 
     public function getIncrementing(): bool
