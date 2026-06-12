@@ -231,6 +231,17 @@ $posts = Post::simplePaginate(15);
 
 Use `simplePaginate` for large directories where the count is expensive, and you don't need a total.
 
+## Aggregates
+
+Alongside `count`, Paper has `min`, `max`, `sum`, `avg`, and its alias `average`:
+
+```php
+$next = Post::max('order') + 1;
+$views = Post::where('published', true)->sum('views');
+```
+
+On an empty result `sum` returns `0` and the rest return `null`. Null, missing, and non-numeric values are ignored, the same way SQL aggregates skip `NULL`.
+
 ## Relationships
 
 For relationships, use `belongsToPaper` and `hasManyPaper`:

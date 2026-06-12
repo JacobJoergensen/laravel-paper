@@ -98,6 +98,18 @@ protected function published(PaperQueryBuilder $query): PaperQueryBuilder
 
 `#[CollectedBy]` is also respected, so queries return your model's custom collection.
 
+## Aggregates
+
+`count`, `min`, `max`, `sum`, `avg`, and the `average` alias work on the model and the query
+builder. They read through casts and ignore `orderBy`/`limit`/`offset`, like SQL.
+
+```php
+$next = Post::max('order') + 1;
+$views = Post::where('published', true)->sum('views');
+```
+
+On an empty result `sum` returns `0` and the others return `null`. Null, missing, and non-numeric values are skipped.
+
 ## Casts
 
 Eloquent `$casts` work on Paper models. The `array`, `json`, `object`, and `collection`

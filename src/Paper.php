@@ -235,6 +235,31 @@ trait Paper
         return static::query()->count();
     }
 
+    public static function min(string $column): mixed
+    {
+        return static::query()->min($column);
+    }
+
+    public static function max(string $column): mixed
+    {
+        return static::query()->max($column);
+    }
+
+    public static function sum(string $column): float|int
+    {
+        return static::query()->sum($column);
+    }
+
+    public static function avg(string $column): null|float|int
+    {
+        return static::query()->avg($column);
+    }
+
+    public static function average(string $column): null|float|int
+    {
+        return static::query()->average($column);
+    }
+
     public static function exists(): bool
     {
         return static::query()->exists();

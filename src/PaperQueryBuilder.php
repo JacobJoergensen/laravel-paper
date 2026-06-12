@@ -509,6 +509,41 @@ final class PaperQueryBuilder
         return ! $this->exists();
     }
 
+    public function min(string $column): mixed
+    {
+        return collect($this->columnValues($column))->min();
+    }
+
+    public function max(string $column): mixed
+    {
+        return collect($this->columnValues($column))->max();
+    }
+
+    public function sum(string $column): float|int
+    {
+        $total = 0;
+
+        foreach ($this->columnValues($column) as $value) {
+            if (is_numeric($value)) {
+                $total += $value;
+            }
+        }
+
+        return $total;
+    }
+
+    public function avg(string $column): null|float|int
+    {
+        $numeric = array_filter($this->columnValues($column), is_numeric(...));
+
+        return collect($numeric)->avg();
+    }
+
+    public function average(string $column): null|float|int
+    {
+        return $this->avg($column);
+    }
+
     public function delete(): int
     {
         $deleted = 0;
@@ -634,6 +669,26 @@ final class PaperQueryBuilder
         $instance = new $this->modelClass;
 
         return $instance->newCollection($results->all());
+    }
+
+    /**
+     * Ignores orders, limits and offsets so aggregates span every matching record.
+     *
+     * @return list<mixed>
+     */
+    private function columnValues(string $column): array
+    {
+        $values = [];
+
+        foreach ($this->scanFiles() as $filepath) {
+            $model = $this->fileToModel($filepath);
+
+            if ($this->matchesWheres($model)) {
+                $values[] = $model->getAttribute($column);
+            }
+        }
+
+        return $values;
     }
 
     /**

@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+* Added `min`, `max`, `sum`, `avg`, and `average` aggregate methods, skipping null and non-numeric values like SQL aggregates skip NULL
 * Added route model binding so `{model}` and `{model:field}` resolve the matching record; scoped child bindings now throw `UnsupportedRouteBindingException`
 * Added Laravel Boost skill `laravel-paper-development` to give AI agents Paper-specific guidance
 * Fixed multi-column `orderBy` to treat the first column as primary and later columns as tiebreakers, matching Eloquent
