@@ -934,12 +934,15 @@ final class PaperQueryBuilder
      */
     private function loadFileData(string $filepath): array
     {
-        if (($cached = $this->cache->getIfFresh($filepath)) !== null) {
+        $mtime = (int) @filemtime($filepath);
+        $cached = $this->cache->getIfFresh($filepath, $mtime);
+
+        if ($cached !== null) {
             return $cached;
         }
 
         $data = $this->driver->parse($filepath);
-        $this->cache->set($filepath, $data, (int) filemtime($filepath));
+        $this->cache->set($filepath, $data, $mtime);
 
         return $data;
     }

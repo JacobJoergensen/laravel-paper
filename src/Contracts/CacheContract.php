@@ -9,7 +9,7 @@ interface CacheContract
     /**
      * @return ?array<string, mixed>
      */
-    public function getIfFresh(string $filepath): ?array;
+    public function getIfFresh(string $filepath, int $mtime): ?array;
 
     /**
      * @param  array<string, mixed>  $data

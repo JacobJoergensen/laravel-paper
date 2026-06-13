@@ -4,6 +4,7 @@
 * Added `min`, `max`, `sum`, `avg`, and `average` aggregate methods, skipping null and non-numeric values like SQL aggregates skip NULL
 * Added route model binding so `{model}` and `{model:field}` resolve the matching record; scoped child bindings now throw `UnsupportedRouteBindingException`
 * Added Laravel Boost skill `laravel-paper-development` to give AI agents Paper-specific guidance
+* Optimized queries to read each content file's modification time once instead of twice
 * Fixed multi-column `orderBy` to treat the first column as primary and later columns as tiebreakers, matching Eloquent
 * Fixed queries returning a duplicate record when one slug exists under multiple driver extensions
 * Fixed `whereIn` and `whereNotIn` to compare loosely like `where`, so `'1'` matches an integer `1` read from frontmatter
