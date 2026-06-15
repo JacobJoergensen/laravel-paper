@@ -905,7 +905,8 @@ final class PaperQueryBuilder
 
     private function fileToModel(string $filepath): Model
     {
-        $data = $this->loadFileData($filepath);
+        $mtime = @filemtime($filepath);
+        $data = $this->loadFileData($filepath, is_int($mtime) ? $mtime : 0);
         $slug = pathinfo($filepath, PATHINFO_FILENAME);
 
         $data['slug'] = $slug;
@@ -915,9 +916,8 @@ final class PaperQueryBuilder
 
         if ($model->usesTimestamps()) {
             $column = $model->getUpdatedAtColumn();
-            $mtime = @filemtime($filepath);
 
-            if ($column !== null && $mtime !== false) {
+            if ($column !== null && is_int($mtime)) {
                 $data[$column] = $mtime;
             }
         }
@@ -932,9 +932,8 @@ final class PaperQueryBuilder
     /**
      * @return array<string, mixed>
      */
-    private function loadFileData(string $filepath): array
+    private function loadFileData(string $filepath, int $mtime): array
     {
-        $mtime = (int) @filemtime($filepath);
         $cached = $this->cache->getIfFresh($filepath, $mtime);
 
         if ($cached !== null) {
