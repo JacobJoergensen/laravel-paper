@@ -327,11 +327,9 @@ trait Paper
      */
     public static function with($relations, string ...$more): PaperQueryBuilder
     {
-        if (is_string($relations)) {
-            return static::query()->with(array_merge([$relations], $more));
-        }
+        $names = is_string($relations) ? [$relations, ...$more] : $relations;
 
-        return static::query()->with($relations);
+        return static::query()->with(array_values($names));
     }
 
     /**

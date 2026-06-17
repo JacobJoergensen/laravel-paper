@@ -763,6 +763,7 @@ final class PaperQueryBuilder
                 ->map(fn (string $filepath): Model => $this->fileToModel($filepath))
                 ->values();
 
+            $this->eagerLoadRelations($items);
             $items->each($this->fireRetrieved(...));
 
             return new LengthAwarePaginator($items, $total, $perPage, $page, [
@@ -811,6 +812,7 @@ final class PaperQueryBuilder
                 ->map(fn (string $filepath): Model => $this->fileToModel($filepath))
                 ->values();
 
+            $this->eagerLoadRelations($items);
             $items->each($this->fireRetrieved(...));
 
             return new Paginator($items, $perPage, $page, [
@@ -1146,10 +1148,31 @@ final class PaperQueryBuilder
     private function scanFiles(): Collection
     {
         try {
-            return collect($this->adapter->list($this->contentPath, $this->driver->extensions()));
+            $paths = $this->adapter->list($this->contentPath, $this->driver->extensions());
         } catch (ContentPathNotFoundException) {
             throw ContentPathNotFoundException::forPath($this->contentPath, $this->modelClass);
         }
+
+        $matches = [];
+        $seen = [];
+
+        foreach ($paths as $filepath) {
+            $slug = pathinfo($filepath, PATHINFO_FILENAME);
+
+            if (isset($seen[$slug])) {
+                continue;
+            }
+
+            $seen[$slug] = true;
+            $matches[] = $filepath;
+        }
+
+        usort($matches, static fn (string $a, string $b): int => strcmp(
+            pathinfo($a, PATHINFO_FILENAME),
+            pathinfo($b, PATHINFO_FILENAME)
+        ));
+
+        return collect($matches);
     }
 
     /**
