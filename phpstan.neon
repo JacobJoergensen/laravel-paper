@@ -1,8 +1,6 @@
 parameters:
     level: max
     paths:
+        - benchmarks
         - src
     tmpDir: build/phpstan
-    ignoreErrors:
-        # The Paper trait is consumed by downstream models, never used within src itself.
-        - identifier: trait.unused

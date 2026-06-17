@@ -43,6 +43,10 @@
         }
     },
     "scripts": {
+        "bench": [
+            "Composer\\Config::disableProcessTimeout",
+            "@php benchmarks/bench.php"
+        ],
         "lint": "vendor/bin/pint --parallel",
         "test:lint": "vendor/bin/pint --parallel --test",
         "test:types": "vendor/bin/phpstan analyse",
