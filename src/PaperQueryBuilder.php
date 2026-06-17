@@ -1127,8 +1127,8 @@ final class PaperQueryBuilder
             'like' => is_string($value) && $this->evaluateLike($value, (string) ($where['value'] ?? ''), $where['caseSensitive'] ?? false),
             'null' => $value === null,
             'notNull' => $value !== null,
-            'between' => $this->evaluateBetween($value, $where['values'] ?? []),
-            'notBetween' => ! $this->evaluateBetween($value, $where['values'] ?? []),
+            'between' => $value !== null && $this->evaluateBetween($value, $where['values'] ?? []),
+            'notBetween' => $value !== null && ! $this->evaluateBetween($value, $where['values'] ?? []),
             default => $this->evaluateCondition($value, $where['operator'] ?? '=', $where['value'] ?? null),
         };
     }

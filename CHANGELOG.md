@@ -10,6 +10,7 @@
 * Improved unordered queries to return records in a stable slug order
 * Optimized `paginate` and `simplePaginate` to read only the current page's files when the query has no `where` clause and isn't ordered by a frontmatter field
 * Optimized `updated_at` to read each content file's modification time once instead of twice
+* Fixed `whereNotBetween` to exclude records whose column is missing, matching `whereNotIn`
 
 ## Version 1.12.0 (2026-06-13)
 * Added `min`, `max`, `sum`, `avg`, and `average` aggregate methods, skipping null and non-numeric values like SQL aggregates skip NULL

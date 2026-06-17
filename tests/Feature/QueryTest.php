@@ -258,6 +258,11 @@ it('filters with whereBetween and whereNotBetween', function (): void {
         ->and(Post::whereNotBetween('order', [1, 2])->count())->toBe(1);
 });
 
+it('excludes records missing the column from whereBetween and whereNotBetween', function (): void {
+    expect(Post::whereBetween('author_slug', ['a', 'z'])->count())->toBe(1)
+        ->and(Post::whereNotBetween('author_slug', ['a', 'z'])->count())->toBe(0);
+});
+
 it('filters with whereNull and whereNotNull', function (): void {
     expect(Post::whereNull('author_slug')->count())->toBe(2)
         ->and(Post::whereNotNull('author_slug')->count())->toBe(1);

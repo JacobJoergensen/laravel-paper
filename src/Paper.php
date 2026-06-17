@@ -715,9 +715,6 @@ trait Paper
         return app(DriverRegistry::class)->resolve($name);
     }
 
-    /**
-     * Paper stores slugs as strings on disk, so narrow whatever key value we are handed.
-     */
     private static function keyToString(mixed $key): string
     {
         return is_scalar($key) ? (string) $key : '';
