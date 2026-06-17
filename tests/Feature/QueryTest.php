@@ -191,6 +191,27 @@ it('paginates using the Paginator resolvers so it works without a request', func
         ->and($page)->toHaveCount(1);
 });
 
+it('returns records in a stable slug order across pages', function (): void {
+    $slugs = collect([1, 2, 3])
+        ->map(fn (int $page): string => Post::paginate(perPage: 1, page: $page)->first()->slug)
+        ->all();
+
+    expect($slugs)->toBe(['draft-post', 'hello-world', 'second-post']);
+});
+
+it('paginates correctly when ordering by a frontmatter field', function (): void {
+    $page = Post::query()->orderByDesc('order')->paginate(perPage: 1, page: 1);
+
+    expect($page->first()->slug)->toBe('draft-post')
+        ->and($page->total())->toBe(3);
+});
+
+it('paginates a filtered query with the correct total', function (): void {
+    $page = Post::where('published', true)->paginate(perPage: 1, page: 1);
+
+    expect($page->total())->toBe(2);
+});
+
 it('matches with whereLike and respects case sensitivity', function (): void {
     expect(Post::whereLike('title', '%post%')->count())->toBe(2)
         ->and(Post::whereLike('title', '%post%', caseSensitive: true)->count())->toBe(0)

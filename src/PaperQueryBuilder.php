@@ -592,6 +592,24 @@ final class PaperQueryBuilder
     {
         $page ??= Paginator::resolveCurrentPage();
 
+        $updatedAt = $this->updatedAtColumn();
+
+        if ($this->wheres === [] && $this->ordersAreParseFree($updatedAt)) {
+            $files = $this->orderedFiles($updatedAt);
+            $total = $files->count();
+
+            $items = $files->slice(($page - 1) * $perPage)
+                ->take($perPage)
+                ->map(fn (string $filepath): Model => $this->fileToModel($filepath))
+                ->values();
+
+            $items->each($this->fireRetrieved(...));
+
+            return new LengthAwarePaginator($items, $total, $perPage, $page, [
+                'path' => Paginator::resolveCurrentPath(),
+            ]);
+        }
+
         $originalLimit = $this->limitValue;
         $originalOffset = $this->offsetValue;
 
@@ -620,6 +638,24 @@ final class PaperQueryBuilder
     public function simplePaginate(int $perPage = 15, ?int $page = null): Paginator
     {
         $page ??= Paginator::resolveCurrentPage();
+
+        $updatedAt = $this->updatedAtColumn();
+
+        if ($this->wheres === [] && $this->ordersAreParseFree($updatedAt)) {
+            $offset = ($page - 1) * $perPage;
+
+            $items = $this->orderedFiles($updatedAt)
+                ->slice($offset)
+                ->take($perPage + 1)
+                ->map(fn (string $filepath): Model => $this->fileToModel($filepath))
+                ->values();
+
+            $items->each($this->fireRetrieved(...));
+
+            return new Paginator($items, $perPage, $page, [
+                'path' => Paginator::resolveCurrentPath(),
+            ]);
+        }
 
         $originalLimit = $this->limitValue;
         $originalOffset = $this->offsetValue;
@@ -830,6 +866,47 @@ final class PaperQueryBuilder
         return $models->values();
     }
 
+    private function updatedAtColumn(): ?string
+    {
+        /** @var Model $model */
+        $model = new $this->modelClass;
+
+        return $model->usesTimestamps() ? $model->getUpdatedAtColumn() : null;
+    }
+
+    private function ordersAreParseFree(?string $updatedAt): bool
+    {
+        if ($this->randomOrder) {
+            return false;
+        }
+
+        $parseFree = array_filter(['slug', $updatedAt]);
+
+        return array_all($this->orders, fn (array $order): bool => in_array($order['column'], $parseFree, true));
+    }
+
+    /**
+     * @return Collection<int, string>
+     */
+    private function orderedFiles(?string $updatedAt): Collection
+    {
+        $files = $this->scanFiles();
+
+        if ($this->orders === []) {
+            return $files;
+        }
+
+        foreach (array_reverse($this->orders) as $order) {
+            $key = $order['column'] === $updatedAt
+                ? static fn (string $file): int => (int) @filemtime($file)
+                : static fn (string $file): string => pathinfo($file, PATHINFO_FILENAME);
+
+            $files = $files->sortBy($key, SORT_REGULAR, $order['direction'] === 'desc');
+        }
+
+        return $files->values();
+    }
+
     /**
      * @param  Collection<int, string>  $files
      * @return Generator<int, Model>
@@ -888,6 +965,11 @@ final class PaperQueryBuilder
                 $matches[] = $filepath;
             }
         }
+
+        usort($matches, static fn (string $a, string $b): int => strcmp(
+            pathinfo($a, PATHINFO_FILENAME),
+            pathinfo($b, PATHINFO_FILENAME)
+        ));
 
         /** @var Collection<int, string> */
         return collect($matches);

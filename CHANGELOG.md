@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+* Improved unordered queries to return records in a stable slug order
+* Optimized `paginate` and `simplePaginate` to read only the current page's files when the query has no `where` clause and isn't ordered by a frontmatter field
 * Optimized `updated_at` to read each content file's modification time once instead of twice
 
 ## Version 1.12.0 (2026-06-13)
