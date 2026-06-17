@@ -34,7 +34,7 @@ final class Post extends Model
      */
     protected function casts(): array
     {
-        return ['tags' => 'array'];
+        return ['tags' => 'array', 'views' => 'integer'];
     }
 
     public function scopePublished(PaperQueryBuilder $query): PaperQueryBuilder

@@ -53,3 +53,45 @@ it('does not persist the derived updated_at into the file on save', function ():
     expect($reloaded->updated_at)->not->toBeNull()
         ->and($raw)->not->toContain('updated_at');
 });
+
+it('orders by updated_at identically whether or not the fast path runs', function (): void {
+    $dir = base_path('tests/content/posts');
+
+    $mtimes = [
+        'second-post.md' => 1_700_000_300,
+        'draft-post.markdown' => 1_700_000_200,
+        'hello-world.md' => 1_700_000_200,
+    ];
+
+    $original = [];
+
+    foreach ($mtimes as $name => $mtime) {
+        $path = $dir.'/'.$name;
+        $original[$path] = filemtime($path);
+        touch($path, $mtime);
+    }
+
+    clearstatcache();
+
+    try {
+        $fastPath = TimestampedPost::query()
+            ->orderByDesc('updated_at')
+            ->paginate(perPage: 10)
+            ->pluck('slug')
+            ->all();
+
+        $fullParse = TimestampedPost::query()
+            ->whereNotNull('slug')
+            ->orderByDesc('updated_at')
+            ->paginate(perPage: 10)
+            ->pluck('slug')
+            ->all();
+
+        expect($fastPath)->toBe(['second-post', 'draft-post', 'hello-world'])
+            ->and($fullParse)->toBe($fastPath);
+    } finally {
+        foreach ($original as $path => $mtime) {
+            touch($path, $mtime);
+        }
+    }
+});

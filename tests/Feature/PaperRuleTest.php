@@ -26,7 +26,7 @@ it('validates exists rule fails for non-existing model', function (): void {
     );
 
     expect($validator->fails())->toBeTrue()
-        ->and($validator->errors()->first('slug'))->toBe('The selected slug does not exist.');
+        ->and($validator->errors()->first('slug'))->toBe('The selected slug is invalid.');
 });
 
 it('validates unique rule passes for new value', function (): void {
@@ -79,4 +79,30 @@ it('ignores a record by a custom column', function (): void {
 
     expect($ignored->passes())->toBeTrue()
         ->and($notIgnored->fails())->toBeTrue();
+});
+
+it('translates the exists message to the active locale', function (): void {
+    app('translator')->addLines(['validation.exists' => 'No :attribute matches that value.'], 'xx');
+    app()->setLocale('xx');
+
+    $validator = Validator::make(
+        ['slug' => 'does-not-exist'],
+        ['slug' => PaperRule::exists(Post::class)]
+    );
+
+    expect($validator->fails())->toBeTrue()
+        ->and($validator->errors()->first('slug'))->toBe('No slug matches that value.');
+});
+
+it('translates the unique message to the active locale', function (): void {
+    app('translator')->addLines(['validation.unique' => 'That :attribute is already in use.'], 'xx');
+    app()->setLocale('xx');
+
+    $validator = Validator::make(
+        ['slug' => 'hello-world'],
+        ['slug' => PaperRule::unique(Post::class)]
+    );
+
+    expect($validator->fails())->toBeTrue()
+        ->and($validator->errors()->first('slug'))->toBe('That slug is already in use.');
 });

@@ -51,6 +51,8 @@ tags: [laravel, markdown]
 Your Markdown content goes here...
 ```
 
+> YAML reads an unquoted `date: 2024-03-15` as a Unix timestamp. Quote it or cast it with `'date' => 'date'` so comparisons like `where('date', '>', '2024-01-01')` work.
+
 Query it like any other Eloquent model:
 
 ```php
@@ -173,6 +175,8 @@ Post::updateOrCreate(
 );
 ```
 
+`create` requires a `slug` and does not derive one from other fields. If your source data has no slug, generate one yourself with `Str::slug($title)`.
+
 For bulk edits, `update` sets values across every matching record:
 
 ```php
@@ -228,6 +232,17 @@ $posts = Post::simplePaginate(15);
 ```
 
 Use `simplePaginate` for large directories where the count is expensive, and you don't need a total.
+
+## Aggregates
+
+Alongside `count`, Paper has `min`, `max`, `sum`, `avg`, and its alias `average`:
+
+```php
+$next = Post::max('order') + 1;
+$views = Post::where('published', true)->sum('views');
+```
+
+On an empty result `sum` returns `0` and the rest return `null`. Null, missing, and non-numeric values are ignored, the same way SQL aggregates skip `NULL`.
 
 ## Relationships
 
@@ -341,6 +356,12 @@ Two caveats worth knowing before you point Paper at a remote disk:
 **No atomic writes on remote disks.** The local adapter writes through a temp file and atomic rename, so a crash mid-write leaves the previous file intact. Remote disks (S3 et al.) use a single `put()` call. A failed write can leave a partial object. This is a physical limitation of remote object stores, not a bug.
 
 **Cache staleness checks are slower on remote disks.** Paper checks file modification time on every cached read to detect changes. On local FS that's a microsecond syscall; on S3 it's a `HeadObject` API call (tens of milliseconds, billed per request). If you have hot content on a remote disk, expect noticeably more latency than the local case. Increasing the underlying Laravel cache TTL helps if your content rarely changes.
+
+## AI-Assisted Development
+
+Paper ships a [Laravel Boost](https://laravel.com/docs/boost) skill. If your project uses
+Boost, `php artisan boost:install` offers to install it, giving your AI agent Paper-specific
+guidance for writing and querying flat-file models.
 
 ## Contributing
 

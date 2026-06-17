@@ -77,6 +77,26 @@ it('can order posts', function (): void {
         ->and($posts->last()->slug)->toBe('hello-world');
 });
 
+it('treats the first orderBy as primary and later ones as tiebreakers', function (): void {
+    $posts = Post::query()->orderBy('published')->orderBy('date')->get();
+
+    expect($posts->pluck('slug')->toArray())->toBe(['draft-post', 'hello-world', 'second-post']);
+});
+
+it('returns one model per slug when the same slug exists under multiple extensions', function (): void {
+    $duplicate = __DIR__.'/../content/posts/hello-world.markdown';
+    File::put($duplicate, File::get(__DIR__.'/../content/posts/hello-world.md'));
+
+    try {
+        $posts = Post::all();
+
+        expect($posts)->toHaveCount(3)
+            ->and($posts->where('slug', 'hello-world'))->toHaveCount(1);
+    } finally {
+        File::delete($duplicate);
+    }
+});
+
 it('can limit results', function (): void {
     $posts = Post::query()->limit(2)->get();
 
@@ -171,6 +191,27 @@ it('paginates using the Paginator resolvers so it works without a request', func
         ->and($page)->toHaveCount(1);
 });
 
+it('returns records in a stable slug order across pages', function (): void {
+    $slugs = collect([1, 2, 3])
+        ->map(fn (int $page): string => Post::paginate(perPage: 1, page: $page)->first()->slug)
+        ->all();
+
+    expect($slugs)->toBe(['draft-post', 'hello-world', 'second-post']);
+});
+
+it('paginates correctly when ordering by a frontmatter field', function (): void {
+    $page = Post::query()->orderByDesc('order')->paginate(perPage: 1, page: 1);
+
+    expect($page->first()->slug)->toBe('draft-post')
+        ->and($page->total())->toBe(3);
+});
+
+it('paginates a filtered query with the correct total', function (): void {
+    $page = Post::where('published', true)->paginate(perPage: 1, page: 1);
+
+    expect($page->total())->toBe(2);
+});
+
 it('matches with whereLike and respects case sensitivity', function (): void {
     expect(Post::whereLike('title', '%post%')->count())->toBe(2)
         ->and(Post::whereLike('title', '%post%', caseSensitive: true)->count())->toBe(0)
@@ -207,9 +248,19 @@ it('filters with whereIn and whereNotIn', function (): void {
         ->and(Post::whereNotIn('order', [1])->count())->toBe(2);
 });
 
+it('matches whereIn loosely so frontmatter type quirks do not exclude records', function (): void {
+    expect(Post::whereIn('order', ['1'])->pluck('slug')->toArray())->toBe(['hello-world'])
+        ->and(Post::whereNotIn('order', ['1'])->count())->toBe(2);
+});
+
 it('filters with whereBetween and whereNotBetween', function (): void {
     expect(Post::whereBetween('order', [1, 2])->count())->toBe(2)
         ->and(Post::whereNotBetween('order', [1, 2])->count())->toBe(1);
+});
+
+it('excludes records missing the column from whereBetween and whereNotBetween', function (): void {
+    expect(Post::whereBetween('author_slug', ['a', 'z'])->count())->toBe(1)
+        ->and(Post::whereNotBetween('author_slug', ['a', 'z'])->count())->toBe(0);
 });
 
 it('filters with whereNull and whereNotNull', function (): void {
@@ -242,6 +293,72 @@ it('returns the first record matching a where condition', function (): void {
     expect($post)->not->toBeNull()
         ->and($post->slug)->toBe('hello-world')
         ->and(Post::firstWhere('slug', 'does-not-exist'))->toBeNull();
+});
+
+it('keys plucked values by a second column', function (): void {
+    expect(Post::query()->pluck('order', 'slug')->toArray())
+        ->toBe(['draft-post' => 3, 'hello-world' => 1, 'second-post' => 2]);
+});
+
+it('returns an existing record or a new unsaved instance with firstOrNew', function (): void {
+    $existing = Post::firstOrNew(['slug' => 'hello-world']);
+    $fresh = Post::firstOrNew(['slug' => 'ghost'], ['title' => 'Ghost']);
+
+    expect($existing->exists)->toBeTrue()
+        ->and($existing->title)->toBe('Hello World')
+        ->and($fresh->exists)->toBeFalse()
+        ->and($fresh->title)->toBe('Ghost')
+        ->and(Post::find('ghost'))->toBeNull();
+});
+
+it('returns the model or the callback result with findOr', function (): void {
+    expect(Post::findOr('hello-world', fn (): string => 'fallback')->slug)->toBe('hello-world')
+        ->and(Post::findOr('ghost', fn (): string => 'fallback'))->toBe('fallback');
+});
+
+it('returns the first match or the callback result with firstOr', function (): void {
+    expect(Post::where('slug', 'hello-world')->firstOr(fn (): string => 'fallback')->slug)->toBe('hello-world')
+        ->and(Post::where('slug', 'ghost')->firstOr(fn (): string => 'fallback'))->toBe('fallback');
+});
+
+it('processes records in chunks and stops when the callback returns false', function (): void {
+    $slugs = [];
+
+    Post::query()->chunk(2, function ($models) use (&$slugs): void {
+        foreach ($models as $model) {
+            $slugs[] = $model->slug;
+        }
+    });
+
+    $chunks = 0;
+
+    Post::query()->chunk(1, function () use (&$chunks): bool {
+        $chunks++;
+
+        return false;
+    });
+
+    expect($slugs)->toBe(['draft-post', 'hello-world', 'second-post'])
+        ->and($chunks)->toBe(1);
+});
+
+it('iterates every record with each and stops when the callback returns false', function (): void {
+    $slugs = [];
+
+    Post::query()->each(function ($model) use (&$slugs): void {
+        $slugs[] = $model->slug;
+    });
+
+    $seen = 0;
+
+    Post::query()->each(function () use (&$seen): bool {
+        $seen++;
+
+        return false;
+    });
+
+    expect($slugs)->toBe(['draft-post', 'hello-world', 'second-post'])
+        ->and($seen)->toBe(1);
 });
 
 it('reports more pages without counting every record', function (): void {

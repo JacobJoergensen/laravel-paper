@@ -7,6 +7,7 @@ namespace JacobJoergensen\LaravelPaper\Rules;
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Translation\PotentiallyTranslatedString;
 
 final class PaperUniqueRule implements ValidationRule
 {
@@ -30,6 +31,9 @@ final class PaperUniqueRule implements ValidationRule
         return $this;
     }
 
+    /**
+     * @param  Closure(string, ?string=): PotentiallyTranslatedString  $fail
+     */
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
         $query = $this->model::query();
@@ -41,7 +45,7 @@ final class PaperUniqueRule implements ValidationRule
         }
 
         if ($query->exists()) {
-            $fail("The $attribute has already been taken.");
+            $fail('validation.unique')->translate();
         }
     }
 }

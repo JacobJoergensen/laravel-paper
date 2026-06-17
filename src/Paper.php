@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper;
 
+use Closure;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -15,6 +16,7 @@ use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Contracts\StorageAdapterContract;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
+use JacobJoergensen\LaravelPaper\Exceptions\UnsupportedRouteBindingException;
 use JacobJoergensen\LaravelPaper\Relations\BelongsToPaper;
 use JacobJoergensen\LaravelPaper\Relations\HasManyPaper;
 use ReflectionClass;
@@ -40,6 +42,7 @@ trait Paper
      */
     public static function all($columns = ['*']): Collection
     {
+        /** @var Collection<int, static> */
         return static::query()->get();
     }
 
@@ -49,7 +52,7 @@ trait Paper
     public static function find(mixed $id, $columns = ['*']): ?static
     {
         /** @var ?static */
-        return static::query()->find((string) $id);
+        return static::query()->find(static::keyToString($id));
     }
 
     /**
@@ -60,10 +63,15 @@ trait Paper
         $model = static::find($id, $columns);
 
         if ($model === null) {
-            throw new ModelNotFoundException()->setModel(static::class, [$id]);
+            throw new ModelNotFoundException()->setModel(static::class, [static::keyToString($id)]);
         }
 
         return $model;
+    }
+
+    public static function findOr(mixed $id, Closure $callback): mixed
+    {
+        return static::query()->findOr(static::keyToString($id), $callback);
     }
 
     /**
@@ -76,11 +84,19 @@ trait Paper
         return static::query()->findMany($ids);
     }
 
+    /**
+     * @param  ?scalar  $operator
+     * @param  ?scalar  $value
+     */
     public static function where(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
     {
         return static::query()->where($column, $operator, $value);
     }
 
+    /**
+     * @param  ?scalar  $operator
+     * @param  ?scalar  $value
+     */
     public static function orWhere(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
     {
         return static::query()->orWhere($column, $operator, $value);
@@ -111,6 +127,9 @@ trait Paper
         return static::query()->whereNotIn($column, $values);
     }
 
+    /**
+     * @param  scalar  $value
+     */
     public static function whereContains(string $column, mixed $value): PaperQueryBuilder
     {
         return static::query()->whereContains($column, $value);
@@ -128,6 +147,8 @@ trait Paper
 
     /**
      * @param  array<int, string>  $columns
+     * @param  ?scalar  $operator
+     * @param  ?scalar  $value
      */
     public static function whereAny(array $columns, mixed $operator = null, mixed $value = null): PaperQueryBuilder
     {
@@ -136,6 +157,8 @@ trait Paper
 
     /**
      * @param  array<int, string>  $columns
+     * @param  ?scalar  $operator
+     * @param  ?scalar  $value
      */
     public static function whereAll(array $columns, mixed $operator = null, mixed $value = null): PaperQueryBuilder
     {
@@ -189,6 +212,10 @@ trait Paper
         return static::query()->first();
     }
 
+    /**
+     * @param  ?scalar  $operator
+     * @param  ?scalar  $value
+     */
     public static function firstWhere(string $column, mixed $operator = null, mixed $value = null): ?static
     {
         /** @var ?static */
@@ -201,9 +228,39 @@ trait Paper
         return static::query()->firstOrFail();
     }
 
+    public static function firstOr(Closure $callback): mixed
+    {
+        return static::query()->firstOr($callback);
+    }
+
     public static function count(): int
     {
         return static::query()->count();
+    }
+
+    public static function min(string $column): mixed
+    {
+        return static::query()->min($column);
+    }
+
+    public static function max(string $column): mixed
+    {
+        return static::query()->max($column);
+    }
+
+    public static function sum(string $column): float|int
+    {
+        return static::query()->sum($column);
+    }
+
+    public static function avg(string $column): null|float|int
+    {
+        return static::query()->avg($column);
+    }
+
+    public static function average(string $column): null|float|int
+    {
+        return static::query()->average($column);
     }
 
     public static function exists(): bool
@@ -219,9 +276,27 @@ trait Paper
     /**
      * @return Collection<int, mixed>
      */
-    public static function pluck(string $column): Collection
+    public static function pluck(string $column, ?string $key = null): Collection
     {
-        return static::query()->pluck($column);
+        return static::query()->pluck($column, $key);
+    }
+
+    /**
+     * @param  callable(Collection<int, static>, int): mixed  $callback
+     */
+    public static function chunk(int $count, callable $callback): bool
+    {
+        /** @var callable(Collection<int, Model>, int): mixed $callback */
+        return static::query()->chunk($count, $callback);
+    }
+
+    /**
+     * @param  callable(static, array-key): mixed  $callback
+     */
+    public static function each(callable $callback, int $count = 1000): bool
+    {
+        /** @var callable(Model, array-key): mixed $callback */
+        return static::query()->each($callback, $count);
     }
 
     public static function value(string $column): mixed
@@ -229,22 +304,34 @@ trait Paper
         return static::query()->value($column);
     }
 
+    /**
+     * @return LengthAwarePaginator<int, static>
+     */
     public static function paginate(int $perPage = 15, ?int $page = null): LengthAwarePaginator
     {
+        /** @var LengthAwarePaginator<int, static> */
         return static::query()->paginate($perPage, $page);
     }
 
+    /**
+     * @return Paginator<int, static>
+     */
     public static function simplePaginate(int $perPage = 15, ?int $page = null): Paginator
     {
+        /** @var Paginator<int, static> */
         return static::query()->simplePaginate($perPage, $page);
     }
 
     /**
      * @param  array<int, string>|string  $relations
      */
-    public static function with($relations): PaperQueryBuilder
+    public static function with($relations, string ...$more): PaperQueryBuilder
     {
-        return static::query()->with(is_string($relations) ? func_get_args() : $relations);
+        if (is_string($relations)) {
+            return static::query()->with(array_merge([$relations], $more));
+        }
+
+        return static::query()->with($relations);
     }
 
     /**
@@ -255,7 +342,7 @@ trait Paper
         $model = new static;
         $model->fill($attributes);
 
-        $slug = (string) $model->getAttribute($model->getKeyName());
+        $slug = static::keyToString($model->getAttribute($model->getKeyName()));
 
         if ($slug === '') {
             throw InvalidSlugException::missing();
@@ -279,6 +366,24 @@ trait Paper
         }
 
         return static::create(array_merge($attributes, $values));
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     * @param  array<string, mixed>  $values
+     */
+    public static function firstOrNew(array $attributes, array $values = []): static
+    {
+        $existing = static::firstWhereAttributes($attributes);
+
+        if ($existing !== null) {
+            return $existing;
+        }
+
+        $model = new static;
+        $model->fill(array_merge($attributes, $values));
+
+        return $model;
     }
 
     /**
@@ -311,6 +416,23 @@ trait Paper
         return $attribute?->newInstance()->path ?? 'content';
     }
 
+    /**
+     * @param  ?string  $field
+     */
+    public function resolveRouteBinding(mixed $value, $field = null): ?static
+    {
+        /** @var ?static */
+        return static::query()->where($field ?? $this->getRouteKeyName(), static::keyToString($value))->first();
+    }
+
+    /**
+     * @param  string  $childType
+     */
+    public function resolveChildRouteBinding($childType, mixed $value, mixed $field): never
+    {
+        throw UnsupportedRouteBindingException::scopedChild($childType);
+    }
+
     public function getIncrementing(): bool
     {
         return false;
@@ -326,6 +448,9 @@ trait Paper
         return PaperQueryBuilder::usesTimestamps(static::class);
     }
 
+    /**
+     * @param  array<string, mixed>  $options
+     */
     public function save(array $options = []): bool
     {
         $cache = app(CacheContract::class);
@@ -334,7 +459,7 @@ trait Paper
         $driver = $resolved['driver'];
         $path = PaperQueryBuilder::contentPathFor(static::class);
         $adapter = $resolved['adapter'];
-        $slug = (string) $this->getAttribute($this->getKeyName());
+        $slug = static::keyToString($this->getAttribute($this->getKeyName()));
 
         if ($slug === '') {
             return false;
@@ -360,7 +485,11 @@ trait Paper
         $attributes = PaperCasts::toStorage($this, $this->getAttributes());
 
         if ($this->usesTimestamps()) {
-            unset($attributes[$this->getUpdatedAtColumn()]);
+            $updatedAt = $this->getUpdatedAtColumn();
+
+            if ($updatedAt !== null) {
+                unset($attributes[$updatedAt]);
+            }
         }
 
         $content = $driver->serialize($attributes);
@@ -388,6 +517,9 @@ trait Paper
         return $success;
     }
 
+    /**
+     * @param  array<string, mixed>  $options
+     */
     public function saveQuietly(array $options = []): bool
     {
         return $this->quietly(fn (): bool => $this->save($options));
@@ -449,9 +581,9 @@ trait Paper
         $driver = $resolved['driver'];
         $path = PaperQueryBuilder::contentPathFor(static::class);
         $adapter = $resolved['adapter'];
-        $slug = $this->getAttribute($this->getKeyName());
+        $slug = static::keyToString($this->getAttribute($this->getKeyName()));
 
-        PaperQueryBuilder::guardSlug((string) $slug);
+        PaperQueryBuilder::guardSlug($slug);
 
         foreach ($driver->extensions() as $ext) {
             $filepath = $path.'/'.$slug.'.'.$ext;
@@ -514,6 +646,11 @@ trait Paper
         return $directory.'/'.$slug.'.'.$extensions[0];
     }
 
+    private static function keyToString(mixed $key): string
+    {
+        return is_scalar($key) ? (string) $key : '';
+    }
+
     /**
      * @param  array<string, mixed>  $attributes
      */
@@ -522,6 +659,7 @@ trait Paper
         $query = static::query();
 
         foreach ($attributes as $column => $value) {
+            /** @var ?scalar $value */
             $query->where($column, $value);
         }
 

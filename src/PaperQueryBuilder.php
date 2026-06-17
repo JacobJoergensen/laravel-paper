@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace JacobJoergensen\LaravelPaper;
 
 use BadMethodCallException;
+use Closure;
 use Generator;
 use Illuminate\Contracts\Filesystem\Factory as StorageFactory;
 use Illuminate\Database\Eloquent\Attributes\Scope as ScopeAttribute;
@@ -195,6 +196,11 @@ final class PaperQueryBuilder
         }
 
         return $model;
+    }
+
+    public function findOr(string $slug, Closure $callback): mixed
+    {
+        return $this->find($slug) ?? $callback();
     }
 
     /**
@@ -617,6 +623,11 @@ final class PaperQueryBuilder
         return $model;
     }
 
+    public function firstOr(Closure $callback): mixed
+    {
+        return $this->first() ?? $callback();
+    }
+
     public function sole(): Model
     {
         $items = $this->lazy()->take(2)->all();
@@ -658,6 +669,41 @@ final class PaperQueryBuilder
         return ! $this->exists();
     }
 
+    public function min(string $column): mixed
+    {
+        return collect($this->columnValues($column))->min();
+    }
+
+    public function max(string $column): mixed
+    {
+        return collect($this->columnValues($column))->max();
+    }
+
+    public function sum(string $column): float|int
+    {
+        $total = 0;
+
+        foreach ($this->columnValues($column) as $value) {
+            if (is_numeric($value)) {
+                $total += $value;
+            }
+        }
+
+        return $total;
+    }
+
+    public function avg(string $column): null|float|int
+    {
+        $numeric = array_filter($this->columnValues($column), is_numeric(...));
+
+        return collect($numeric)->avg();
+    }
+
+    public function average(string $column): null|float|int
+    {
+        return $this->avg($column);
+    }
+
     public function delete(): int
     {
         $deleted = 0;
@@ -694,9 +740,9 @@ final class PaperQueryBuilder
     /**
      * @return Collection<int, mixed>
      */
-    public function pluck(string $column): Collection
+    public function pluck(string $column, ?string $key = null): Collection
     {
-        return $this->getModels()->pluck($column);
+        return $this->getModels()->pluck($column, $key);
     }
 
     /**
@@ -705,6 +751,24 @@ final class PaperQueryBuilder
     public function paginate(int $perPage = 15, ?int $page = null): LengthAwarePaginator
     {
         $page ??= Paginator::resolveCurrentPage();
+
+        $updatedAt = $this->updatedAtColumn();
+
+        if ($this->wheres === [] && $this->ordersAreParseFree($updatedAt)) {
+            $files = $this->orderedFiles($updatedAt);
+            $total = $files->count();
+
+            $items = $files->slice(($page - 1) * $perPage)
+                ->take($perPage)
+                ->map(fn (string $filepath): Model => $this->fileToModel($filepath))
+                ->values();
+
+            $items->each($this->fireRetrieved(...));
+
+            return new LengthAwarePaginator($items, $total, $perPage, $page, [
+                'path' => Paginator::resolveCurrentPath(),
+            ]);
+        }
 
         $originalLimit = $this->limitValue;
         $originalOffset = $this->offsetValue;
@@ -735,6 +799,24 @@ final class PaperQueryBuilder
     public function simplePaginate(int $perPage = 15, ?int $page = null): Paginator
     {
         $page ??= Paginator::resolveCurrentPage();
+
+        $updatedAt = $this->updatedAtColumn();
+
+        if ($this->wheres === [] && $this->ordersAreParseFree($updatedAt)) {
+            $offset = ($page - 1) * $perPage;
+
+            $items = $this->orderedFiles($updatedAt)
+                ->slice($offset)
+                ->take($perPage + 1)
+                ->map(fn (string $filepath): Model => $this->fileToModel($filepath))
+                ->values();
+
+            $items->each($this->fireRetrieved(...));
+
+            return new Paginator($items, $perPage, $page, [
+                'path' => Paginator::resolveCurrentPath(),
+            ]);
+        }
 
         $originalLimit = $this->limitValue;
         $originalOffset = $this->offsetValue;
@@ -790,6 +872,26 @@ final class PaperQueryBuilder
     }
 
     /**
+     * Ignores orders, limits and offsets so aggregates span every matching record.
+     *
+     * @return list<mixed>
+     */
+    private function columnValues(string $column): array
+    {
+        $values = [];
+
+        foreach ($this->scanFiles() as $filepath) {
+            $model = $this->fileToModel($filepath);
+
+            if ($this->matchesWheres($model)) {
+                $values[] = $model->getAttribute($column);
+            }
+        }
+
+        return $values;
+    }
+
+    /**
      * Parses files lazily, but lists them all up front.
      *
      * @return LazyCollection<int, Model>
@@ -802,6 +904,44 @@ final class PaperQueryBuilder
 
                 yield $model;
             }
+        });
+    }
+
+    /**
+     * @param  callable(Collection<int, Model>, int): mixed  $callback
+     */
+    public function chunk(int $count, callable $callback): bool
+    {
+        $page = 1;
+
+        foreach ($this->lazy()->chunk($count) as $chunk) {
+            /** @var Model $instance */
+            $instance = new $this->modelClass;
+            $models = $instance->newCollection($chunk->all());
+
+            if ($callback($models, $page) === false) {
+                return false;
+            }
+
+            $page++;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  callable(Model, array-key): mixed  $callback
+     */
+    public function each(callable $callback, int $count = 1000): bool
+    {
+        return $this->chunk($count, function (Collection $models) use ($callback): bool {
+            foreach ($models as $key => $model) {
+                if ($callback($model, $key) === false) {
+                    return false;
+                }
+            }
+
+            return true;
         });
     }
 
@@ -905,7 +1045,7 @@ final class PaperQueryBuilder
      */
     private function applyOrdersAndLimits(Collection $models): Collection
     {
-        foreach ($this->orders as $order) {
+        foreach (array_reverse($this->orders) as $order) {
             $models = $models->sortBy(
                 fn (Model $model): mixed => $model->getAttribute($order['column']),
                 SORT_REGULAR,
@@ -926,6 +1066,47 @@ final class PaperQueryBuilder
         }
 
         return $models->values();
+    }
+
+    private function updatedAtColumn(): ?string
+    {
+        /** @var Model $model */
+        $model = new $this->modelClass;
+
+        return $model->usesTimestamps() ? $model->getUpdatedAtColumn() : null;
+    }
+
+    private function ordersAreParseFree(?string $updatedAt): bool
+    {
+        if ($this->randomOrder) {
+            return false;
+        }
+
+        $parseFree = array_filter(['slug', $updatedAt]);
+
+        return array_all($this->orders, fn (array $order): bool => in_array($order['column'], $parseFree, true));
+    }
+
+    /**
+     * @return Collection<int, string>
+     */
+    private function orderedFiles(?string $updatedAt): Collection
+    {
+        $files = $this->scanFiles();
+
+        if ($this->orders === []) {
+            return $files;
+        }
+
+        foreach (array_reverse($this->orders) as $order) {
+            $key = $order['column'] === $updatedAt
+                ? static fn (string $file): int => (int) @filemtime($file)
+                : static fn (string $file): string => pathinfo($file, PATHINFO_FILENAME);
+
+            $files = $files->sortBy($key, SORT_REGULAR, $order['direction'] === 'desc');
+        }
+
+        return $files->values();
     }
 
     /**
@@ -983,7 +1164,8 @@ final class PaperQueryBuilder
 
     private function fileToModel(string $filepath): Model
     {
-        $data = $this->loadFileData($filepath);
+        $mtime = @filemtime($filepath);
+        $data = $this->loadFileData($filepath, is_int($mtime) ? $mtime : 0);
         $slug = pathinfo($filepath, PATHINFO_FILENAME);
 
         $data['slug'] = $slug;
@@ -1010,7 +1192,7 @@ final class PaperQueryBuilder
     /**
      * @return array<string, mixed>
      */
-    private function loadFileData(string $filepath): array
+    private function loadFileData(string $filepath, int $mtime): array
     {
         $mtime = $this->adapter->lastModified($filepath) ?? 0;
         $cacheKey = $this->adapter->cacheKey($filepath);
@@ -1111,14 +1293,14 @@ final class PaperQueryBuilder
         $value = $model->getAttribute($column);
 
         return match ($where['type']) {
-            'in' => in_array($value, $where['values'] ?? [], true),
-            'notIn' => ! in_array($value, $where['values'] ?? [], true),
+            'in' => $value !== null && in_array($value, $where['values'] ?? []),
+            'notIn' => $value !== null && ! in_array($value, $where['values'] ?? []),
             'contains' => is_array($value) && in_array($where['value'] ?? null, $value, true),
             'like' => is_string($value) && $this->evaluateLike($value, (string) ($where['value'] ?? ''), $where['caseSensitive'] ?? false),
             'null' => $value === null,
             'notNull' => $value !== null,
-            'between' => $this->evaluateBetween($value, $where['values'] ?? []),
-            'notBetween' => ! $this->evaluateBetween($value, $where['values'] ?? []),
+            'between' => $value !== null && $this->evaluateBetween($value, $where['values'] ?? []),
+            'notBetween' => $value !== null && ! $this->evaluateBetween($value, $where['values'] ?? []),
             default => $this->evaluateCondition($value, $where['operator'] ?? '=', $where['value'] ?? null),
         };
     }

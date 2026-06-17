@@ -1,6 +1,11 @@
-build
-composer.lock
-vendor
 .idea
 .phpunit.cache
 .phpunit.result.cache
+build
+composer.lock
+vendor
+bootstrap
+benchmarks/.fixtures
+benchmarks/.opcache
+benchmarks/RESULTS.md
+storage

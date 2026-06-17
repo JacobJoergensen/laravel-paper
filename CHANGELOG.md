@@ -15,6 +15,27 @@
 * Removed `bootPaper`, resolution is now lazy on first query
 * Removed `FileParseException::unreadable` since drivers no longer perform I/O
 
+## Version 1.13.0 (2026-06-17)
+* Added a benchmark suite (`composer bench`) measuring query performance across directory sizes
+* Added `chunk` and `each` to process records in batches over the lazy iterator
+* Added `firstOrNew` to return the first matching record or a new unsaved instance
+* Added `findOr` and `firstOr` to run a callback when no record matches
+* Added a key argument to `pluck` to key the results by a second column
+* Improved `PaperRule` exists and unique messages to use Laravel's `validation` translation lines so they respect the app locale
+* Improved unordered queries to return records in a stable slug order
+* Optimized `paginate` and `simplePaginate` to read only the current page's files when the query has no `where` clause and isn't ordered by a frontmatter field
+* Optimized `updated_at` to read each content file's modification time once instead of twice
+* Fixed `whereNotBetween` to exclude records whose column is missing, matching `whereNotIn`
+
+## Version 1.12.0 (2026-06-13)
+* Added `min`, `max`, `sum`, `avg`, and `average` aggregate methods, skipping null and non-numeric values like SQL aggregates skip NULL
+* Added route model binding so `{model}` and `{model:field}` resolve the matching record; scoped child bindings now throw `UnsupportedRouteBindingException`
+* Added Laravel Boost skill `laravel-paper-development` to give AI agents Paper-specific guidance
+* Optimized queries to read each content file's modification time once instead of twice
+* Fixed multi-column `orderBy` to treat the first column as primary and later columns as tiebreakers, matching Eloquent
+* Fixed queries returning a duplicate record when one slug exists under multiple driver extensions
+* Fixed `whereIn` and `whereNotIn` to compare loosely like `where`, so `'1'` matches an integer `1` read from frontmatter
+
 ## Version 1.11.0 (2026-06-04)
 * Added `#[Timestamps]` attribute to expose a model's file modification time as `updated_at`; `created_at` stays a frontmatter field
 * Added `retrieved` model event, fired for each model a query returns and skipped on `count`, `exists`, `pluck`, and bulk `delete`
