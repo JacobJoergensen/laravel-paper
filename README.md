@@ -51,6 +51,8 @@ tags: [laravel, markdown]
 Your Markdown content goes here...
 ```
 
+> YAML reads an unquoted `date: 2024-03-15` as a Unix timestamp. Quote it or cast it with `'date' => 'date'` so comparisons like `where('date', '>', '2024-01-01')` work.
+
 Query it like any other Eloquent model:
 
 ```php
