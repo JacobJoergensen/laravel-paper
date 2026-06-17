@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## Version 1.13.0 (2026-06-17)
 * Added a benchmark suite (`composer bench`) measuring query performance across directory sizes
 * Added `chunk` and `each` to process records in batches over the lazy iterator
 * Added `firstOrNew` to return the first matching record or a new unsaved instance
