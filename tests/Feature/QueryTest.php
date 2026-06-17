@@ -290,6 +290,72 @@ it('returns the first record matching a where condition', function (): void {
         ->and(Post::firstWhere('slug', 'does-not-exist'))->toBeNull();
 });
 
+it('keys plucked values by a second column', function (): void {
+    expect(Post::query()->pluck('order', 'slug')->toArray())
+        ->toBe(['draft-post' => 3, 'hello-world' => 1, 'second-post' => 2]);
+});
+
+it('returns an existing record or a new unsaved instance with firstOrNew', function (): void {
+    $existing = Post::firstOrNew(['slug' => 'hello-world']);
+    $fresh = Post::firstOrNew(['slug' => 'ghost'], ['title' => 'Ghost']);
+
+    expect($existing->exists)->toBeTrue()
+        ->and($existing->title)->toBe('Hello World')
+        ->and($fresh->exists)->toBeFalse()
+        ->and($fresh->title)->toBe('Ghost')
+        ->and(Post::find('ghost'))->toBeNull();
+});
+
+it('returns the model or the callback result with findOr', function (): void {
+    expect(Post::findOr('hello-world', fn (): string => 'fallback')->slug)->toBe('hello-world')
+        ->and(Post::findOr('ghost', fn (): string => 'fallback'))->toBe('fallback');
+});
+
+it('returns the first match or the callback result with firstOr', function (): void {
+    expect(Post::where('slug', 'hello-world')->firstOr(fn (): string => 'fallback')->slug)->toBe('hello-world')
+        ->and(Post::where('slug', 'ghost')->firstOr(fn (): string => 'fallback'))->toBe('fallback');
+});
+
+it('processes records in chunks and stops when the callback returns false', function (): void {
+    $slugs = [];
+
+    Post::query()->chunk(2, function ($models) use (&$slugs): void {
+        foreach ($models as $model) {
+            $slugs[] = $model->slug;
+        }
+    });
+
+    $chunks = 0;
+
+    Post::query()->chunk(1, function () use (&$chunks): bool {
+        $chunks++;
+
+        return false;
+    });
+
+    expect($slugs)->toBe(['draft-post', 'hello-world', 'second-post'])
+        ->and($chunks)->toBe(1);
+});
+
+it('iterates every record with each and stops when the callback returns false', function (): void {
+    $slugs = [];
+
+    Post::query()->each(function ($model) use (&$slugs): void {
+        $slugs[] = $model->slug;
+    });
+
+    $seen = 0;
+
+    Post::query()->each(function () use (&$seen): bool {
+        $seen++;
+
+        return false;
+    });
+
+    expect($slugs)->toBe(['draft-post', 'hello-world', 'second-post'])
+        ->and($seen)->toBe(1);
+});
+
 it('reports more pages without counting every record', function (): void {
     $first = Post::query()->simplePaginate(perPage: 2, page: 1);
     $second = Post::query()->simplePaginate(perPage: 2, page: 2);

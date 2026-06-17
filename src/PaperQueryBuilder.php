@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace JacobJoergensen\LaravelPaper;
 
 use BadMethodCallException;
+use Closure;
 use Generator;
 use Illuminate\Database\Eloquent\Attributes\Scope as ScopeAttribute;
 use Illuminate\Database\Eloquent\Model;
@@ -68,6 +69,11 @@ final class PaperQueryBuilder
         }
 
         return $model;
+    }
+
+    public function findOr(string $slug, Closure $callback): mixed
+    {
+        return $this->find($slug) ?? $callback();
     }
 
     /**
@@ -468,6 +474,11 @@ final class PaperQueryBuilder
         return $model;
     }
 
+    public function firstOr(Closure $callback): mixed
+    {
+        return $this->first() ?? $callback();
+    }
+
     public function sole(): Model
     {
         $items = $this->lazy()->take(2)->all();
@@ -580,9 +591,9 @@ final class PaperQueryBuilder
     /**
      * @return Collection<int, mixed>
      */
-    public function pluck(string $column): Collection
+    public function pluck(string $column, ?string $key = null): Collection
     {
-        return $this->getModels()->pluck($column);
+        return $this->getModels()->pluck($column, $key);
     }
 
     /**
@@ -740,6 +751,44 @@ final class PaperQueryBuilder
 
                 yield $model;
             }
+        });
+    }
+
+    /**
+     * @param  callable(Collection<int, Model>, int): mixed  $callback
+     */
+    public function chunk(int $count, callable $callback): bool
+    {
+        $page = 1;
+
+        foreach ($this->lazy()->chunk($count) as $chunk) {
+            /** @var Model $instance */
+            $instance = new $this->modelClass;
+            $models = $instance->newCollection($chunk->all());
+
+            if ($callback($models, $page) === false) {
+                return false;
+            }
+
+            $page++;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  callable(Model, array-key): mixed  $callback
+     */
+    public function each(callable $callback, int $count = 1000): bool
+    {
+        return $this->chunk($count, function (Collection $models) use ($callback): bool {
+            foreach ($models as $key => $model) {
+                if ($callback($model, $key) === false) {
+                    return false;
+                }
+            }
+
+            return true;
         });
     }
 

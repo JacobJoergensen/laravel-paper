@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+* Added `chunk` and `each` to process records in batches over the lazy iterator
+* Added `firstOrNew` to return the first matching record or a new unsaved instance
+* Added `findOr` and `firstOr` to run a callback when no record matches
+* Added a key argument to `pluck` to key the results by a second column
 * Improved `PaperRule` exists and unique messages to use Laravel's `validation` translation lines so they respect the app locale
 * Improved unordered queries to return records in a stable slug order
 * Optimized `paginate` and `simplePaginate` to read only the current page's files when the query has no `where` clause and isn't ordered by a frontmatter field

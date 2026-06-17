@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper;
 
+use Closure;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Filesystem\Filesystem;
@@ -93,6 +94,11 @@ trait Paper
         }
 
         return $model;
+    }
+
+    public static function findOr(mixed $id, Closure $callback): mixed
+    {
+        return static::query()->findOr((string) $id, $callback);
     }
 
     /**
@@ -230,6 +236,11 @@ trait Paper
         return static::query()->firstOrFail();
     }
 
+    public static function firstOr(Closure $callback): mixed
+    {
+        return static::query()->firstOr($callback);
+    }
+
     public static function count(): int
     {
         return static::query()->count();
@@ -273,9 +284,25 @@ trait Paper
     /**
      * @return Collection<int, mixed>
      */
-    public static function pluck(string $column): Collection
+    public static function pluck(string $column, ?string $key = null): Collection
     {
-        return static::query()->pluck($column);
+        return static::query()->pluck($column, $key);
+    }
+
+    /**
+     * @param  callable(Collection<int, static>, int): mixed  $callback
+     */
+    public static function chunk(int $count, callable $callback): bool
+    {
+        return static::query()->chunk($count, $callback);
+    }
+
+    /**
+     * @param  callable(static, array-key): mixed  $callback
+     */
+    public static function each(callable $callback, int $count = 1000): bool
+    {
+        return static::query()->each($callback, $count);
     }
 
     public static function value(string $column): mixed
@@ -325,6 +352,24 @@ trait Paper
         }
 
         return static::create(array_merge($attributes, $values));
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     * @param  array<string, mixed>  $values
+     */
+    public static function firstOrNew(array $attributes, array $values = []): static
+    {
+        $existing = static::firstWhereAttributes($attributes);
+
+        if ($existing !== null) {
+            return $existing;
+        }
+
+        $model = new static;
+        $model->fill(array_merge($attributes, $values));
+
+        return $model;
     }
 
     /**
