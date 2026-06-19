@@ -22,7 +22,7 @@ interface StorageAdapterContract
 
     /**
      * @param  list<string>  $extensions
-     * @return list<string>
+     * @return array<string, int>
      */
-    public function list(string $directory, array $extensions): array;
+    public function listing(string $directory, array $extensions): array;
 }

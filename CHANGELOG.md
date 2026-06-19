@@ -6,11 +6,12 @@
 * Added `PaperRelation` abstract base for relation descriptors, with `BelongsToPaper` and `HasManyPaper` as concrete types exposing `getResults()` for lazy resolution and property access after eager loading
 * Added `#[Disk]` attribute to point a model at any Laravel filesystem disk; default behavior (local FS) is unchanged when the attribute is absent
 * Added `StorageAdapterContract` with `LocalAdapter` and `DiskAdapter` implementations so reads, writes, listing, and existence checks go through one abstraction
+* Added `paper:cache` and `paper:clear` commands to warm and clear a model's manifest
 * Changed `belongsToPaper` and `hasManyPaper` to return relation descriptors; call ->getResults() for direct resolution or use with() to eager load
 * Changed `DriverContract::parse` signature to `parse(string $contents)`; drivers no longer perform I/O, the adapter reads files. `PaperQueryBuilder` wraps format errors with the filepath via `FileParseException::inFile`
-* Changed `CacheContract::getIfFresh` signature to `getIfFresh(string $filepath, int $mtime)`; the caller passes mtime from the adapter
 * Changed `latest` and `oldest` to default to `updated_at`; pairs with `#[Timestamps]` for mtime-based ordering
 * Changed `PaperQueryBuilder::resolveFor` to no longer return the content path; it resolves per call via `getContentPath` so it can vary at runtime
+* Optimized queries to reconcile a per content-path manifest against one directory listing, so a query reads one listing instead of a metadata call per file and warm reads scale flat with file count
 * Moved driver and content path resolution to PaperQueryBuilder as a single shared cache
 * Removed `bootPaper`, resolution is now lazy on first query
 * Removed `FileParseException::unreadable` since drivers no longer perform I/O

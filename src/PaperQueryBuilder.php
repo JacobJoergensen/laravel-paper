@@ -20,7 +20,7 @@ use Illuminate\Support\LazyCollection;
 use JacobJoergensen\LaravelPaper\Attributes\Disk;
 use JacobJoergensen\LaravelPaper\Attributes\Driver;
 use JacobJoergensen\LaravelPaper\Attributes\Timestamps;
-use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
+use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Contracts\StorageAdapterContract;
 use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
@@ -65,7 +65,7 @@ final class PaperQueryBuilder
     public function __construct(
         private readonly StorageAdapterContract $adapter,
         private readonly DriverContract $driver,
-        private readonly CacheContract $cache,
+        private readonly PaperManifest $manifest,
         private readonly string $contentPath,
         private readonly string $modelClass,
     ) {}
@@ -80,7 +80,7 @@ final class PaperQueryBuilder
         return new self(
             $resolved['adapter'],
             $resolved['driver'],
-            app(CacheContract::class),
+            app(PaperManifest::class),
             self::contentPathFor($modelClass),
             $modelClass,
         );
@@ -237,10 +237,19 @@ final class PaperQueryBuilder
 
         foreach ($this->driver->extensions() as $ext) {
             $filepath = $this->contentPath.'/'.$slug.'.'.$ext;
+            $contents = $this->adapter->read($filepath);
 
-            if ($this->adapter->exists($filepath)) {
-                return $this->fileToModel($filepath);
+            if ($contents === null) {
+                continue;
             }
+
+            try {
+                $data = $this->driver->parse($contents);
+            } catch (FileParseException $e) {
+                throw FileParseException::inFile($filepath, $e);
+            }
+
+            return $this->hydrate($slug, $this->adapter->lastModified($filepath) ?? 0, $data);
         }
 
         return null;
@@ -283,7 +292,7 @@ final class PaperQueryBuilder
 
     private function whereGroup(callable $callback, string $boolean): self
     {
-        $nested = new self($this->adapter, $this->driver, $this->cache, $this->contentPath, $this->modelClass);
+        $nested = new self($this->adapter, $this->driver, $this->manifest, $this->contentPath, $this->modelClass);
         $callback($nested);
 
         $this->wheres[] = [
@@ -649,7 +658,7 @@ final class PaperQueryBuilder
     public function count(): int
     {
         if ($this->wheres === []) {
-            return $this->scanFiles()->count();
+            return count($this->scanSlugs());
         }
 
         return $this->lazyModels()->count();
@@ -658,7 +667,7 @@ final class PaperQueryBuilder
     public function exists(): bool
     {
         if ($this->wheres === []) {
-            return $this->scanFiles()->isNotEmpty();
+            return $this->scanSlugs() !== [];
         }
 
         return $this->lazyModels()->isNotEmpty();
@@ -752,25 +761,6 @@ final class PaperQueryBuilder
     {
         $page ??= Paginator::resolveCurrentPage();
 
-        $updatedAt = $this->updatedAtColumn();
-
-        if ($this->wheres === [] && $this->ordersAreParseFree($updatedAt)) {
-            $files = $this->orderedFiles($updatedAt);
-            $total = $files->count();
-
-            $items = $files->slice(($page - 1) * $perPage)
-                ->take($perPage)
-                ->map(fn (string $filepath): Model => $this->fileToModel($filepath))
-                ->values();
-
-            $this->eagerLoadRelations($items);
-            $items->each($this->fireRetrieved(...));
-
-            return new LengthAwarePaginator($items, $total, $perPage, $page, [
-                'path' => Paginator::resolveCurrentPath(),
-            ]);
-        }
-
         $originalLimit = $this->limitValue;
         $originalOffset = $this->offsetValue;
 
@@ -800,25 +790,6 @@ final class PaperQueryBuilder
     public function simplePaginate(int $perPage = 15, ?int $page = null): Paginator
     {
         $page ??= Paginator::resolveCurrentPage();
-
-        $updatedAt = $this->updatedAtColumn();
-
-        if ($this->wheres === [] && $this->ordersAreParseFree($updatedAt)) {
-            $offset = ($page - 1) * $perPage;
-
-            $items = $this->orderedFiles($updatedAt)
-                ->slice($offset)
-                ->take($perPage + 1)
-                ->map(fn (string $filepath): Model => $this->fileToModel($filepath))
-                ->values();
-
-            $this->eagerLoadRelations($items);
-            $items->each($this->fireRetrieved(...));
-
-            return new Paginator($items, $perPage, $page, [
-                'path' => Paginator::resolveCurrentPath(),
-            ]);
-        }
 
         $originalLimit = $this->limitValue;
         $originalOffset = $this->offsetValue;
@@ -861,8 +832,8 @@ final class PaperQueryBuilder
      */
     private function getModels(): Collection
     {
-        $models = $this->scanFiles()
-            ->map(fn (string $filepath): Model => $this->fileToModel($filepath))
+        $models = $this->records()
+            ->map(fn (array $record): Model => $this->hydrate($record['slug'], $record['mtime'], $record['data']))
             ->filter(fn (Model $model): bool => $this->matchesWheres($model));
 
         $results = $this->applyOrdersAndLimits($models);
@@ -882,8 +853,8 @@ final class PaperQueryBuilder
     {
         $values = [];
 
-        foreach ($this->scanFiles() as $filepath) {
-            $model = $this->fileToModel($filepath);
+        foreach ($this->records() as $record) {
+            $model = $this->hydrate($record['slug'], $record['mtime'], $record['data']);
 
             if ($this->matchesWheres($model)) {
                 $values[] = $model->getAttribute($column);
@@ -894,7 +865,7 @@ final class PaperQueryBuilder
     }
 
     /**
-     * Parses files lazily, but lists them all up front.
+     * Builds models lazily from the manifest, one at a time.
      *
      * @return LazyCollection<int, Model>
      */
@@ -1015,25 +986,25 @@ final class PaperQueryBuilder
      */
     private function yieldModels(): Generator
     {
-        $files = $this->scanFiles();
+        $records = $this->records();
 
         if ($this->orders !== [] || $this->randomOrder) {
-            yield from $this->yieldOrdered($files);
+            yield from $this->yieldOrdered($records);
 
             return;
         }
 
-        yield from $this->yieldUnordered($files);
+        yield from $this->yieldUnordered($records);
     }
 
     /**
-     * @param  Collection<int, string>  $files
+     * @param  Collection<int, array{slug: string, mtime: int, data: array<string, mixed>}>  $records
      * @return Generator<int, Model>
      */
-    private function yieldOrdered(Collection $files): Generator
+    private function yieldOrdered(Collection $records): Generator
     {
-        $models = $files
-            ->map(fn (string $filepath): Model => $this->fileToModel($filepath))
+        $models = $records
+            ->map(fn (array $record): Model => $this->hydrate($record['slug'], $record['mtime'], $record['data']))
             ->filter(fn (Model $model): bool => $this->matchesWheres($model));
 
         foreach ($this->applyOrdersAndLimits($models) as $model) {
@@ -1070,58 +1041,17 @@ final class PaperQueryBuilder
         return $models->values();
     }
 
-    private function updatedAtColumn(): ?string
-    {
-        /** @var Model $model */
-        $model = new $this->modelClass;
-
-        return $model->usesTimestamps() ? $model->getUpdatedAtColumn() : null;
-    }
-
-    private function ordersAreParseFree(?string $updatedAt): bool
-    {
-        if ($this->randomOrder) {
-            return false;
-        }
-
-        $parseFree = array_filter(['slug', $updatedAt]);
-
-        return array_all($this->orders, fn (array $order): bool => in_array($order['column'], $parseFree, true));
-    }
-
     /**
-     * @return Collection<int, string>
-     */
-    private function orderedFiles(?string $updatedAt): Collection
-    {
-        $files = $this->scanFiles();
-
-        if ($this->orders === []) {
-            return $files;
-        }
-
-        foreach (array_reverse($this->orders) as $order) {
-            $key = $order['column'] === $updatedAt
-                ? static fn (string $file): int => (int) @filemtime($file)
-                : static fn (string $file): string => pathinfo($file, PATHINFO_FILENAME);
-
-            $files = $files->sortBy($key, SORT_REGULAR, $order['direction'] === 'desc');
-        }
-
-        return $files->values();
-    }
-
-    /**
-     * @param  Collection<int, string>  $files
+     * @param  Collection<int, array{slug: string, mtime: int, data: array<string, mixed>}>  $records
      * @return Generator<int, Model>
      */
-    private function yieldUnordered(Collection $files): Generator
+    private function yieldUnordered(Collection $records): Generator
     {
         $yielded = 0;
         $skipped = 0;
 
-        foreach ($files as $filepath) {
-            $model = $this->fileToModel($filepath);
+        foreach ($records as $record) {
+            $model = $this->hydrate($record['slug'], $record['mtime'], $record['data']);
 
             if (! $this->matchesWheres($model)) {
                 continue;
@@ -1143,36 +1073,35 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @return Collection<int, string>
+     * @return Collection<int, array{slug: string, mtime: int, data: array<string, mixed>}>
      */
-    private function scanFiles(): Collection
+    private function records(): Collection
     {
         try {
-            $paths = $this->adapter->list($this->contentPath, $this->driver->extensions());
+            $entries = $this->manifest->records($this->adapter, $this->driver, $this->contentPath);
         } catch (ContentPathNotFoundException) {
             throw ContentPathNotFoundException::forPath($this->contentPath, $this->modelClass);
         }
 
-        $matches = [];
-        $seen = [];
+        $records = [];
 
-        foreach ($paths as $filepath) {
-            $slug = pathinfo($filepath, PATHINFO_FILENAME);
-
-            if (isset($seen[$slug])) {
-                continue;
-            }
-
-            $seen[$slug] = true;
-            $matches[] = $filepath;
+        foreach ($entries as $slug => $entry) {
+            $records[] = ['slug' => $slug, 'mtime' => $entry['mtime'], 'data' => $entry['data']];
         }
 
-        usort($matches, static fn (string $a, string $b): int => strcmp(
-            pathinfo($a, PATHINFO_FILENAME),
-            pathinfo($b, PATHINFO_FILENAME)
-        ));
+        return collect($records);
+    }
 
-        return collect($matches);
+    /**
+     * @return list<string>
+     */
+    private function scanSlugs(): array
+    {
+        try {
+            return $this->manifest->slugs($this->adapter, $this->driver, $this->contentPath);
+        } catch (ContentPathNotFoundException) {
+            throw ContentPathNotFoundException::forPath($this->contentPath, $this->modelClass);
+        }
     }
 
     /**
@@ -1185,22 +1114,20 @@ final class PaperQueryBuilder
         })->call($model);
     }
 
-    private function fileToModel(string $filepath): Model
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function hydrate(string $slug, int $mtime, array $data): Model
     {
-        $mtime = @filemtime($filepath);
-        $data = $this->loadFileData($filepath, is_int($mtime) ? $mtime : 0);
-        $slug = pathinfo($filepath, PATHINFO_FILENAME);
-
         $data['slug'] = $slug;
 
         /** @var Model $model */
         $model = new $this->modelClass;
 
-        if ($model->usesTimestamps()) {
+        if ($model->usesTimestamps() && $mtime > 0) {
             $column = $model->getUpdatedAtColumn();
-            $mtime = $this->adapter->lastModified($filepath);
 
-            if ($column !== null && $mtime !== null) {
+            if ($column !== null) {
                 $data[$column] = $mtime;
             }
         }
@@ -1210,31 +1137,6 @@ final class PaperQueryBuilder
         $model->exists = true;
 
         return $model;
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function loadFileData(string $filepath, int $mtime): array
-    {
-        $mtime = $this->adapter->lastModified($filepath) ?? 0;
-        $cacheKey = $this->adapter->cacheKey($filepath);
-
-        if (($cached = $this->cache->getIfFresh($cacheKey, $mtime)) !== null) {
-            return $cached;
-        }
-
-        $contents = $this->adapter->read($filepath) ?? '';
-
-        try {
-            $data = $this->driver->parse($contents);
-        } catch (FileParseException $e) {
-            throw FileParseException::inFile($filepath, $e);
-        }
-
-        $this->cache->set($cacheKey, $data, $mtime);
-
-        return $data;
     }
 
     /**

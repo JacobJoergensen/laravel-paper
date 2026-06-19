@@ -12,7 +12,7 @@ use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
-use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
+use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Contracts\StorageAdapterContract;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
@@ -451,7 +451,7 @@ trait Paper
      */
     public function save(array $options = []): bool
     {
-        $cache = app(CacheContract::class);
+        $manifest = app(PaperManifest::class);
 
         $resolved = PaperQueryBuilder::resolveFor(static::class);
         $driver = $resolved['driver'];
@@ -498,7 +498,7 @@ trait Paper
 
         if ($success) {
             $this->exists = true;
-            $cache->forget($adapter->cacheKey($filepath));
+            $manifest->put($adapter, $path, $slug, $adapter->lastModified($filepath) ?? 0, $driver->parse($content));
 
             if ($isCreating) {
                 $this->wasRecentlyCreated = true;
@@ -573,7 +573,7 @@ trait Paper
             return false;
         }
 
-        $cache = app(CacheContract::class);
+        $manifest = app(PaperManifest::class);
 
         $resolved = PaperQueryBuilder::resolveFor(static::class);
         $driver = $resolved['driver'];
@@ -587,7 +587,7 @@ trait Paper
             $filepath = $path.'/'.$slug.'.'.$ext;
 
             if ($adapter->exists($filepath)) {
-                $cache->forget($adapter->cacheKey($filepath));
+                $manifest->forget($adapter, $path, $slug);
                 $deleted = $adapter->delete($filepath);
 
                 if ($deleted) {

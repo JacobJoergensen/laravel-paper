@@ -7,8 +7,9 @@ namespace JacobJoergensen\LaravelPaper;
 use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
-use JacobJoergensen\LaravelPaper\Cache\FileModificationCache;
-use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
+use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
+use JacobJoergensen\LaravelPaper\Console\CacheCommand;
+use JacobJoergensen\LaravelPaper\Console\ClearCommand;
 use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
 use JacobJoergensen\LaravelPaper\Drivers\JsonDriver;
 use JacobJoergensen\LaravelPaper\Drivers\MarkdownDriver;
@@ -17,8 +18,8 @@ final class PaperServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->singleton(CacheContract::class, function (Application $app): CacheContract {
-            return new FileModificationCache($app->make(Repository::class));
+        $this->app->singleton(PaperManifest::class, function (Application $app): PaperManifest {
+            return new PaperManifest($app->make(Repository::class));
         });
 
         $this->app->singleton(MarkdownDriver::class);
@@ -31,5 +32,15 @@ final class PaperServiceProvider extends ServiceProvider
 
             return $registry;
         });
+    }
+
+    public function boot(): void
+    {
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                CacheCommand::class,
+                ClearCommand::class,
+            ]);
+        }
     }
 }

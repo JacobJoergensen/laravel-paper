@@ -19,19 +19,21 @@ it('round-trips contents through write and read', function (): void {
         ->and($this->adapter->read('post.md'))->toBe('body');
 });
 
-it('lists only files matching the requested extensions', function (): void {
+it('lists matching files with their modification times', function (): void {
     Storage::disk('paper')->put('articles/one.md', '');
     Storage::disk('paper')->put('articles/two.markdown', '');
     Storage::disk('paper')->put('articles/ignored.txt', '');
 
-    $basenames = array_map(fn (string $path): string => basename($path), $this->adapter->list('articles', ['md', 'markdown']));
+    $listing = $this->adapter->listing('articles', ['md', 'markdown']);
+    $basenames = array_map(fn (string $path): string => basename($path), array_keys($listing));
     sort($basenames);
 
-    expect($basenames)->toBe(['one.md', 'two.markdown']);
+    expect($basenames)->toBe(['one.md', 'two.markdown'])
+        ->and($listing)->each->toBeInt();
 });
 
 it('returns an empty list for a missing directory instead of throwing', function (): void {
-    expect($this->adapter->list('nope', ['md']))->toBe([]);
+    expect($this->adapter->listing('nope', ['md']))->toBe([]);
 });
 
 it('returns null for lastModified when the file is missing', function (): void {

@@ -351,11 +351,16 @@ class Article extends Model
 
 With `#[Disk]` set, the content path is resolved relative to the disk root (no `base_path()` prefix). All reads, writes, and listings go through `Storage::disk(...)`.
 
-Two caveats worth knowing before you point Paper at a remote disk:
+A query does not read every file per request. Paper keeps a per content-path manifest: one cache entry holding each record's parsed data and modification time. A query lists the directory once (a single `ListObjects` call on S3, which already returns each object's modification time) and reads only the files that are new or have changed since the manifest was built. A warm query costs one listing plus one cache read regardless of how many records exist. External edits and deletions are still picked up, because the listing is reconciled on every query.
+
+Warm the manifest at deploy time so the first request doesn't pay the cold read, and clear it on demand:
+
+```
+php artisan paper:cache "App\Models\Article"
+php artisan paper:clear "App\Models\Article"
+```
 
 **No atomic writes on remote disks.** The local adapter writes through a temp file and atomic rename, so a crash mid-write leaves the previous file intact. Remote disks (S3 et al.) use a single `put()` call. A failed write can leave a partial object. This is a physical limitation of remote object stores, not a bug.
-
-**Cache staleness checks are slower on remote disks.** Paper checks file modification time on every cached read to detect changes. On local FS that's a microsecond syscall; on S3 it's a `HeadObject` API call (tens of milliseconds, billed per request). If you have hot content on a remote disk, expect noticeably more latency than the local case. Increasing the underlying Laravel cache TTL helps if your content rarely changes.
 
 ## AI-Assisted Development
 

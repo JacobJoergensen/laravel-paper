@@ -29,17 +29,19 @@ it('writes atomically via temp file and rename', function (): void {
         ->and(glob($this->dir.'/.paper-*'))->toBe([]);
 });
 
-it('lists only files matching the requested extensions', function (): void {
-    touch($this->dir.'/one.md');
-    touch($this->dir.'/two.markdown');
+it('lists matching files with their modification times', function (): void {
+    touch($this->dir.'/one.md', 1_700_000_000);
+    touch($this->dir.'/two.markdown', 1_700_000_500);
     touch($this->dir.'/ignored.txt');
 
-    $basenames = array_map(fn (string $path): string => basename($path), $this->adapter->list($this->dir, ['md', 'markdown']));
-    sort($basenames);
+    $listing = $this->adapter->listing($this->dir, ['md', 'markdown']);
+    $byName = collect($listing)->keyBy(fn (int $mtime, string $path): string => basename($path));
 
-    expect($basenames)->toBe(['one.md', 'two.markdown']);
+    expect($byName->keys()->sort()->values()->all())->toBe(['one.md', 'two.markdown'])
+        ->and($byName['one.md'])->toBe(1_700_000_000)
+        ->and($byName['two.markdown'])->toBe(1_700_000_500);
 });
 
 it('throws when listing a directory that does not exist', function (): void {
-    $this->adapter->list($this->dir.'/nope', ['md']);
+    $this->adapter->listing($this->dir.'/nope', ['md']);
 })->throws(ContentPathNotFoundException::class);

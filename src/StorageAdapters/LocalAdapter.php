@@ -72,9 +72,9 @@ final readonly class LocalAdapter implements StorageAdapterContract
 
     /**
      * @param  list<string>  $extensions
-     * @return list<string>
+     * @return array<string, int>
      */
-    public function list(string $directory, array $extensions): array
+    public function listing(string $directory, array $extensions): array
     {
         if (! $this->files->isDirectory($directory)) {
             throw ContentPathNotFoundException::forPath($directory);
@@ -85,7 +85,8 @@ final readonly class LocalAdapter implements StorageAdapterContract
         foreach ($extensions as $extension) {
             foreach ($this->files->glob($directory.'/*.'.$extension) ?: [] as $path) {
                 if (is_string($path)) {
-                    $matches[] = $path;
+                    $mtime = @filemtime($path);
+                    $matches[$path] = $mtime === false ? 0 : $mtime;
                 }
             }
         }
