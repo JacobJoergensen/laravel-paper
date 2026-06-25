@@ -167,6 +167,10 @@ class Post extends Model
 }
 ```
 
+`latest()` and `oldest()` order by `updated_at` by default. Without `#[Timestamps]` there is
+no `updated_at` to sort on, so they throw; pass an explicit column to order without timestamps,
+e.g. `Post::latest('date')`.
+
 `updated_at` comes from the file's mtime and is never written to frontmatter. `created_at`
 is not derived; set it as a frontmatter field if you need it. A Git checkout resets mtimes
 to deploy time, so use `#[Timestamps]` for content edited in place and keep a frontmatter

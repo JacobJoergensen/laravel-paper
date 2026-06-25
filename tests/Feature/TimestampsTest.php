@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Carbon;
+use JacobJoergensen\LaravelPaper\Exceptions\MissingTimestampsException;
+use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\TimestampedPost;
 
 beforeEach(function (): void {
@@ -36,6 +38,17 @@ it('orders by updated_at by default with latest and oldest', function (): void {
 
     expect($latest->search('__ts_test__new'))->toBeLessThan($latest->search('__ts_test__old'))
         ->and($oldest->search('__ts_test__old'))->toBeLessThan($oldest->search('__ts_test__new'));
+});
+
+it('throws when latest or oldest is called without timestamps enabled', function (): void {
+    expect(fn () => Post::latest())->toThrow(MissingTimestampsException::class)
+        ->and(fn () => Post::oldest())->toThrow(MissingTimestampsException::class);
+});
+
+it('orders by an explicit column when timestamps are not enabled', function (): void {
+    $order = Post::latest('order')->get()->pluck('order')->all();
+
+    expect($order)->toBe([3, 2, 1]);
 });
 
 it('does not persist the derived updated_at into the file on save', function (): void {

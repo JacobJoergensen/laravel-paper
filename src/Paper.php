@@ -191,12 +191,12 @@ trait Paper
         return static::query()->whereNotBetween($column, $values);
     }
 
-    public static function latest(string $column = 'updated_at'): PaperQueryBuilder
+    public static function latest(?string $column = null): PaperQueryBuilder
     {
         return static::query()->latest($column);
     }
 
-    public static function oldest(string $column = 'updated_at'): PaperQueryBuilder
+    public static function oldest(?string $column = null): PaperQueryBuilder
     {
         return static::query()->oldest($column);
     }

@@ -27,6 +27,7 @@ use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
 use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
 use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
+use JacobJoergensen\LaravelPaper\Exceptions\MissingTimestampsException;
 use JacobJoergensen\LaravelPaper\Relations\PaperRelation;
 use JacobJoergensen\LaravelPaper\StorageAdapters\DiskAdapter;
 use JacobJoergensen\LaravelPaper\StorageAdapters\LocalAdapter;
@@ -62,6 +63,9 @@ final class PaperQueryBuilder
     /** @var array<class-string<Model>, bool> */
     private static array $timestampsCache = [];
 
+    /**
+     * @param  class-string<Model>  $modelClass
+     */
     public function __construct(
         private readonly StorageAdapterContract $adapter,
         private readonly DriverContract $driver,
@@ -534,14 +538,26 @@ final class PaperQueryBuilder
         return $this->orderBy($column, 'desc');
     }
 
-    public function latest(string $column = 'updated_at'): self
+    public function latest(?string $column = null): self
     {
-        return $this->orderBy($column, 'desc');
+        return $this->orderBy($column ?? $this->defaultTimeColumn(), 'desc');
     }
 
-    public function oldest(string $column = 'updated_at'): self
+    public function oldest(?string $column = null): self
     {
-        return $this->orderBy($column);
+        return $this->orderBy($column ?? $this->defaultTimeColumn());
+    }
+
+    private function defaultTimeColumn(): string
+    {
+        $model = new $this->modelClass;
+        $column = $model->getUpdatedAtColumn();
+
+        if (! $model->usesTimestamps() || $column === null) {
+            throw MissingTimestampsException::forTimeOrdering($this->modelClass);
+        }
+
+        return $column;
     }
 
     public function inRandomOrder(): self

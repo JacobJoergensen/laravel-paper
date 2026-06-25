@@ -219,8 +219,10 @@ class Post extends Model
 $post = Post::find('hello-world');
 $post->updated_at;                          // Carbon instance from the file's mtime
 
-$recent = Post::latest('updated_at')->get();
+$recent = Post::latest()->get();
 ```
+
+`latest()` and `oldest()` order by `updated_at` by default. Without `#[Timestamps]` there is no `updated_at` to sort on, so they throw. Pass an explicit column to order without timestamps, e.g. `Post::latest('date')`.
 
 `updated_at` comes from the file's mtime and is never written to frontmatter. `created_at` isn't derived; set it in frontmatter if you need it. A Git checkout resets mtimes to the deploy time, so use this for content edited in place and keep a frontmatter `date` for Git-deployed content.
 
@@ -363,17 +365,6 @@ class Article extends Model
 ```
 
 With `#[Disk]` set, the content path is resolved relative to the disk root (no `base_path()` prefix). All reads, writes, and listings go through `Storage::disk(...)`.
-
-A query does not read every file per request. Paper keeps a per content-path manifest: one cache entry holding each record's parsed data and modification time. A query lists the directory once (a single `ListObjects` call on S3, which already returns each object's modification time) and reads only the files that are new or have changed since the manifest was built. A warm query costs one listing plus one cache read regardless of how many records exist. External edits and deletions are still picked up, because the listing is reconciled on every query.
-
-Warm the manifest at deploy time so the first request doesn't pay the cold read, and clear it on demand:
-
-```
-php artisan paper:cache "App\Models\Article"
-php artisan paper:clear "App\Models\Article"
-```
-
-**No atomic writes on remote disks.** The local adapter writes through a temp file and atomic rename, so a crash mid-write leaves the previous file intact. Remote disks (S3 et al.) use a single `put()` call. A failed write can leave a partial object. This is a physical limitation of remote object stores, not a bug.
 
 ## AI-Assisted Development
 
