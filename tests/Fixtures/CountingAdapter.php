@@ -6,10 +6,6 @@ namespace JacobJoergensen\LaravelPaper\Tests\Fixtures;
 
 use JacobJoergensen\LaravelPaper\Contracts\StorageAdapterContract;
 
-/**
- * In-memory adapter that records how many times each operation runs, so tests can
- * assert the exact number of storage roundtrips a query makes.
- */
 final class CountingAdapter implements StorageAdapterContract
 {
     /** @var array<string, int> */

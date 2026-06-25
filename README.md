@@ -299,6 +299,19 @@ To skip the current record on update:
 PaperRule::unique(Post::class)->ignore($post->slug);
 ```
 
+## Caching
+
+Paper doesn't read every file on each query. It keeps one cache entry per content path: a manifest holding each record's parsed data and its modification time. A query lists the directory once and reads only the files that are new or changed since the manifest was built. On S3 that listing is a single `ListObjects` call, which already returns each object's mtime. So a warm query is one listing plus one cache read, no matter how many records you have. The listing is reconciled every time, so edits and deletions made outside the app still show up.
+
+Warm the manifest at deploy time so the first request doesn't pay for the cold read, and clear it when you need to:
+
+```
+php artisan paper:cache "App\Models\Article"
+php artisan paper:clear "App\Models\Article"
+```
+
+**Remote disks can't write atomically.** The local adapter writes to a temp file and renames it into place, so a crash mid-write leaves the old file untouched. Remote disks like S3 only offer a single `put()`, so a failed write can leave a partial object behind. That's how object stores work, not a bug in Paper.
+
 ## Custom Drivers
 
 Markdown and JSON ship by default. To support another format, implement `DriverContract` and register it in a service provider:
