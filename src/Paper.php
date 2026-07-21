@@ -36,11 +36,6 @@ trait Paper
     /** @var array<class-string, bool> */
     protected static array $paperTimestamps = [];
 
-    public static function bootPaper(): void
-    {
-        static::resolveAttributes();
-    }
-
     public static function resetPaperState(): void
     {
         unset(self::$paperDrivers[static::class]);

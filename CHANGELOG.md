@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+* Fixed `#[Driver]` and `#[ContentPath]` to resolve on first use instead of when the model is instantiated
 
 ## Version 1.13.0 (2026-06-17)
 * Added a benchmark suite (`composer bench`) measuring query performance across directory sizes
