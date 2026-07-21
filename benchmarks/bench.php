@@ -178,7 +178,13 @@ function writeResults(array $rows, array $small, array $large, int $seed, array 
 {
     $body = "# Benchmark results\n\n";
     $body .= machineBlock($seed, $counts);
-    $body .= "\nCold runs measure a fresh PHP process with an empty application cache; the OS page cache and PHP opcache stay warm, so these are steady-state cold numbers (a first request after a deploy), not bare-metal disk reads.\n\n";
+    $body .= "\nCold runs measure a fresh PHP process with an empty application cache. Page cache and PHP opcache stay warm, so this is a first request after a deploy, not a bare-metal disk read.\n";
+
+    if (PHP_OS_FAMILY === 'Windows') {
+        $body .= "\nPHP's `glob()` is far slower on Windows than on glibc, by more than an order of magnitude, so `count()` and `paginate(15)` are listing-bound here.\n";
+    }
+
+    $body .= "\n";
     $body .= "| shape | files | cache | median | min | p90 | peak MB |\n";
     $body .= "|-------|------:|-------|-------:|----:|----:|--------:|\n";
 
