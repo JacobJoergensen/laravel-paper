@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+* Optimized queries to list the content directory once instead of once per driver extension
 * Fixed `#[Driver]` and `#[ContentPath]` to resolve on first use instead of when the model is instantiated
 
 ## Version 1.13.0 (2026-06-17)

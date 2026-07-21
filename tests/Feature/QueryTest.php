@@ -97,6 +97,20 @@ it('returns one model per slug when the same slug exists under multiple extensio
     }
 });
 
+it('reads the slug from the first driver extension when it exists under several', function (): void {
+    $duplicate = __DIR__.'/../content/posts/hello-world.markdown';
+    File::put($duplicate, "---\ntitle: From markdown\n---\n");
+
+    try {
+        $post = Post::all()->firstWhere('slug', 'hello-world');
+
+        expect($post->title)->toBe('Hello World')
+            ->and($post->title)->toBe(Post::find('hello-world')->title);
+    } finally {
+        File::delete($duplicate);
+    }
+});
+
 it('can limit results', function (): void {
     $posts = Post::query()->limit(2)->get();
 

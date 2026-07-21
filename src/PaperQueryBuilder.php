@@ -996,32 +996,31 @@ final class PaperQueryBuilder
             throw ContentPathNotFoundException::forPath($this->contentPath, $this->modelClass);
         }
 
+        $entries = scandir($this->contentPath, SCANDIR_SORT_NONE) ?: [];
         $matches = [];
-        $seen = [];
 
+        // Extensions stay outermost so the earliest one wins a slug, matching locate().
+        // Fold it into one pass and the filesystem picks instead.
         foreach ($this->driver->extensions() as $extension) {
-            /** @var list<string> $found */
-            $found = $this->files->glob($this->contentPath.'/*.'.$extension) ?: [];
+            $suffix = '.'.$extension;
 
-            foreach ($found as $filepath) {
-                $slug = pathinfo($filepath, PATHINFO_FILENAME);
-
-                if (isset($seen[$slug])) {
+            foreach ($entries as $entry) {
+                if ($entry[0] === '.' || ! str_ends_with($entry, $suffix)) {
                     continue;
                 }
 
-                $seen[$slug] = true;
-                $matches[] = $filepath;
+                $slug = substr($entry, 0, -strlen($suffix));
+
+                if (! isset($matches[$slug])) {
+                    $matches[$slug] = $this->contentPath.'/'.$entry;
+                }
             }
         }
 
-        usort($matches, static fn (string $a, string $b): int => strcmp(
-            pathinfo($a, PATHINFO_FILENAME),
-            pathinfo($b, PATHINFO_FILENAME)
-        ));
+        ksort($matches, SORT_STRING);
 
         /** @var Collection<int, string> */
-        return collect($matches);
+        return collect(array_values($matches));
     }
 
     /**
