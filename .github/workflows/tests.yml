@@ -52,4 +52,6 @@ jobs:
           dependency-versions: ${{ matrix.dependency-version == 'prefer-lowest' && 'lowest' || 'highest' }}
 
       - name: Run tests
+        env:
+          FORK_MEM_PER_PROC: 1099511627776
         run: composer test
