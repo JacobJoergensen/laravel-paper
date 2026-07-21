@@ -233,6 +233,18 @@ $posts = Post::simplePaginate(15);
 
 Use `simplePaginate` for large directories where the count is expensive, and you don't need a total.
 
+## Large Result Sets
+
+`get` builds every matching model up front, so a few thousand files means a few thousand models held at once. Use `lazy` to walk them one at a time:
+
+```php
+foreach (Post::query()->lazy() as $post) {
+    // ...
+}
+```
+
+`chunk` and `each` cover the same ground when you want to work in batches.
+
 ## Aggregates
 
 Alongside `count`, Paper has `min`, `max`, `sum`, `avg`, and its alias `average`:
