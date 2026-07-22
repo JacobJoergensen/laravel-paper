@@ -26,7 +26,6 @@ use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Contracts\StorageAdapterContract;
 use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
 use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
-use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
 use JacobJoergensen\LaravelPaper\Exceptions\MissingTimestampsException;
 use JacobJoergensen\LaravelPaper\Relations\PaperRelation;
@@ -271,24 +270,17 @@ final class PaperQueryBuilder
     {
         self::guardSlug($slug);
 
-        foreach ($this->driver->extensions() as $ext) {
-            $filepath = $this->contentPath.'/'.$slug.'.'.$ext;
-            $contents = $this->adapter->read($filepath);
-
-            if ($contents === null) {
-                continue;
-            }
-
-            try {
-                $data = $this->driver->parse($contents);
-            } catch (FileParseException $e) {
-                throw FileParseException::inFile($filepath, $e);
-            }
-
-            return $this->hydrate($slug, $this->adapter->lastModified($filepath) ?? 0, $data);
+        try {
+            $entry = $this->manifest->record($this->adapter, $this->driver, $this->contentPath, $slug, $this->nested());
+        } catch (ContentPathNotFoundException) {
+            throw ContentPathNotFoundException::forPath($this->contentPath, $this->modelClass);
         }
 
-        return null;
+        if ($entry === null) {
+            return null;
+        }
+
+        return $this->hydrate($entry['slug'], $entry['mtime'], $entry['data']);
     }
 
     /**

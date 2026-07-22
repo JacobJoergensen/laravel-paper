@@ -66,6 +66,42 @@ final class PaperManifest
     }
 
     /**
+     * @return array{slug: string, mtime: int, data: array<string, mixed>}|null
+     */
+    public function record(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, string $slug, bool $nested = false): ?array
+    {
+        $index = $this->index($adapter, $driver, $contentPath, $nested);
+        $info = $index[$slug] ?? null;
+
+        if ($info === null) {
+            return null;
+        }
+
+        $key = $this->key($adapter, $contentPath);
+        $cached = $this->read($key);
+        $existing = $cached[$slug] ?? null;
+
+        if ($existing !== null && $existing['mtime'] === $info['mtime']) {
+            $entry = $existing;
+        } else {
+            $contents = $adapter->read($info['path']) ?? '';
+
+            try {
+                $data = $driver->parse($contents);
+            } catch (FileParseException $e) {
+                throw FileParseException::inFile($info['path'], $e);
+            }
+
+            $entry = ['mtime' => $info['mtime'], 'data' => $data];
+
+            $cached[$slug] = $entry;
+            $this->store($key, $cached);
+        }
+
+        return ['slug' => $slug, 'mtime' => $entry['mtime'], 'data' => $entry['data']];
+    }
+
+    /**
      * @return list<string>
      */
     public function slugs(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, bool $nested = false): array

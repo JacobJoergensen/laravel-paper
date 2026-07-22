@@ -12,6 +12,8 @@
 * Added `paper:cache` and `paper:clear` commands to warm and clear a model's manifest
 * Changed `belongsToPaper` and `hasManyPaper` to return relation descriptors; call ->getResults() for direct resolution or use with() to eager load
 * Changed `StorageAdapterContract::listing` to take a `$nested` flag, so custom adapters must add the third argument
+* Changed `find` to match slugs case-sensitively, like `where`; a case-mismatched slug now returns null
+* Changed `find` to throw `ContentPathNotFoundException` for a missing content directory, like `where`, instead of returning null
 * Changed `DriverContract::parse` signature to `parse(string $contents)`; drivers no longer perform I/O, the adapter reads files. `PaperQueryBuilder` wraps format errors with the filepath via `FileParseException::inFile`
 * Changed `latest` and `oldest` to default to `updated_at` and throw when the model has no `#[Timestamps]`; pass an explicit column to order without it
 * Changed `PaperQueryBuilder::resolveFor` to no longer return the content path; it resolves per call via `getContentPath` so it can vary at runtime

@@ -44,6 +44,12 @@ it('finds many posts by slug, omitting missing and duplicate ids', function (): 
         ->and($posts->pluck('slug')->sort()->values()->toArray())->toBe(['hello-world', 'second-post']);
 });
 
+it('resolves slugs case-sensitively, so find and where agree', function (): void {
+    expect(Post::find('HELLO-WORLD'))->toBeNull()
+        ->and(Post::where('slug', 'HELLO-WORLD')->first())->toBeNull()
+        ->and(Post::find('hello-world')?->slug)->toBe(Post::where('slug', 'hello-world')->first()?->slug);
+});
+
 it('excludes null fields from comparison operators', function (): void {
     expect(Post::where('author_slug', 0)->count())->toBe(0)
         ->and(Post::where('author_slug', '!=', 0)->count())->toBe(1)
@@ -413,4 +419,12 @@ it('throws when querying a model whose content directory is missing', function (
     Draft::resetPaperState();
 
     Draft::all();
+})->throws(ContentPathNotFoundException::class);
+
+it('throws when finding in a model whose content directory is missing', function (): void {
+    File::deleteDirectory(__DIR__.'/../content/drafts');
+
+    Draft::resetPaperState();
+
+    Draft::find('anything');
 })->throws(ContentPathNotFoundException::class);

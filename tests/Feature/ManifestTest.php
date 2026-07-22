@@ -40,6 +40,22 @@ it('reads every file once, then serves warm queries from the manifest', function
         ->and($this->adapter->counts['read'])->toBe(0);
 });
 
+it('reads only the requested file on a cold find, then serves it warm', function (): void {
+    $cold = ($this->build)()->find('post-3');
+
+    expect($cold?->status)->toBe('published')
+        ->and($this->adapter->counts['listing'])->toBe(1)
+        ->and($this->adapter->counts['read'])->toBe(1);
+
+    $this->adapter->reset();
+
+    $warm = ($this->build)()->find('post-3');
+
+    expect($warm?->status)->toBe('published')
+        ->and($this->adapter->counts['listing'])->toBe(1)
+        ->and($this->adapter->counts['read'])->toBe(0);
+});
+
 it('re-reads only the file whose mtime is newer than the cached entry', function (): void {
     ($this->build)()->get();
 
