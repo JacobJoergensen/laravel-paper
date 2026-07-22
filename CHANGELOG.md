@@ -4,6 +4,8 @@
 * Added `getContentPath` so a model can resolve its content directory at runtime, e.g. a per-tenant root; defaults to the `#[ContentPath]` attribute
 * Added `with` for eager loading relations, batching reads to avoid N+1 in loops
 * Added `PaperRelation` abstract base for relation descriptors, with `BelongsToPaper` and `HasManyPaper` as concrete types exposing `getResults()` for lazy resolution and property access after eager loading
+* Added scoped route model binding so `/authors/{author}/posts/{post}` resolves the child through the parent's `hasManyPaper` relation and 404s when it belongs to another parent
+* Added `HasManyPaper::query` returning the parent-scoped query, so a relation can be filtered before it runs
 * Added `#[Disk]` attribute to point a model at any Laravel filesystem disk; default behavior (local FS) is unchanged when the attribute is absent
 * Added `StorageAdapterContract` with `LocalAdapter` and `DiskAdapter` implementations so reads, writes, listing, and existence checks go through one abstraction
 * Added `paper:cache` and `paper:clear` commands to warm and clear a model's manifest
@@ -14,6 +16,7 @@
 * Optimized queries to reconcile a per content-path manifest against one directory listing, so a query reads one listing instead of a metadata call per file and warm reads scale flat with file count
 * Moved driver and content path resolution to PaperQueryBuilder as a single shared cache
 * Removed `FileParseException::unreadable` since drivers no longer perform I/O
+* Removed `UnsupportedRouteBindingException` now that `resolveChildRouteBinding` resolves the child instead of throwing
 
 ## Version 1.14.0 (2026-07-22)
 * Improved the `laravel-paper-development` skill to cover lazy loading, route model binding, and driver extension order

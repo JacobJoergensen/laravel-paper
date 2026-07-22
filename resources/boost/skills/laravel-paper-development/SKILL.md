@@ -114,12 +114,15 @@ $posts = Post::simplePaginate(15);
 
 ## Route model binding
 
-`{post}` binds on the slug, `{post:title}` on any frontmatter field. Scoped child bindings are
-not supported and throw `UnsupportedRouteBindingException`.
+`{post}` binds on the slug, `{post:title}` on any frontmatter field. Scoped child bindings
+resolve through the parent's `hasManyPaper` relation, named after the plural of the parameter.
 
 ```php
 Route::get('/posts/{post}', fn (Post $post) => $post);
 Route::get('/posts/{post:title}', fn (Post $post) => $post);
+
+Route::get('/authors/{author}/posts/{post}', fn (Author $author, Post $post) => $post)
+    ->scopeBindings();
 ```
 
 ## Aggregates

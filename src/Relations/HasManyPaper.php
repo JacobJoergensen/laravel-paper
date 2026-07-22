@@ -10,20 +10,20 @@ use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 
 final readonly class HasManyPaper extends PaperRelation
 {
+    public function query(): PaperQueryBuilder
+    {
+        $key = $this->keyOf($this->parent, $this->parent->getKeyName());
+        $keys = $key === null ? [] : [$key];
+
+        return PaperQueryBuilder::forModel($this->relatedClass)->whereIn($this->foreignKey, $keys);
+    }
+
     /**
      * @return Collection<int, Model>
      */
     public function getResults(): Collection
     {
-        $key = $this->keyOf($this->parent, $this->parent->getKeyName());
-
-        if ($key === null) {
-            return new Collection;
-        }
-
-        return PaperQueryBuilder::forModel($this->relatedClass)
-            ->where($this->foreignKey, $key)
-            ->get();
+        return $this->query()->get();
     }
 
     /**
