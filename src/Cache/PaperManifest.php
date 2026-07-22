@@ -23,9 +23,9 @@ final class PaperManifest
     /**
      * @return array<string, array{mtime: int, data: array<string, mixed>}>
      */
-    public function records(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath): array
+    public function records(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, bool $nested = false): array
     {
-        $index = $this->index($adapter, $driver, $contentPath);
+        $index = $this->index($adapter, $driver, $contentPath, $nested);
         $key = $this->key($adapter, $contentPath);
         $cached = $this->read($key);
 
@@ -68,9 +68,11 @@ final class PaperManifest
     /**
      * @return list<string>
      */
-    public function slugs(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath): array
+    public function slugs(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, bool $nested = false): array
     {
-        return array_map(strval(...), array_keys($this->index($adapter, $driver, $contentPath)));
+        $index = $this->index($adapter, $driver, $contentPath, $nested);
+
+        return array_map(strval(...), array_keys($index));
     }
 
     /**
@@ -104,14 +106,15 @@ final class PaperManifest
     /**
      * @return array<string, array{path: string, mtime: int}>
      */
-    private function index(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath): array
+    private function index(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, bool $nested): array
     {
         $priority = array_flip($driver->extensions());
         $byslug = [];
 
-        foreach ($adapter->listing($contentPath, $driver->extensions()) as $path => $mtime) {
-            $slug = pathinfo($path, PATHINFO_FILENAME);
-            $extension = pathinfo($path, PATHINFO_EXTENSION);
+        foreach ($adapter->listing($contentPath, $driver->extensions(), $nested) as $path => $mtime) {
+            $relative = $this->relativePath($path, $contentPath);
+            $extension = pathinfo($relative, PATHINFO_EXTENSION);
+            $slug = substr($relative, 0, -(strlen($extension) + 1));
             $rank = $priority[$extension] ?? PHP_INT_MAX;
 
             $existing = $byslug[$slug] ?? null;
@@ -127,6 +130,17 @@ final class PaperManifest
             static fn (array $info): array => ['path' => $info['path'], 'mtime' => $info['mtime']],
             $byslug,
         );
+    }
+
+    /**
+     * The slug is the listed path relative to the content directory, without its extension.
+     */
+    private function relativePath(string $path, string $contentPath): string
+    {
+        $normalized = str_replace('\\', '/', $path);
+        $root = rtrim(str_replace('\\', '/', $contentPath), '/').'/';
+
+        return str_starts_with($normalized, $root) ? substr($normalized, strlen($root)) : $normalized;
     }
 
     /**

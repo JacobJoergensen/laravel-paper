@@ -59,6 +59,11 @@ $posts = Post::findMany(['hello-world', 'my-second-post']);
 To change a slug, rename the file. For a public URL that differs from the filename, add a
 frontmatter field (e.g. `permalink`) and route on that instead of the slug.
 
+Subdirectories are ignored unless the model asks for them with `#[ContentPath('content/docs',
+nested: true)]`. The slug is then the path below the content directory, so
+`content/docs/guides/installation.md` has the slug `guides/installation`. A route binding on
+such a slug needs `->where('doc', '.*')`, since the route compiler stops at `/`.
+
 ## Querying
 
 Query Paper models with the standard Eloquent query API.

@@ -74,30 +74,44 @@ final readonly class LocalAdapter implements StorageAdapterContract
      * @param  list<string>  $extensions
      * @return array<string, int>
      */
-    public function listing(string $directory, array $extensions): array
+    public function listing(string $directory, array $extensions, bool $nested = false): array
     {
         if (! $this->files->isDirectory($directory)) {
             throw ContentPathNotFoundException::forPath($directory);
         }
 
-        $entries = scandir($directory, SCANDIR_SORT_NONE) ?: [];
         $matches = [];
 
-        foreach ($extensions as $extension) {
-            $suffix = '.'.$extension;
-
-            foreach ($entries as $entry) {
-                if ($entry[0] === '.' || ! str_ends_with($entry, $suffix)) {
-                    continue;
-                }
-
-                $path = $directory.'/'.$entry;
-                $mtime = @filemtime($path);
-
-                $matches[$path] = $mtime === false ? 0 : $mtime;
-            }
-        }
+        $this->collect($directory, array_flip($extensions), $nested, $matches);
 
         return $matches;
+    }
+
+    /**
+     * @param  array<string, int>  $allowed
+     * @param  array<string, int>  $matches
+     */
+    private function collect(string $directory, array $allowed, bool $nested, array &$matches): void
+    {
+        $entries = scandir($directory, SCANDIR_SORT_NONE) ?: [];
+
+        foreach ($entries as $entry) {
+            if ($entry[0] === '.') {
+                continue;
+            }
+
+            $path = $directory.'/'.$entry;
+
+            if (isset($allowed[pathinfo($entry, PATHINFO_EXTENSION)])) {
+                $mtime = @filemtime($path);
+                $matches[$path] = $mtime === false ? 0 : $mtime;
+
+                continue;
+            }
+
+            if ($nested && is_dir($path)) {
+                $this->collect($path, $allowed, $nested, $matches);
+            }
+        }
     }
 }

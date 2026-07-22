@@ -62,13 +62,13 @@ final readonly class DiskAdapter implements StorageAdapterContract
      * @param  list<string>  $extensions
      * @return array<string, int>
      */
-    public function listing(string $directory, array $extensions): array
+    public function listing(string $directory, array $extensions, bool $nested = false): array
     {
         $allowed = array_flip($extensions);
         $matches = [];
 
         if ($this->disk instanceof FilesystemAdapter) {
-            foreach ($this->disk->getDriver()->listContents($directory, false) as $attributes) {
+            foreach ($this->disk->getDriver()->listContents($directory, $nested) as $attributes) {
                 if (! $attributes instanceof FileAttributes) {
                     continue;
                 }
@@ -84,7 +84,9 @@ final readonly class DiskAdapter implements StorageAdapterContract
             return $matches;
         }
 
-        foreach ($this->disk->files($directory) as $file) {
+        $files = $nested ? $this->disk->allFiles($directory) : $this->disk->files($directory);
+
+        foreach ($files as $file) {
             $ext = pathinfo($file, PATHINFO_EXTENSION);
 
             if (isset($allowed[$ext])) {

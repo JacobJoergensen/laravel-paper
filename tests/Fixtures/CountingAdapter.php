@@ -78,14 +78,16 @@ final class CountingAdapter implements StorageAdapterContract
      * @param  list<string>  $extensions
      * @return array<string, int>
      */
-    public function listing(string $directory, array $extensions): array
+    public function listing(string $directory, array $extensions, bool $nested = false): array
     {
         $this->counts['listing']++;
         $allowed = array_flip($extensions);
         $matches = [];
 
         foreach ($this->files as $path => $file) {
-            $matchesDir = pathinfo($path, PATHINFO_DIRNAME) === $directory;
+            $matchesDir = $nested
+                ? str_starts_with($path, $directory.'/')
+                : pathinfo($path, PATHINFO_DIRNAME) === $directory;
 
             if ($matchesDir && isset($allowed[pathinfo($path, PATHINFO_EXTENSION)])) {
                 $matches[$path] = $file['mtime'];

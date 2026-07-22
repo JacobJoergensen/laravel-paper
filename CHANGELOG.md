@@ -4,12 +4,14 @@
 * Added `getContentPath` so a model can resolve its content directory at runtime, e.g. a per-tenant root; defaults to the `#[ContentPath]` attribute
 * Added `with` for eager loading relations, batching reads to avoid N+1 in loops
 * Added `PaperRelation` abstract base for relation descriptors, with `BelongsToPaper` and `HasManyPaper` as concrete types exposing `getResults()` for lazy resolution and property access after eager loading
+* Added `nested` to `#[ContentPath]` so a model reads subdirectories, turning `docs/guides/installation.md` into the slug `guides/installation`
 * Added scoped route model binding so `/authors/{author}/posts/{post}` resolves the child through the parent's `hasManyPaper` relation and 404s when it belongs to another parent
 * Added `HasManyPaper::query` returning the parent-scoped query, so a relation can be filtered before it runs
 * Added `#[Disk]` attribute to point a model at any Laravel filesystem disk; default behavior (local FS) is unchanged when the attribute is absent
 * Added `StorageAdapterContract` with `LocalAdapter` and `DiskAdapter` implementations so reads, writes, listing, and existence checks go through one abstraction
 * Added `paper:cache` and `paper:clear` commands to warm and clear a model's manifest
 * Changed `belongsToPaper` and `hasManyPaper` to return relation descriptors; call ->getResults() for direct resolution or use with() to eager load
+* Changed `StorageAdapterContract::listing` to take a `$nested` flag, so custom adapters must add the third argument
 * Changed `DriverContract::parse` signature to `parse(string $contents)`; drivers no longer perform I/O, the adapter reads files. `PaperQueryBuilder` wraps format errors with the filepath via `FileParseException::inFile`
 * Changed `latest` and `oldest` to default to `updated_at` and throw when the model has no `#[Timestamps]`; pass an explicit column to order without it
 * Changed `PaperQueryBuilder::resolveFor` to no longer return the content path; it resolves per call via `getContentPath` so it can vary at runtime

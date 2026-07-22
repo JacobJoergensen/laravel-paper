@@ -24,5 +24,5 @@ interface StorageAdapterContract
      * @param  list<string>  $extensions
      * @return array<string, int>
      */
-    public function listing(string $directory, array $extensions): array;
+    public function listing(string $directory, array $extensions, bool $nested = false): array;
 }

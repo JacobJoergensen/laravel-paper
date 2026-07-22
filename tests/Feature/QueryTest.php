@@ -252,6 +252,9 @@ it('rejects unsafe slugs when finding', function (string $slug): void {
     'parent traversal' => '../../etc/passwd',
     'backslash' => '..\\..\\secret',
     'null byte' => "foo\0bar",
+    'absolute path' => '/etc/passwd',
+    'empty segment' => 'guides//installation',
+    'trailing slash' => 'guides/',
 ]);
 
 it('runs the callback when truthy and the default when falsy', function (): void {

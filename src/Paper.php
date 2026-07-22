@@ -516,7 +516,7 @@ trait Paper
 
         $content = $driver->serialize($attributes);
 
-        $adapter->ensureDirectoryExists($path);
+        $adapter->ensureDirectoryExists(dirname($filepath));
 
         $success = $adapter->write($filepath, $content);
 

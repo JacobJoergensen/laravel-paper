@@ -11,5 +11,6 @@ final readonly class ContentPath
 {
     public function __construct(
         public string $path,
+        public bool $nested = false,
     ) {}
 }

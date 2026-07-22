@@ -5,9 +5,11 @@ declare(strict_types=1);
 use Illuminate\Support\Facades\Storage;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Article;
+use JacobJoergensen\LaravelPaper\Tests\Fixtures\DiskDoc;
 
 beforeEach(function (): void {
     PaperQueryBuilder::forgetCache(Article::class);
+    PaperQueryBuilder::forgetCache(DiskDoc::class);
     Storage::fake('paper');
 });
 
@@ -39,4 +41,12 @@ it('lists only files with the driver extension on the disk', function (): void {
 
     expect($articles)->toHaveCount(2)
         ->and($articles->pluck('slug')->sort()->values()->toArray())->toBe(['one', 'two']);
+});
+
+it('reads nested subdirectories on a disk as multi-segment slugs', function (): void {
+    Storage::disk('paper')->put('docs/index.md', "---\ntitle: Index\n---\n");
+    Storage::disk('paper')->put('docs/guides/installation.md', "---\ntitle: Installation\n---\n");
+
+    expect(DiskDoc::pluck('slug')->sort()->values()->toArray())->toBe(['guides/installation', 'index'])
+        ->and(DiskDoc::find('guides/installation')?->title)->toBe('Installation');
 });

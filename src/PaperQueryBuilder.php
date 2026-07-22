@@ -17,6 +17,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\LazyCollection;
+use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
 use JacobJoergensen\LaravelPaper\Attributes\Disk;
 use JacobJoergensen\LaravelPaper\Attributes\Driver;
 use JacobJoergensen\LaravelPaper\Attributes\Timestamps;
@@ -65,6 +66,9 @@ final class PaperQueryBuilder
     /** @var array<class-string<Model>, bool> */
     private static array $timestampsCache = [];
 
+    /** @var array<class-string<Model>, bool> */
+    private static array $nestedCache = [];
+
     /**
      * @param  class-string<Model>  $modelClass
      */
@@ -94,7 +98,7 @@ final class PaperQueryBuilder
 
     /**
      * @param  class-string<Model>  $modelClass
-     * @return array{driver: DriverContract, adapter: StorageAdapterContract, usesDisk: bool}
+     * @return array{driver: DriverContract, adapter: StorageAdapterContract, usesDisk: bool, nested: bool}
      */
     public static function resolveFor(string $modelClass): array
     {
@@ -103,12 +107,14 @@ final class PaperQueryBuilder
 
             $driverAttribute = $reflection->getAttributes(Driver::class)[0] ?? null;
             $diskAttribute = $reflection->getAttributes(Disk::class)[0] ?? null;
+            $contentPathAttribute = $reflection->getAttributes(ContentPath::class)[0] ?? null;
 
             $driverName = $driverAttribute?->newInstance()->name ?? 'markdown';
             $diskName = $diskAttribute?->newInstance()->name;
 
             self::$driverCache[$modelClass] = app(DriverRegistry::class)->resolve($driverName);
             self::$timestampsCache[$modelClass] = $reflection->getAttributes(Timestamps::class) !== [];
+            self::$nestedCache[$modelClass] = $contentPathAttribute?->newInstance()->nested ?? false;
 
             if ($diskName === null) {
                 self::$adapterCache[$modelClass] = new LocalAdapter(app(Filesystem::class));
@@ -124,6 +130,7 @@ final class PaperQueryBuilder
             'driver' => self::$driverCache[$modelClass],
             'adapter' => self::$adapterCache[$modelClass],
             'usesDisk' => self::$usesDiskCache[$modelClass],
+            'nested' => self::$nestedCache[$modelClass],
         ];
     }
 
@@ -161,6 +168,7 @@ final class PaperQueryBuilder
             self::$usesDiskCache = [];
             self::$adapterCache = [];
             self::$timestampsCache = [];
+            self::$nestedCache = [];
 
             return;
         }
@@ -170,6 +178,7 @@ final class PaperQueryBuilder
             self::$usesDiskCache[$modelClass],
             self::$adapterCache[$modelClass],
             self::$timestampsCache[$modelClass],
+            self::$nestedCache[$modelClass],
         );
     }
 
@@ -181,20 +190,36 @@ final class PaperQueryBuilder
         return $this->model ??= new $this->modelClass;
     }
 
+    private function nested(): bool
+    {
+        return self::resolveFor($this->modelClass)['nested'];
+    }
+
     /**
      * Rejects slugs that would escape the content directory.
      */
     public static function guardSlug(string $slug): void
     {
-        $invalid = $slug === '.'
-            || $slug === '..'
-            || str_contains($slug, '/')
-            || str_contains($slug, '\\')
-            || str_contains($slug, "\0");
+        $malformed = str_contains($slug, '\\')
+            || str_contains($slug, "\0")
+            || str_starts_with($slug, '/')
+            || str_ends_with($slug, '/')
+            || str_contains($slug, '//');
 
-        if ($invalid) {
+        if ($malformed || self::hasTraversalSegment($slug)) {
             throw InvalidSlugException::forSlug($slug);
         }
+    }
+
+    private static function hasTraversalSegment(string $slug): bool
+    {
+        foreach (explode('/', $slug) as $segment) {
+            if ($segment === '.' || $segment === '..') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function find(string $slug): ?Model
@@ -1158,7 +1183,7 @@ final class PaperQueryBuilder
     private function records(): Collection
     {
         try {
-            $entries = $this->manifest->records($this->adapter, $this->driver, $this->contentPath);
+            $entries = $this->manifest->records($this->adapter, $this->driver, $this->contentPath, $this->nested());
         } catch (ContentPathNotFoundException) {
             throw ContentPathNotFoundException::forPath($this->contentPath, $this->modelClass);
         }
@@ -1178,7 +1203,7 @@ final class PaperQueryBuilder
     private function scanSlugs(): array
     {
         try {
-            return $this->manifest->slugs($this->adapter, $this->driver, $this->contentPath);
+            return $this->manifest->slugs($this->adapter, $this->driver, $this->contentPath, $this->nested());
         } catch (ContentPathNotFoundException) {
             throw ContentPathNotFoundException::forPath($this->contentPath, $this->modelClass);
         }
