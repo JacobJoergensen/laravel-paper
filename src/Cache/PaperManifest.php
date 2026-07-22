@@ -35,7 +35,8 @@ final class PaperManifest
         foreach ($index as $slug => $info) {
             $existing = $cached[$slug] ?? null;
 
-            if ($existing !== null && $existing['mtime'] >= $info['mtime']) {
+            // Compared exactly, not with >=, so a file restored to an older mtime still reparses.
+            if ($existing !== null && $existing['mtime'] === $info['mtime']) {
                 $entries[$slug] = $existing;
 
                 continue;
@@ -69,7 +70,7 @@ final class PaperManifest
      */
     public function slugs(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath): array
     {
-        return array_keys($this->index($adapter, $driver, $contentPath));
+        return array_map(strval(...), array_keys($this->index($adapter, $driver, $contentPath)));
     }
 
     /**

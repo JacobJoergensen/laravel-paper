@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Illuminate\Support\Facades\File;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Author;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 
@@ -46,6 +47,25 @@ it('eager loads relations for the current page of paginators', function (): void
         ->and($paginated->every(fn (Post $post): bool => $post->relationLoaded('author')))->toBeTrue()
         ->and($simple)->toHaveCount(2)
         ->and($simple->every(fn (Post $post): bool => $post->relationLoaded('author')))->toBeTrue();
+});
+
+it('attaches relations for a numeric slug, which PHP stores as an integer array key', function (): void {
+    $author = __DIR__.'/../content/authors/123.json';
+    $post = __DIR__.'/../content/posts/numeric-author.md';
+
+    File::put($author, '{"name": "Numeric"}');
+    File::put($post, "---\ntitle: Numeric Author\nauthor_slug: 123\n---\n");
+
+    try {
+        $loaded = Post::with('author')->get()->firstWhere('slug', 'numeric-author');
+        $authors = Author::with('posts')->get()->firstWhere('slug', '123');
+
+        expect($loaded->author)->not->toBeNull()
+            ->and($loaded->author->slug)->toBe('123')
+            ->and($authors->posts->pluck('slug')->all())->toBe(['numeric-author']);
+    } finally {
+        File::delete($author, $post);
+    }
 });
 
 it('throws when with references a missing method', function (): void {

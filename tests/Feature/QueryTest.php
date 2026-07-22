@@ -111,6 +111,18 @@ it('reads the slug from the first driver extension when it exists under several'
     }
 });
 
+it('reads a file whose name is entirely numeric', function (): void {
+    $numeric = __DIR__.'/../content/posts/2024.md';
+    File::put($numeric, "---\ntitle: Year In Review\n---\nbody");
+
+    try {
+        expect(Post::all()->pluck('slug')->all())->toContain('2024')
+            ->and(Post::find('2024')->title)->toBe('Year In Review');
+    } finally {
+        File::delete($numeric);
+    }
+});
+
 it('can limit results', function (): void {
     $posts = Post::query()->limit(2)->get();
 
@@ -383,6 +395,13 @@ it('reports more pages without counting every record', function (): void {
         ->and($first->hasMorePages())->toBeTrue()
         ->and($second)->toHaveCount(1)
         ->and($second->hasMorePages())->toBeFalse();
+});
+
+it('orders before paging with simplePaginate', function (): void {
+    $page = Post::query()->orderByDesc('slug')->simplePaginate(perPage: 2, page: 1);
+
+    expect($page->pluck('slug')->all())->toBe(['second-post', 'hello-world'])
+        ->and($page->hasMorePages())->toBeTrue();
 });
 
 it('throws when querying a model whose content directory is missing', function (): void {

@@ -791,9 +791,19 @@ final class PaperQueryBuilder
             $this->limitValue = null;
             $this->offsetValue = 0;
 
-            $all = $this->getModels();
-            $total = $all->count();
-            $items = $all->slice(($page - 1) * $perPage)->take($perPage)->values();
+            $records = $this->parseFreeRecords();
+
+            if ($records !== null) {
+                $total = $records->count();
+                $items = $records->slice(($page - 1) * $perPage)
+                    ->take($perPage)
+                    ->map(fn (array $record): Model => $this->hydrate($record['slug'], $record['mtime'], $record['data']))
+                    ->values();
+            } else {
+                $all = $this->getModels();
+                $total = $all->count();
+                $items = $all->slice(($page - 1) * $perPage)->take($perPage)->values();
+            }
 
             $this->eagerLoadRelations($items);
             $items->each($this->fireRetrieved(...));
@@ -822,7 +832,14 @@ final class PaperQueryBuilder
             $this->offsetValue = 0;
 
             $offset = ($page - 1) * $perPage;
-            $items = $this->lazyModels()->skip($offset)->take($perPage + 1)->collect();
+            $records = $this->parseFreeRecords();
+
+            $items = $records !== null
+                ? $records->slice($offset)
+                    ->take($perPage + 1)
+                    ->map(fn (array $record): Model => $this->hydrate($record['slug'], $record['mtime'], $record['data']))
+                    ->values()
+                : $this->lazyModels()->skip($offset)->take($perPage + 1)->collect();
 
             $this->eagerLoadRelations($items);
             $items->each($this->fireRetrieved(...));
@@ -1066,6 +1083,45 @@ final class PaperQueryBuilder
     }
 
     /**
+     * @return ?Collection<int, array{slug: string, mtime: int, data: array<string, mixed>}>
+     */
+    private function parseFreeRecords(): ?Collection
+    {
+        if ($this->wheres !== [] || $this->randomOrder) {
+            return null;
+        }
+
+        $updatedAt = $this->updatedAtColumn();
+        $parseFree = array_filter(['slug', $updatedAt]);
+
+        $ordered = array_all(
+            $this->orders,
+            fn (array $order): bool => in_array($order['column'], $parseFree, true)
+        );
+
+        if (! $ordered) {
+            return null;
+        }
+
+        $records = $this->records();
+
+        if ($this->orders === []) {
+            return $records;
+        }
+
+        // Must sort identically to applyOrdersAndLimits, which reads the same columns off a hydrated model.
+        foreach (array_reverse($this->orders) as $order) {
+            $records = $records->sortBy(
+                fn (array $record): mixed => $order['column'] === $updatedAt ? $record['mtime'] : $record['slug'],
+                SORT_REGULAR,
+                $order['direction'] === 'desc'
+            );
+        }
+
+        return $records->values();
+    }
+
+    /**
      * @param  Collection<int, array{slug: string, mtime: int, data: array<string, mixed>}>  $records
      * @return Generator<int, Model>
      */
@@ -1110,7 +1166,7 @@ final class PaperQueryBuilder
         $records = [];
 
         foreach ($entries as $slug => $entry) {
-            $records[] = ['slug' => $slug, 'mtime' => $entry['mtime'], 'data' => $entry['data']];
+            $records[] = ['slug' => (string) $slug, 'mtime' => $entry['mtime'], 'data' => $entry['data']];
         }
 
         return collect($records);

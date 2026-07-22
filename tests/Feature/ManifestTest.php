@@ -53,6 +53,18 @@ it('re-reads only the file whose mtime is newer than the cached entry', function
         ->and($models->firstWhere('slug', 'post-3')->status)->toBe('draft');
 });
 
+it('re-reads a file whose mtime moved backwards, as a restore from backup would', function (): void {
+    ($this->build)()->get();
+
+    $this->adapter->reset();
+    $this->adapter->seed('blog/post-3.md', "---\nstatus: draft\n---\nrestored", 500);
+
+    $models = ($this->build)()->get();
+
+    expect($this->adapter->counts['read'])->toBe(1)
+        ->and($models->firstWhere('slug', 'post-3')->status)->toBe('draft');
+});
+
 it('drops a deleted file from results without reading anything', function (): void {
     ($this->build)()->get();
 

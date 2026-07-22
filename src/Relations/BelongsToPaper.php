@@ -37,9 +37,11 @@ final readonly class BelongsToPaper extends PaperRelation
         }
 
         $relatedKey = new $this->relatedClass()->getKeyName();
+
         $related = PaperQueryBuilder::forModel($this->relatedClass)
             ->whereIn($relatedKey, $keys)
             ->get();
+
         $map = $this->indexBy($related, $relatedKey);
 
         foreach ($parents as $parent) {

@@ -34,12 +34,12 @@ abstract readonly class PaperRelation
         foreach ($parents as $parent) {
             $key = $this->keyOf($parent, $column);
 
-            if ($key !== null && ! in_array($key, $keys, true)) {
-                $keys[] = $key;
+            if ($key !== null) {
+                $keys[$key] = true;
             }
         }
 
-        return $keys;
+        return array_keys($keys);
     }
 
     protected function keyOf(Model $model, string $column): null|int|string
