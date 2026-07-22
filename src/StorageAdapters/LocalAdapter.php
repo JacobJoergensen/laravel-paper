@@ -80,14 +80,21 @@ final readonly class LocalAdapter implements StorageAdapterContract
             throw ContentPathNotFoundException::forPath($directory);
         }
 
+        $entries = scandir($directory, SCANDIR_SORT_NONE) ?: [];
         $matches = [];
 
         foreach ($extensions as $extension) {
-            foreach ($this->files->glob($directory.'/*.'.$extension) ?: [] as $path) {
-                if (is_string($path)) {
-                    $mtime = @filemtime($path);
-                    $matches[$path] = $mtime === false ? 0 : $mtime;
+            $suffix = '.'.$extension;
+
+            foreach ($entries as $entry) {
+                if ($entry[0] === '.' || ! str_ends_with($entry, $suffix)) {
+                    continue;
                 }
+
+                $path = $directory.'/'.$entry;
+                $mtime = @filemtime($path);
+
+                $matches[$path] = $mtime === false ? 0 : $mtime;
             }
         }
 

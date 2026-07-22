@@ -13,8 +13,12 @@
 * Changed `PaperQueryBuilder::resolveFor` to no longer return the content path; it resolves per call via `getContentPath` so it can vary at runtime
 * Optimized queries to reconcile a per content-path manifest against one directory listing, so a query reads one listing instead of a metadata call per file and warm reads scale flat with file count
 * Moved driver and content path resolution to PaperQueryBuilder as a single shared cache
-* Removed `bootPaper`, resolution is now lazy on first query
 * Removed `FileParseException::unreadable` since drivers no longer perform I/O
+
+## Version 1.14.0 (2026-07-22)
+* Improved the `laravel-paper-development` skill to cover lazy loading, route model binding, and driver extension order
+* Optimized queries to list the content directory once instead of once per driver extension
+* Fixed `#[Driver]` and `#[ContentPath]` to resolve on first use instead of when the model is instantiated
 
 ## Version 1.13.0 (2026-06-17)
 * Added a benchmark suite (`composer bench`) measuring query performance across directory sizes
