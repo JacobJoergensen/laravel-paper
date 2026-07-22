@@ -36,6 +36,11 @@ final class PaperQueryBuilder
 
     private bool $randomOrder = false;
 
+    private ?Model $model = null;
+
+    /**
+     * @param  class-string<Model>  $modelClass
+     */
     public function __construct(
         private readonly Filesystem $files,
         private readonly DriverContract $driver,
@@ -43,6 +48,14 @@ final class PaperQueryBuilder
         private readonly string $contentPath,
         private readonly string $modelClass,
     ) {}
+
+    /**
+     * Records get their own instance in fileToModel().
+     */
+    private function model(): Model
+    {
+        return $this->model ??= new $this->modelClass;
+    }
 
     /**
      * Rejects slugs that would escape the content directory.
@@ -92,10 +105,7 @@ final class PaperQueryBuilder
             }
         }
 
-        /** @var Model $instance */
-        $instance = new $this->modelClass;
-
-        $collection = $instance->newCollection($models);
+        $collection = $this->model()->newCollection($models);
 
         $collection->each($this->fireRetrieved(...));
 
@@ -712,10 +722,7 @@ final class PaperQueryBuilder
 
         $results = $this->applyOrdersAndLimits($models);
 
-        /** @var Model $instance */
-        $instance = new $this->modelClass;
-
-        return $instance->newCollection($results->all());
+        return $this->model()->newCollection($results->all());
     }
 
     /**
@@ -762,9 +769,7 @@ final class PaperQueryBuilder
         $page = 1;
 
         foreach ($this->lazy()->chunk($count) as $chunk) {
-            /** @var Model $instance */
-            $instance = new $this->modelClass;
-            $models = $instance->newCollection($chunk->all());
+            $models = $this->model()->newCollection($chunk->all());
 
             if ($callback($models, $page) === false) {
                 return false;
@@ -828,8 +833,7 @@ final class PaperQueryBuilder
             );
         }
 
-        $model = new $this->modelClass;
-        $scope->invoke($model, $this, ...$parameters);
+        $scope->invoke($this->model(), $this, ...$parameters);
 
         return $this;
     }
@@ -917,8 +921,7 @@ final class PaperQueryBuilder
 
     private function updatedAtColumn(): ?string
     {
-        /** @var Model $model */
-        $model = new $this->modelClass;
+        $model = $this->model();
 
         return $model->usesTimestamps() ? $model->getUpdatedAtColumn() : null;
     }
@@ -1042,17 +1045,13 @@ final class PaperQueryBuilder
 
         $data['slug'] = $slug;
 
-        /** @var Model $model */
-        $model = new $this->modelClass;
+        $column = $this->updatedAtColumn();
 
-        if ($model->usesTimestamps()) {
-            $column = $model->getUpdatedAtColumn();
-
-            if ($column !== null && is_int($mtime)) {
-                $data[$column] = $mtime;
-            }
+        if ($column !== null && is_int($mtime)) {
+            $data[$column] = $mtime;
         }
 
+        $model = new $this->modelClass;
         $attributes = PaperCasts::fromStorage($model, $data);
         $model->setRawAttributes($attributes, true);
         $model->exists = true;
