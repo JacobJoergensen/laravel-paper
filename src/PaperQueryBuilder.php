@@ -1035,6 +1035,7 @@ final class PaperQueryBuilder
 
     private function fileToModel(string $filepath): Model
     {
+        // Stats every file, because a directory's mtime does not move when its files are edited.
         $mtime = @filemtime($filepath);
         $data = $this->loadFileData($filepath, is_int($mtime) ? $mtime : 0);
         $slug = pathinfo($filepath, PATHINFO_FILENAME);
