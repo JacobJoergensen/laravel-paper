@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+* Improved the `laravel-paper-development` skill to cover lazy loading, route model binding, and driver extension order
 * Optimized queries to list the content directory once instead of once per driver extension
 * Fixed `#[Driver]` and `#[ContentPath]` to resolve on first use instead of when the model is instantiated
 

@@ -36,12 +36,9 @@ class Post extends Model
 }
 ```
 
-`markdown` and `json` ship by default. In a Markdown file the YAML frontmatter becomes the
-model's attributes and the body is exposed as `content`; in a JSON file the top-level keys
-become attributes.
-
-Both attributes are optional: a model with no `#[Driver]` uses the `markdown` driver, and
-one with no `#[ContentPath]` reads from the `content` directory.
+- `markdown` frontmatter becomes attributes, the body is exposed as `content`.
+- `json` top-level keys become attributes.
+- `#[Driver]` defaults to `markdown`, `#[ContentPath]` defaults to `content`.
 
 ## The slug is the primary key
 
@@ -98,6 +95,33 @@ protected function published(PaperQueryBuilder $query): PaperQueryBuilder
 
 `#[CollectedBy]` is also respected, so queries return your model's custom collection.
 
+## Large result sets
+
+Every query reads and parses every file in the directory. Prefer `lazy` over `get`, and
+`simplePaginate` over `paginate`, since the count is what costs.
+
+```php
+foreach (Post::query()->lazy() as $post) {
+    // ...
+}
+
+Post::chunk(100, function (Collection $posts): void {
+    // ...
+});
+
+$posts = Post::simplePaginate(15);
+```
+
+## Route model binding
+
+`{post}` binds on the slug, `{post:title}` on any frontmatter field. Scoped child bindings are
+not supported and throw `UnsupportedRouteBindingException`.
+
+```php
+Route::get('/posts/{post}', fn (Post $post) => $post);
+Route::get('/posts/{post:title}', fn (Post $post) => $post);
+```
+
 ## Aggregates
 
 `count`, `min`, `max`, `sum`, `avg`, and the `average` alias work on the model and the query
@@ -112,9 +136,20 @@ On an empty result `sum` returns `0` and the others return `null`. Null, missing
 
 ## Casts
 
-Eloquent `$casts` work on Paper models. The `array`, `json`, `object`, and `collection`
-casts read from and write back to the file as native structures (a YAML or JSON list), not
-as encoded strings, so the files stay readable and hand-editable.
+Eloquent casts work as usual. `array`, `json`, `object`, and `collection` read and write
+native YAML or JSON structures rather than encoded strings, so files stay hand-editable.
+
+```php
+protected function casts(): array
+{
+    return ['tags' => 'array', 'views' => 'integer'];
+}
+```
+
+```yaml
+# Stored as a real list, not a JSON string.
+tags: [laravel, markdown]
+```
 
 ## Writing
 
@@ -149,6 +184,14 @@ Post::where('draft', true)->update(['published' => true]);
 
 Use `saveQuietly` and `deleteQuietly` to persist without firing events. Use `fresh` for a
 new instance reloaded from disk, or `refresh` to reload the current one in place.
+
+`firstOrNew` returns an unsaved instance when nothing matches. `findOr` and `firstOr` run a
+callback instead:
+
+```php
+$post = Post::firstOrNew(['slug' => 'hello-world'], ['title' => 'Hello World']);
+$post = Post::findOr('hello-world', fn () => abort(404));
+```
 
 ## Timestamps
 
@@ -236,32 +279,18 @@ use Symfony\Component\Yaml\Yaml;
 
 final readonly class YamlDriver implements DriverContract
 {
-    /**
-     * @return list<string>
-     */
     public function extensions(): array
     {
         return ['yaml', 'yml'];
     }
 
-    /**
-     * @return array<string, mixed>
-     */
     public function parse(string $filepath): array
     {
         $data = Yaml::parseFile($filepath);
 
-        if (! is_array($data)) {
-            return [];
-        }
-
-        /** @var array<string, mixed> $data */
-        return $data;
+        return is_array($data) ? $data : [];
     }
 
-    /**
-     * @param  array<string, mixed>  $data
-     */
     public function serialize(array $data): string
     {
         return Yaml::dump($data);
@@ -271,3 +300,6 @@ final readonly class YamlDriver implements DriverContract
 // In a service provider:
 app(DriverRegistry::class)->register('yaml', YamlDriver::class);
 ```
+
+Order `extensions()` deliberately. New records are written with the first one, and when a slug
+exists under several, the first one wins.
