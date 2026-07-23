@@ -2,6 +2,7 @@
 
 ## Unreleased
 * Added `config/paper.php` to put the manifest on a dedicated cache store that survives `cache:clear`, and to tune the rebuild lock timing
+* Added `paper.watch` to skip the per-request directory scan when the manifest is trusted; auto by default, on locally and off in production
 * Added `PaperModel` interface that models using the `Paper` trait must implement, so pointing a relation at a non-Paper model is caught before runtime
 * Added `getContentPath` so a model can resolve its content directory at runtime, e.g. a per-tenant root; defaults to the `#[ContentPath]` attribute
 * Added `with` for eager loading relations, batching reads to avoid N+1 in loops

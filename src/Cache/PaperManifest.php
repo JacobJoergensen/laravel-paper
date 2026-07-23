@@ -23,6 +23,7 @@ final class PaperManifest
         private readonly Repository $cache,
         private readonly int $lockTtl,
         private readonly int $lockWait,
+        private readonly bool $watch,
     ) {}
 
     /**
@@ -30,8 +31,15 @@ final class PaperManifest
      */
     public function records(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, bool $nested = false): array
     {
-        $index = $this->index($adapter, $driver, $contentPath, $nested);
         $key = $this->key($adapter, $contentPath);
+
+        $trusted = $this->trusted($key);
+
+        if ($trusted !== null) {
+            return $trusted;
+        }
+
+        $index = $this->index($adapter, $driver, $contentPath, $nested);
         $cached = $this->read($key);
 
         if ($this->stale($cached, $index)) {
@@ -44,11 +52,31 @@ final class PaperManifest
             $entries[$slug] = $cached[$slug];
         }
 
-        if (count($entries) !== count($cached)) {
+        // With the watcher off, persist even an unchanged build so the next query can trust it.
+        if (! $this->watch || count($entries) !== count($cached)) {
             $this->store($key, $entries);
         }
 
         return $entries;
+    }
+
+    /**
+     * @return array<string, array{mtime: int, data: array<string, mixed>}>|null
+     */
+    private function trusted(string $key): ?array
+    {
+        if ($this->watch) {
+            return null;
+        }
+
+        $cached = $this->cache->get($key);
+
+        if (! is_array($cached)) {
+            return null;
+        }
+
+        /** @var array<string, array{mtime: int, data: array<string, mixed>}> $cached */
+        return $cached;
     }
 
     /**
@@ -146,6 +174,13 @@ final class PaperManifest
      */
     public function record(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, string $slug, bool $nested = false): ?array
     {
+        if (! $this->watch) {
+            $entries = $this->records($adapter, $driver, $contentPath, $nested);
+            $entry = $entries[$slug] ?? null;
+
+            return $entry === null ? null : ['slug' => $slug, 'mtime' => $entry['mtime'], 'data' => $entry['data']];
+        }
+
         $index = $this->index($adapter, $driver, $contentPath, $nested);
         $info = $index[$slug] ?? null;
 
@@ -182,6 +217,14 @@ final class PaperManifest
      */
     public function slugs(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, bool $nested = false): array
     {
+        $key = $this->key($adapter, $contentPath);
+
+        $trusted = $this->trusted($key);
+
+        if ($trusted !== null) {
+            return array_map(strval(...), array_keys($trusted));
+        }
+
         $index = $this->index($adapter, $driver, $contentPath, $nested);
 
         return array_map(strval(...), array_keys($index));
@@ -193,8 +236,12 @@ final class PaperManifest
     public function put(StorageAdapterContract $adapter, string $contentPath, string $slug, int $mtime, array $data): void
     {
         $key = $this->key($adapter, $contentPath);
-        $entries = $this->read($key);
 
+        if (! $this->cache->has($key)) {
+            return;
+        }
+
+        $entries = $this->read($key);
         $entries[$slug] = ['mtime' => $mtime, 'data' => $data];
 
         $this->store($key, $entries);
@@ -203,8 +250,12 @@ final class PaperManifest
     public function forget(StorageAdapterContract $adapter, string $contentPath, string $slug): void
     {
         $key = $this->key($adapter, $contentPath);
-        $entries = $this->read($key);
 
+        if (! $this->cache->has($key)) {
+            return;
+        }
+
+        $entries = $this->read($key);
         unset($entries[$slug]);
 
         $this->store($key, $entries);

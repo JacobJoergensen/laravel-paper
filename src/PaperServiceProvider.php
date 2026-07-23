@@ -27,10 +27,14 @@ final class PaperServiceProvider extends ServiceProvider
             $store = $config->get('paper.cache_store');
             $cache = $app->make(CacheFactory::class)->store(is_string($store) ? $store : null);
 
+            $watch = $config->get('paper.watch');
+            $watching = $watch === 'auto' ? $app->environment('local') === true : $watch === true;
+
             return new PaperManifest(
                 $cache,
                 $config->integer('paper.lock_ttl'),
                 $config->integer('paper.lock_wait'),
+                $watching,
             );
         });
 

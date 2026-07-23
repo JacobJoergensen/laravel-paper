@@ -20,6 +20,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | File Watcher
+    |--------------------------------------------------------------------------
+    |
+    | Whether a query re-scans the content directory to notice files changed
+    | outside the app. "auto" watches in the local environment and trusts the
+    | manifest everywhere else. With it off, a warm query is a pure cache read
+    | with no per-file stat, and disk edits show up after "paper:refresh".
+    |
+    */
+
+    'watch' => env('PAPER_WATCH', 'auto'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Rebuild Lock
     |--------------------------------------------------------------------------
     |

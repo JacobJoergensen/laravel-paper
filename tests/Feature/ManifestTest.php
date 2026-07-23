@@ -12,7 +12,7 @@ use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\TimestampedPost;
 
 beforeEach(function (): void {
-    $this->manifest = new PaperManifest(new Repository(new ArrayStore), 60, 10);
+    $this->manifest = new PaperManifest(new Repository(new ArrayStore), 60, 10, true);
     $this->adapter = new CountingAdapter;
 
     for ($i = 1; $i <= 5; $i++) {
