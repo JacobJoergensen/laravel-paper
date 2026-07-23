@@ -36,7 +36,6 @@ final class CacheCommand extends Command
             $resolved = PaperQueryBuilder::resolveFor($model);
             $path = PaperQueryBuilder::contentPathFor($model);
 
-            $manifest->flush($resolved['adapter'], $path);
             $records = $manifest->records($resolved['adapter'], $resolved['driver'], $path, $resolved['nested']);
 
             $this->info(sprintf('%s: cached %d records.', $model, count($records)));

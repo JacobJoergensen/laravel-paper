@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+* Added `config/paper.php` to put the manifest on a dedicated cache store that survives `cache:clear`, and to tune the rebuild lock timing
 * Added `PaperModel` interface that models using the `Paper` trait must implement, so pointing a relation at a non-Paper model is caught before runtime
 * Added `getContentPath` so a model can resolve its content directory at runtime, e.g. a per-tenant root; defaults to the `#[ContentPath]` attribute
 * Added `with` for eager loading relations, batching reads to avoid N+1 in loops
@@ -10,7 +11,7 @@
 * Added `HasManyPaper::query` returning the parent-scoped query, so a relation can be filtered before it runs
 * Added `#[Disk]` attribute to point a model at any Laravel filesystem disk; default behavior (local FS) is unchanged when the attribute is absent
 * Added `StorageAdapterContract` with `LocalAdapter` and `DiskAdapter` implementations so reads, writes, listing, and existence checks go through one abstraction
-* Added `paper:cache` and `paper:clear` commands to warm and clear a model's manifest
+* Added `paper:cache`, `paper:clear`, and `paper:refresh` commands to warm, clear, and rebuild a model's manifest
 * Changed `belongsToPaper` and `hasManyPaper` to return relation descriptors; call ->getResults() for direct resolution or use with() to eager load
 * Changed `StorageAdapterContract::listing` to take a `$nested` flag, so custom adapters must add the third argument
 * Changed `find` to match slugs case-sensitively, like `where`; a case-mismatched slug now returns null

@@ -19,12 +19,10 @@ final class PaperManifest
 {
     private const string PREFIX = 'paper:manifest:';
 
-    private const int REBUILD_LOCK_TTL = 60;
-
-    private const int REBUILD_LOCK_WAIT = 10;
-
     public function __construct(
         private readonly Repository $cache,
+        private readonly int $lockTtl,
+        private readonly int $lockWait,
     ) {}
 
     /**
@@ -88,7 +86,7 @@ final class PaperManifest
         }
 
         try {
-            $lock->block(self::REBUILD_LOCK_WAIT);
+            $lock->block($this->lockWait);
         } catch (LockTimeoutException) {
             return $this->build($adapter, $driver, $key, $index);
         }
@@ -293,6 +291,6 @@ final class PaperManifest
             return null;
         }
 
-        return $store->lock($key.':lock', self::REBUILD_LOCK_TTL);
+        return $store->lock($key.':lock', $this->lockTtl);
     }
 }
