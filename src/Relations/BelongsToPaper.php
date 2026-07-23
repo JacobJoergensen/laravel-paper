@@ -6,10 +6,19 @@ namespace JacobJoergensen\LaravelPaper\Relations;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
+use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 
+/**
+ * @template TRelated of Model&PaperModel
+ *
+ * @extends PaperRelation<TRelated>
+ */
 final readonly class BelongsToPaper extends PaperRelation
 {
+    /**
+     * @return ?TRelated
+     */
     public function getResults(): ?Model
     {
         $key = $this->keyOf($this->parent, $this->foreignKey);
@@ -51,8 +60,8 @@ final readonly class BelongsToPaper extends PaperRelation
     }
 
     /**
-     * @param  Collection<int, Model>  $models
-     * @return array<int|string, Model>
+     * @param  Collection<int, TRelated>  $models
+     * @return array<int|string, TRelated>
      */
     private function indexBy(Collection $models, string $column): array
     {

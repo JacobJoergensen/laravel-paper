@@ -24,17 +24,20 @@ Put files in a content directory and point a model at it:
 use Illuminate\Database\Eloquent\Model;
 use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
 use JacobJoergensen\LaravelPaper\Attributes\Driver;
+use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
 use JacobJoergensen\LaravelPaper\Paper;
 
 #[Driver('markdown')]
 #[ContentPath('content/posts')]
-class Post extends Model
+class Post extends Model implements PaperModel
 {
     use Paper;
 }
 ```
 
 The filename without extension becomes the slug, which is the primary key.
+
+`PaperModel` is what the trait provides, named as a type. Implement it so static analysis can tell a Paper model from any other Eloquent model.
 
 ## Markdown Example
 
@@ -101,7 +104,7 @@ Works the same way with JSON:
 ```php
 #[Driver('json')]
 #[ContentPath('content/team')]
-class TeamMember extends Model
+class TeamMember extends Model implements PaperModel
 {
     use Paper;
 }
@@ -209,7 +212,7 @@ use JacobJoergensen\LaravelPaper\Attributes\Timestamps;
 #[Driver('markdown')]
 #[ContentPath('content/posts')]
 #[Timestamps]
-class Post extends Model
+class Post extends Model implements PaperModel
 {
     use Paper;
 }
@@ -263,21 +266,27 @@ On an empty result `sum` returns `0` and the rest return `null`. Null, missing, 
 For relationships, use `belongsToPaper` and `hasManyPaper`:
 
 ```php
-class Post extends Model
+class Post extends Model implements PaperModel
 {
     use Paper;
 
-    public function author()
+    /**
+     * @return BelongsToPaper<Author>
+     */
+    public function author(): BelongsToPaper
     {
         return $this->belongsToPaper(Author::class);
     }
 }
 
-class Author extends Model
+class Author extends Model implements PaperModel
 {
     use Paper;
 
-    public function posts()
+    /**
+     * @return HasManyPaper<Post>
+     */
+    public function posts(): HasManyPaper
     {
         return $this->hasManyPaper(Post::class);
     }
@@ -286,13 +295,13 @@ class Author extends Model
 
 ```php
 $post = Post::find('hello-world');
-$author = $post->author();
+$author = $post->author()->getResults();
 
 $author = Author::find('jane-doe');
-$posts = $author->posts();
+$posts = $author->posts()->getResults();
 ```
 
-Call these as methods, not properties. Foreign keys default to `{model}_slug` (e.g. `author_slug`). Pass a second argument to override.
+Call `getResults()` to resolve a relation, or `with()` to eager load it. Foreign keys default to `{model}_slug` (e.g. `author_slug`). Pass a second argument to override.
 
 ## Validation
 
@@ -370,7 +379,7 @@ By default, Paper stores files on the local filesystem under your project's `bas
 #[Driver('markdown')]
 #[ContentPath('articles')]
 #[Disk('s3')]
-class Article extends Model
+class Article extends Model implements PaperModel
 {
     use Paper;
 }

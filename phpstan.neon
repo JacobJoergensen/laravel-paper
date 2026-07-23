@@ -3,4 +3,5 @@ parameters:
     paths:
         - benchmarks
         - src
+        - tests/Fixtures
     tmpDir: build/phpstan

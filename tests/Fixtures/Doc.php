@@ -7,11 +7,12 @@ namespace JacobJoergensen\LaravelPaper\Tests\Fixtures;
 use Illuminate\Database\Eloquent\Model;
 use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
 use JacobJoergensen\LaravelPaper\Attributes\Driver;
+use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
 use JacobJoergensen\LaravelPaper\Paper;
 
 #[Driver('markdown')]
 #[ContentPath('tests/content/docs', nested: true)]
-final class Doc extends Model
+final class Doc extends Model implements PaperModel
 {
     use Paper;
 

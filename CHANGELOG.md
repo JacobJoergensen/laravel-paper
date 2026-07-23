@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+* Added `PaperModel` interface that models using the `Paper` trait must implement, so pointing a relation at a non-Paper model is caught before runtime
 * Added `getContentPath` so a model can resolve its content directory at runtime, e.g. a per-tenant root; defaults to the `#[ContentPath]` attribute
 * Added `with` for eager loading relations, batching reads to avoid N+1 in loops
 * Added `PaperRelation` abstract base for relation descriptors, with `BelongsToPaper` and `HasManyPaper` as concrete types exposing `getResults()` for lazy resolution and property access after eager loading
@@ -17,6 +18,7 @@
 * Changed `DriverContract::parse` signature to `parse(string $contents)`; drivers no longer perform I/O, the adapter reads files. `PaperQueryBuilder` wraps format errors with the filepath via `FileParseException::inFile`
 * Changed `latest` and `oldest` to default to `updated_at` and throw when the model has no `#[Timestamps]`; pass an explicit column to order without it
 * Changed `PaperQueryBuilder::resolveFor` to no longer return the content path; it resolves per call via `getContentPath` so it can vary at runtime
+* Improved `where`, `get`, and the relation descriptors to keep the model type, so `Post::where('draft', true)->get()` is a collection of `Post`
 * Optimized queries to reconcile a per content-path manifest against one directory listing, so a query reads one listing instead of a metadata call per file and warm reads scale flat with file count
 * Moved driver and content path resolution to PaperQueryBuilder as a single shared cache
 * Removed `FileParseException::unreadable` since drivers no longer perform I/O

@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Model;
 use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
 use JacobJoergensen\LaravelPaper\Attributes\Driver;
+use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
 use JacobJoergensen\LaravelPaper\Paper;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 use JacobJoergensen\LaravelPaper\Relations\BelongsToPaper;
@@ -22,7 +23,7 @@ use JacobJoergensen\LaravelPaper\Relations\BelongsToPaper;
 #[Fillable(['slug', 'title'])]
 #[Hidden(['order'])]
 #[ObservedBy(PostObserver::class)]
-final class Post extends Model
+final class Post extends Model implements PaperModel
 {
     use Paper;
 
@@ -37,17 +38,28 @@ final class Post extends Model
         return ['tags' => 'array', 'views' => 'integer'];
     }
 
+    /**
+     * @param  PaperQueryBuilder<self>  $query
+     * @return PaperQueryBuilder<self>
+     */
     public function scopePublished(PaperQueryBuilder $query): PaperQueryBuilder
     {
         return $query->where('published', true);
     }
 
+    /**
+     * @param  PaperQueryBuilder<self>  $query
+     * @return PaperQueryBuilder<self>
+     */
     #[Scope]
     protected function withOrder(PaperQueryBuilder $query, int $order): PaperQueryBuilder
     {
         return $query->where('order', $order);
     }
 
+    /**
+     * @return BelongsToPaper<Author>
+     */
     public function author(): BelongsToPaper
     {
         return $this->belongsToPaper(Author::class);

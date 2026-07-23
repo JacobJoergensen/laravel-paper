@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper\Rules;
 
-use Illuminate\Database\Eloquent\Model;
+use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
 
 final class PaperRule
 {
     /**
-     * @param  class-string<Model>  $model
+     * @param  class-string<PaperModel>  $model
      */
     public static function exists(string $model, string $column = 'slug'): PaperExistsRule
     {
@@ -17,7 +17,7 @@ final class PaperRule
     }
 
     /**
-     * @param  class-string<Model>  $model
+     * @param  class-string<PaperModel>  $model
      */
     public static function unique(string $model, string $column = 'slug'): PaperUniqueRule
     {

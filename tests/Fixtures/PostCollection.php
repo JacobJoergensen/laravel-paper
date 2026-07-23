@@ -13,6 +13,6 @@ final class PostCollection extends Collection
 {
     public function published(): self
     {
-        return $this->filter(fn (Post $post): bool => $post->published === true);
+        return $this->filter(fn (Post $post): bool => $post->getAttribute('published') === true);
     }
 }

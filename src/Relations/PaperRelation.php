@@ -6,11 +6,15 @@ namespace JacobJoergensen\LaravelPaper\Relations;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
+use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
 
+/**
+ * @template TRelated of Model&PaperModel
+ */
 abstract readonly class PaperRelation
 {
     /**
-     * @param  class-string<Model>  $relatedClass
+     * @param  class-string<TRelated>  $relatedClass
      */
     public function __construct(
         public Model $parent,

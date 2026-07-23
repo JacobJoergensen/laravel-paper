@@ -6,10 +6,11 @@ namespace JacobJoergensen\LaravelPaper\Tests\Fixtures;
 
 use Illuminate\Database\Eloquent\Model;
 use JacobJoergensen\LaravelPaper\Attributes\Driver;
+use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
 use JacobJoergensen\LaravelPaper\Paper;
 
 #[Driver('markdown')]
-final class TenantPost extends Model
+final class TenantPost extends Model implements PaperModel
 {
     use Paper;
 

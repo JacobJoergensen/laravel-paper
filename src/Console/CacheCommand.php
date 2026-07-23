@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace JacobJoergensen\LaravelPaper\Console;
 
 use Illuminate\Console\Command;
-use Illuminate\Database\Eloquent\Model;
 use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
-use JacobJoergensen\LaravelPaper\Paper;
+use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 
 final class CacheCommand extends Command
@@ -47,12 +46,10 @@ final class CacheCommand extends Command
     }
 
     /**
-     * @phpstan-assert-if-true class-string<Model> $model
+     * @phpstan-assert-if-true class-string<PaperModel> $model
      */
     private function isPaperModel(string $model): bool
     {
-        return class_exists($model)
-            && is_subclass_of($model, Model::class)
-            && in_array(Paper::class, class_uses_recursive($model), true);
+        return is_subclass_of($model, PaperModel::class);
     }
 }

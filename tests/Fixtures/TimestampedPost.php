@@ -8,12 +8,13 @@ use Illuminate\Database\Eloquent\Model;
 use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
 use JacobJoergensen\LaravelPaper\Attributes\Driver;
 use JacobJoergensen\LaravelPaper\Attributes\Timestamps;
+use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
 use JacobJoergensen\LaravelPaper\Paper;
 
 #[Driver('markdown')]
 #[ContentPath('tests/content/posts')]
 #[Timestamps]
-final class TimestampedPost extends Model
+final class TimestampedPost extends Model implements PaperModel
 {
     use Paper;
 

@@ -15,6 +15,7 @@ use Illuminate\Support\Str;
 use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
 use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
+use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
 use JacobJoergensen\LaravelPaper\Contracts\StorageAdapterContract;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
 use JacobJoergensen\LaravelPaper\Relations\BelongsToPaper;
@@ -23,6 +24,8 @@ use ReflectionClass;
 
 /**
  * @mixin Model
+ *
+ * @phpstan-require-implements PaperModel
  */
 trait Paper
 {
@@ -31,6 +34,9 @@ trait Paper
         PaperQueryBuilder::forgetCache(static::class);
     }
 
+    /**
+     * @return PaperQueryBuilder<static>
+     */
     public static function query(): PaperQueryBuilder
     {
         return PaperQueryBuilder::forModel(static::class);
@@ -42,7 +48,6 @@ trait Paper
      */
     public static function all($columns = ['*']): Collection
     {
-        /** @var Collection<int, static> */
         return static::query()->get();
     }
 
@@ -51,7 +56,6 @@ trait Paper
      */
     public static function find(mixed $id, $columns = ['*']): ?static
     {
-        /** @var ?static */
         return static::query()->find(static::keyToString($id));
     }
 
@@ -69,6 +73,12 @@ trait Paper
         return $model;
     }
 
+    /**
+     * @template TValue
+     *
+     * @param  Closure(): TValue  $callback
+     * @return static|TValue
+     */
     public static function findOr(mixed $id, Closure $callback): mixed
     {
         return static::query()->findOr(static::keyToString($id), $callback);
@@ -80,13 +90,13 @@ trait Paper
      */
     public static function findMany(array $ids): Collection
     {
-        /** @var Collection<int, static> */
         return static::query()->findMany($ids);
     }
 
     /**
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
+     * @return PaperQueryBuilder<static>
      */
     public static function where(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
     {
@@ -96,6 +106,7 @@ trait Paper
     /**
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
+     * @return PaperQueryBuilder<static>
      */
     public static function orWhere(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
     {
@@ -103,8 +114,9 @@ trait Paper
     }
 
     /**
-     * @param  (callable(PaperQueryBuilder, mixed): mixed)|null  $callback
-     * @param  (callable(PaperQueryBuilder, mixed): mixed)|null  $default
+     * @param  (callable(PaperQueryBuilder<static>, mixed): mixed)|null  $callback
+     * @param  (callable(PaperQueryBuilder<static>, mixed): mixed)|null  $default
+     * @return PaperQueryBuilder<static>
      */
     public static function when(mixed $value, ?callable $callback = null, ?callable $default = null): PaperQueryBuilder
     {
@@ -113,6 +125,7 @@ trait Paper
 
     /**
      * @param  array<int, scalar>  $values
+     * @return PaperQueryBuilder<static>
      */
     public static function whereIn(string $column, array $values): PaperQueryBuilder
     {
@@ -121,6 +134,7 @@ trait Paper
 
     /**
      * @param  array<int, scalar>  $values
+     * @return PaperQueryBuilder<static>
      */
     public static function whereNotIn(string $column, array $values): PaperQueryBuilder
     {
@@ -129,17 +143,24 @@ trait Paper
 
     /**
      * @param  scalar  $value
+     * @return PaperQueryBuilder<static>
      */
     public static function whereContains(string $column, mixed $value): PaperQueryBuilder
     {
         return static::query()->whereContains($column, $value);
     }
 
+    /**
+     * @return PaperQueryBuilder<static>
+     */
     public static function whereLike(string $column, string $value, bool $caseSensitive = false): PaperQueryBuilder
     {
         return static::query()->whereLike($column, $value, $caseSensitive);
     }
 
+    /**
+     * @return PaperQueryBuilder<static>
+     */
     public static function orWhereLike(string $column, string $value, bool $caseSensitive = false): PaperQueryBuilder
     {
         return static::query()->orWhereLike($column, $value, $caseSensitive);
@@ -149,6 +170,7 @@ trait Paper
      * @param  array<int, string>  $columns
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
+     * @return PaperQueryBuilder<static>
      */
     public static function whereAny(array $columns, mixed $operator = null, mixed $value = null): PaperQueryBuilder
     {
@@ -159,17 +181,24 @@ trait Paper
      * @param  array<int, string>  $columns
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
+     * @return PaperQueryBuilder<static>
      */
     public static function whereAll(array $columns, mixed $operator = null, mixed $value = null): PaperQueryBuilder
     {
         return static::query()->whereAll($columns, $operator, $value);
     }
 
+    /**
+     * @return PaperQueryBuilder<static>
+     */
     public static function whereNull(string $column): PaperQueryBuilder
     {
         return static::query()->whereNull($column);
     }
 
+    /**
+     * @return PaperQueryBuilder<static>
+     */
     public static function whereNotNull(string $column): PaperQueryBuilder
     {
         return static::query()->whereNotNull($column);
@@ -177,6 +206,7 @@ trait Paper
 
     /**
      * @param  array{0: scalar, 1: scalar}  $values
+     * @return PaperQueryBuilder<static>
      */
     public static function whereBetween(string $column, array $values): PaperQueryBuilder
     {
@@ -185,22 +215,32 @@ trait Paper
 
     /**
      * @param  array{0: scalar, 1: scalar}  $values
+     * @return PaperQueryBuilder<static>
      */
     public static function whereNotBetween(string $column, array $values): PaperQueryBuilder
     {
         return static::query()->whereNotBetween($column, $values);
     }
 
+    /**
+     * @return PaperQueryBuilder<static>
+     */
     public static function latest(?string $column = null): PaperQueryBuilder
     {
         return static::query()->latest($column);
     }
 
+    /**
+     * @return PaperQueryBuilder<static>
+     */
     public static function oldest(?string $column = null): PaperQueryBuilder
     {
         return static::query()->oldest($column);
     }
 
+    /**
+     * @return PaperQueryBuilder<static>
+     */
     public static function inRandomOrder(): PaperQueryBuilder
     {
         return static::query()->inRandomOrder();
@@ -208,7 +248,6 @@ trait Paper
 
     public static function first(): ?static
     {
-        /** @var ?static */
         return static::query()->first();
     }
 
@@ -218,16 +257,20 @@ trait Paper
      */
     public static function firstWhere(string $column, mixed $operator = null, mixed $value = null): ?static
     {
-        /** @var ?static */
         return static::query()->firstWhere($column, $operator, $value);
     }
 
     public static function firstOrFail(): static
     {
-        /** @var static */
         return static::query()->firstOrFail();
     }
 
+    /**
+     * @template TValue
+     *
+     * @param  Closure(): TValue  $callback
+     * @return static|TValue
+     */
     public static function firstOr(Closure $callback): mixed
     {
         return static::query()->firstOr($callback);
@@ -286,7 +329,6 @@ trait Paper
      */
     public static function chunk(int $count, callable $callback): bool
     {
-        /** @var callable(Collection<int, Model>, int): mixed $callback */
         return static::query()->chunk($count, $callback);
     }
 
@@ -295,7 +337,6 @@ trait Paper
      */
     public static function each(callable $callback, int $count = 1000): bool
     {
-        /** @var callable(Model, array-key): mixed $callback */
         return static::query()->each($callback, $count);
     }
 
@@ -309,7 +350,6 @@ trait Paper
      */
     public static function paginate(int $perPage = 15, ?int $page = null): LengthAwarePaginator
     {
-        /** @var LengthAwarePaginator<int, static> */
         return static::query()->paginate($perPage, $page);
     }
 
@@ -318,12 +358,12 @@ trait Paper
      */
     public static function simplePaginate(int $perPage = 15, ?int $page = null): Paginator
     {
-        /** @var Paginator<int, static> */
         return static::query()->simplePaginate($perPage, $page);
     }
 
     /**
      * @param  array<int, string>|string  $relations
+     * @return PaperQueryBuilder<static>
      */
     public static function with($relations, string ...$more): PaperQueryBuilder
     {
@@ -419,7 +459,6 @@ trait Paper
      */
     public function resolveRouteBinding(mixed $value, $field = null): ?static
     {
-        /** @var ?static */
         return static::query()->where($field ?? $this->getRouteKeyName(), static::keyToString($value))->first();
     }
 
@@ -572,7 +611,10 @@ trait Paper
     }
 
     /**
-     * @param  class-string<Model>  $related
+     * @template TRelated of Model&PaperModel
+     *
+     * @param  class-string<TRelated>  $related
+     * @return BelongsToPaper<TRelated>
      */
     protected function belongsToPaper(string $related, ?string $foreignKey = null): BelongsToPaper
     {
@@ -582,7 +624,10 @@ trait Paper
     }
 
     /**
-     * @param  class-string<Model>  $related
+     * @template TRelated of Model&PaperModel
+     *
+     * @param  class-string<TRelated>  $related
+     * @return HasManyPaper<TRelated>
      */
     protected function hasManyPaper(string $related, ?string $foreignKey = null): HasManyPaper
     {
@@ -685,7 +730,6 @@ trait Paper
             $query->where($column, $value);
         }
 
-        /** @var ?static */
         return $query->first();
     }
 }

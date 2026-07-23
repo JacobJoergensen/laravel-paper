@@ -6,13 +6,13 @@ namespace JacobJoergensen\LaravelPaper\Rules;
 
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Translation\PotentiallyTranslatedString;
+use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
 
 final readonly class PaperExistsRule implements ValidationRule
 {
     /**
-     * @param  class-string<Model>  $model
+     * @param  class-string<PaperModel>  $model
      */
     public function __construct(
         private string $model,
@@ -24,8 +24,8 @@ final readonly class PaperExistsRule implements ValidationRule
      */
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
-        $query = $this->model::query();
-        $exists = $query->where($this->column, $value)->exists();
+        $exists = is_scalar($value)
+            && $this->model::query()->where($this->column, $value)->exists();
 
         if (! $exists) {
             $fail('validation.exists')->translate();

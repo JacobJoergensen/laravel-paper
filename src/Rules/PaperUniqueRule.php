@@ -6,8 +6,8 @@ namespace JacobJoergensen\LaravelPaper\Rules;
 
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Translation\PotentiallyTranslatedString;
+use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
 
 final class PaperUniqueRule implements ValidationRule
 {
@@ -16,7 +16,7 @@ final class PaperUniqueRule implements ValidationRule
     private ?string $ignoreColumn = null;
 
     /**
-     * @param  class-string<Model>  $model
+     * @param  class-string<PaperModel>  $model
      */
     public function __construct(
         private readonly string $model,
@@ -36,6 +36,10 @@ final class PaperUniqueRule implements ValidationRule
      */
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
+        if (! is_scalar($value)) {
+            return;
+        }
+
         $query = $this->model::query();
         $query->where($this->column, $value);
 
