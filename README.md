@@ -8,7 +8,7 @@ Laravel Paper is a Laravel package that adds flat-file driver support for Eloque
 
 ## Why Laravel Paper?
 
-Two PHP 8 attributes and a trait. No custom database connection, no schema, your flat files use Eloquent's familiar query API.
+Two PHP 8 attributes and a trait. No custom database connection, no schema, your flat files use Eloquent's familiar query API. Test with `Storage::fake()` and factories like any other model.
 
 ## Get Started
 
