@@ -19,6 +19,7 @@
 * Changed `latest` and `oldest` to default to `updated_at` and throw when the model has no `#[Timestamps]`; pass an explicit column to order without it
 * Changed `PaperQueryBuilder::resolveFor` to no longer return the content path; it resolves per call via `getContentPath` so it can vary at runtime
 * Improved `where`, `get`, and the relation descriptors to keep the model type, so `Post::where('draft', true)->get()` is a collection of `Post`
+* Improved the manifest so concurrent requests on a cold cache rebuild it once, instead of each reading every file
 * Optimized queries to reconcile a per content-path manifest against one directory listing, so a query reads one listing instead of a metadata call per file and warm reads scale flat with file count
 * Moved driver and content path resolution to PaperQueryBuilder as a single shared cache
 * Removed `FileParseException::unreadable` since drivers no longer perform I/O

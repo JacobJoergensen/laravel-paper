@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper\Cache;
 
+use Illuminate\Contracts\Cache\Lock;
+use Illuminate\Contracts\Cache\LockProvider;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Contracts\Cache\Repository;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Contracts\StorageAdapterContract;
@@ -15,6 +18,10 @@ use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
 final class PaperManifest
 {
     private const string PREFIX = 'paper:manifest:';
+
+    private const int REBUILD_LOCK_TTL = 60;
+
+    private const int REBUILD_LOCK_WAIT = 10;
 
     public function __construct(
         private readonly Repository $cache,
@@ -29,14 +36,85 @@ final class PaperManifest
         $key = $this->key($adapter, $contentPath);
         $cached = $this->read($key);
 
+        if ($this->stale($cached, $index)) {
+            return $this->rebuild($adapter, $driver, $key, $index);
+        }
+
+        $entries = [];
+
+        foreach (array_keys($index) as $slug) {
+            $entries[$slug] = $cached[$slug];
+        }
+
+        if (count($entries) !== count($cached)) {
+            $this->store($key, $entries);
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param  array<string, array{mtime: int, data: array<string, mixed>}>  $cached
+     * @param  array<string, array{path: string, mtime: int}>  $index
+     */
+    private function stale(array $cached, array $index): bool
+    {
+        return array_any($index, fn (array $info, string $slug): bool => ! $this->fresh($cached[$slug] ?? null, $info));
+    }
+
+    /**
+     * Compared exactly, not with >=, so a file restored to an older mtime still reparses.
+     *
+     * @param  array{mtime: int, data: array<string, mixed>}|null  $existing
+     * @param  array{mtime: int}  $info
+     *
+     * @phpstan-assert-if-true array{mtime: int, data: array<string, mixed>} $existing
+     */
+    private function fresh(?array $existing, array $info): bool
+    {
+        return $existing !== null && $existing['mtime'] === $info['mtime'];
+    }
+
+    /**
+     * @param  array<string, array{path: string, mtime: int}>  $index
+     * @return array<string, array{mtime: int, data: array<string, mixed>}>
+     */
+    private function rebuild(StorageAdapterContract $adapter, DriverContract $driver, string $key, array $index): array
+    {
+        $lock = $this->lock($key);
+
+        if ($lock === null) {
+            return $this->build($adapter, $driver, $key, $index);
+        }
+
+        try {
+            $lock->block(self::REBUILD_LOCK_WAIT);
+        } catch (LockTimeoutException) {
+            return $this->build($adapter, $driver, $key, $index);
+        }
+
+        try {
+            return $this->build($adapter, $driver, $key, $index);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    /**
+     * @param  array<string, array{path: string, mtime: int}>  $index
+     * @return array<string, array{mtime: int, data: array<string, mixed>}>
+     */
+    private function build(StorageAdapterContract $adapter, DriverContract $driver, string $key, array $index): array
+    {
+        $cached = $this->read($key);
+
         $entries = [];
         $changed = false;
 
         foreach ($index as $slug => $info) {
             $existing = $cached[$slug] ?? null;
 
-            // Compared exactly, not with >=, so a file restored to an older mtime still reparses.
-            if ($existing !== null && $existing['mtime'] === $info['mtime']) {
+            if ($this->fresh($existing, $info)) {
                 $entries[$slug] = $existing;
 
                 continue;
@@ -54,7 +132,7 @@ final class PaperManifest
             $changed = true;
         }
 
-        if (! $changed && array_diff_key($cached, $entries) !== []) {
+        if (! $changed && count($entries) !== count($cached)) {
             $changed = true;
         }
 
@@ -81,7 +159,7 @@ final class PaperManifest
         $cached = $this->read($key);
         $existing = $cached[$slug] ?? null;
 
-        if ($existing !== null && $existing['mtime'] === $info['mtime']) {
+        if ($this->fresh($existing, $info)) {
             $entry = $existing;
         } else {
             $contents = $adapter->read($info['path']) ?? '';
@@ -205,5 +283,16 @@ final class PaperManifest
     private function key(StorageAdapterContract $adapter, string $contentPath): string
     {
         return self::PREFIX.md5($adapter->cacheKey($contentPath));
+    }
+
+    private function lock(string $key): ?Lock
+    {
+        $store = $this->cache->getStore();
+
+        if (! $store instanceof LockProvider) {
+            return null;
+        }
+
+        return $store->lock($key.':lock', self::REBUILD_LOCK_TTL);
     }
 }
