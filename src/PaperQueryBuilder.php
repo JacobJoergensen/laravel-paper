@@ -58,6 +58,10 @@ final class PaperQueryBuilder
     /** @var ?TModel */
     private ?Model $model = null;
 
+    private bool $updatedAtResolved = false;
+
+    private ?string $updatedAtColumn = null;
+
     /** @var array<class-string<PaperModel>, DriverContract> */
     private static array $driverCache = [];
 
@@ -1124,9 +1128,13 @@ final class PaperQueryBuilder
 
     private function updatedAtColumn(): ?string
     {
-        $model = $this->model();
+        if (! $this->updatedAtResolved) {
+            $model = $this->model();
+            $this->updatedAtColumn = $model->usesTimestamps() ? $model->getUpdatedAtColumn() : null;
+            $this->updatedAtResolved = true;
+        }
 
-        return $model->usesTimestamps() ? $model->getUpdatedAtColumn() : null;
+        return $this->updatedAtColumn;
     }
 
     /**
