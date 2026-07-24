@@ -84,6 +84,9 @@ final class PaperQueryBuilder
     /** @var array<class-string<PaperModel>, bool> */
     private static array $nestedCache = [];
 
+    /** @var array<string, array{driver: DriverContract, adapter: StorageAdapterContract, usesDisk: bool, nested: bool}> */
+    private static array $fakes = [];
+
     /**
      * @param  class-string<TModel>  $modelClass
      */
@@ -120,6 +123,10 @@ final class PaperQueryBuilder
      */
     public static function resolveFor(string $modelClass): array
     {
+        if (isset(self::$fakes[$modelClass])) {
+            return self::$fakes[$modelClass];
+        }
+
         if (! isset(self::$driverCache[$modelClass])) {
             $reflection = new ReflectionClass($modelClass);
 
@@ -185,6 +192,7 @@ final class PaperQueryBuilder
             self::$adapterCache = [];
             self::$timestampsCache = [];
             self::$nestedCache = [];
+            self::$fakes = [];
 
             return;
         }
@@ -195,7 +203,30 @@ final class PaperQueryBuilder
             self::$adapterCache[$modelClass],
             self::$timestampsCache[$modelClass],
             self::$nestedCache[$modelClass],
+            self::$fakes[$modelClass],
         );
+    }
+
+    /**
+     * @param  class-string<PaperModel>  $modelClass
+     *
+     * @internal Registers an in-memory adapter for tests. Use PaperFake, not this directly.
+     */
+    public static function fake(string $modelClass, StorageAdapterContract $adapter): void
+    {
+        $resolved = self::resolveFor($modelClass);
+
+        self::$fakes[$modelClass] = [
+            'driver' => $resolved['driver'],
+            'adapter' => $adapter,
+            'usesDisk' => $resolved['usesDisk'],
+            'nested' => $resolved['nested'],
+        ];
+    }
+
+    public static function forgetFakes(): void
+    {
+        self::$fakes = [];
     }
 
     /**
