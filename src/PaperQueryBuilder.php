@@ -319,7 +319,7 @@ final class PaperQueryBuilder
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      */
-    public function where(Closure|string|array $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
+    public function where(array|Closure|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
         if (is_array($column)) {
             return $this->addArrayOfWheres($column, $boolean);
@@ -390,7 +390,7 @@ final class PaperQueryBuilder
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      */
-    public function orWhere(Closure|string|array $column, mixed $operator = null, mixed $value = null): static
+    public function orWhere(array|Closure|string $column, mixed $operator = null, mixed $value = null): static
     {
         return $this->where($column, $operator, $value, 'or');
     }
@@ -927,7 +927,7 @@ final class PaperQueryBuilder
      * @param  ?scalar  $value
      * @return ?TModel
      */
-    public function firstWhere(Closure|string|array $column, mixed $operator = null, mixed $value = null): ?Model
+    public function firstWhere(array|Closure|string $column, mixed $operator = null, mixed $value = null): ?Model
     {
         return $this->where($column, $operator, $value)->first();
     }
@@ -1057,6 +1057,35 @@ final class PaperQueryBuilder
             ->flatten(1)
             ->reject(fn (mixed $value): bool => ! is_scalar($value))
             ->countBy();
+    }
+
+    /**
+     * Spans the whole content directory on purpose; query state like wheres and limits does not apply.
+     *
+     * @return list<array{path: string, error: string}>
+     */
+    public function validateFiles(): array
+    {
+        try {
+            $files = $this->manifest->files($this->adapter, $this->driver, $this->contentPath, $this->nested());
+        } catch (ContentPathNotFoundException) {
+            throw ContentPathNotFoundException::forPath($this->contentPath, $this->modelClass);
+        }
+
+        $failures = [];
+
+        foreach ($files as $slug => $info) {
+            try {
+                $contents = $this->adapter->read($info['path']) ?? '';
+                $data = $this->driver->parse($contents);
+                $model = $this->hydrate($slug, $info['mtime'], $data);
+                $model->toArray();
+            } catch (Throwable $e) {
+                $failures[] = ['path' => $info['path'], 'error' => $e->getMessage()];
+            }
+        }
+
+        return $failures;
     }
 
     public function delete(): int

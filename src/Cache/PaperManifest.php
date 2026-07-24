@@ -237,6 +237,14 @@ final class PaperManifest
     }
 
     /**
+     * @return array<string, array{path: string, mtime: int}>
+     */
+    public function files(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, bool $nested = false): array
+    {
+        return $this->index($adapter, $driver, $contentPath, $nested);
+    }
+
+    /**
      * @param  array<string, mixed>  $data
      */
     public function put(StorageAdapterContract $adapter, string $contentPath, string $slug, int $mtime, array $data): void

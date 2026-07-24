@@ -99,7 +99,7 @@ trait Paper
      * @param  ?scalar  $value
      * @return PaperQueryBuilder<static>
      */
-    public static function where(Closure|string|array $column, mixed $operator = null, mixed $value = null): PaperQueryBuilder
+    public static function where(array|Closure|string $column, mixed $operator = null, mixed $value = null): PaperQueryBuilder
     {
         return static::query()->where($column, $operator, $value);
     }
@@ -110,7 +110,7 @@ trait Paper
      * @param  ?scalar  $value
      * @return PaperQueryBuilder<static>
      */
-    public static function orWhere(Closure|string|array $column, mixed $operator = null, mixed $value = null): PaperQueryBuilder
+    public static function orWhere(array|Closure|string $column, mixed $operator = null, mixed $value = null): PaperQueryBuilder
     {
         return static::query()->orWhere($column, $operator, $value);
     }

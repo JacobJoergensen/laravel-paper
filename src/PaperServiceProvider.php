@@ -11,6 +11,7 @@ use Illuminate\Support\ServiceProvider;
 use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
 use JacobJoergensen\LaravelPaper\Console\ClearCommand;
 use JacobJoergensen\LaravelPaper\Console\RefreshCommand;
+use JacobJoergensen\LaravelPaper\Console\ValidateCommand;
 use JacobJoergensen\LaravelPaper\Console\WarmCommand;
 use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
 use JacobJoergensen\LaravelPaper\Drivers\JsonDriver;
@@ -60,6 +61,7 @@ final class PaperServiceProvider extends ServiceProvider
             $this->commands([
                 ClearCommand::class,
                 RefreshCommand::class,
+                ValidateCommand::class,
                 WarmCommand::class,
             ]);
         }

@@ -19,6 +19,7 @@
 * Added `HasManyPaper::query` returning the parent-scoped query, so a relation can be filtered before it runs
 * Added `#[Disk]` attribute to point a model at any Laravel filesystem disk; default behavior (local FS) is unchanged when the attribute is absent
 * Added `StorageAdapterContract` with `LocalAdapter` and `DiskAdapter` implementations so reads, writes, listing, and existence checks go through one abstraction
+* Added `paper:validate` to check every content file parses and hydrates, catching malformed frontmatter in CI
 * Added `paper:warm`, `paper:clear`, and `paper:refresh` commands to warm, clear, and rebuild a model's manifest
 * Changed `belongsToPaper` and `hasManyPaper` to return relation descriptors; call ->getResults() for direct resolution or use with() to eager load
 * Changed `StorageAdapterContract::listing` to take a `$nested` flag, so custom adapters must add the third argument
