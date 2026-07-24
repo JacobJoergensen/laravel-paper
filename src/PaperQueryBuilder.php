@@ -735,6 +735,10 @@ final class PaperQueryBuilder
             return count($this->scanSlugs());
         }
 
+        if ($this->canCountRaw()) {
+            return $this->records()->filter(fn (array $record): bool => $this->recordMatches($record))->count();
+        }
+
         return $this->lazyModels()->count();
     }
 
@@ -742,6 +746,10 @@ final class PaperQueryBuilder
     {
         if ($this->wheres === []) {
             return $this->scanSlugs() !== [];
+        }
+
+        if ($this->canCountRaw()) {
+            return $this->records()->contains(fn (array $record): bool => $this->recordMatches($record));
         }
 
         return $this->lazyModels()->isNotEmpty();
@@ -923,13 +931,86 @@ final class PaperQueryBuilder
      */
     private function getModels(): Collection
     {
-        $models = $this->records()
-            ->map(fn (array $record) => $this->hydrate($record['slug'], $record['mtime'], $record['data']))
-            ->filter(fn (Model $model): bool => $this->matchesWheres($model));
-
+        $models = new Collection($this->matchingModels());
         $results = $this->applyOrdersAndLimits($models);
 
         return $this->model()->newCollection($results->all());
+    }
+
+    /**
+     * @return Generator<int, TModel>
+     */
+    private function matchingModels(): Generator
+    {
+        $pushDown = $this->pushDown();
+
+        foreach ($this->records() as $record) {
+            if ($pushDown) {
+                if ($this->recordMatches($record)) {
+                    yield $this->hydrate($record['slug'], $record['mtime'], $record['data']);
+                }
+
+                continue;
+            }
+
+            $model = $this->hydrate($record['slug'], $record['mtime'], $record['data']);
+
+            if ($this->matchesWheres($model)) {
+                yield $model;
+            }
+        }
+    }
+
+    private function pushDown(): bool
+    {
+        return $this->wheres !== [] && $this->canPushDown();
+    }
+
+    private function canPushDown(): bool
+    {
+        $model = $this->model();
+        $updatedAt = $this->updatedAtColumn();
+
+        return array_all(
+            $this->whereColumns($this->wheres),
+            fn (string $column): bool => $column !== $updatedAt
+                && ! $model->hasCast($column)
+                && ! $model->hasGetMutator($column)
+                && ! $model->hasAttributeGetMutator($column)
+                && ! method_exists($model, $column),
+        );
+    }
+
+    private function canCountRaw(): bool
+    {
+        return $this->limitValue === null && $this->offsetValue === 0 && $this->pushDown();
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $wheres
+     * @return list<string>
+     */
+    private function whereColumns(array $wheres): array
+    {
+        $columns = [];
+
+        foreach ($wheres as $where) {
+            if (! is_array($where)) {
+                continue;
+            }
+
+            if (($where['type'] ?? null) === 'group') {
+                $nested = $where['wheres'] ?? [];
+
+                if (is_array($nested)) {
+                    $columns = [...$columns, ...$this->whereColumns($nested)];
+                }
+            } elseif (isset($where['column']) && is_string($where['column'])) {
+                $columns[] = $where['column'];
+            }
+        }
+
+        return $columns;
     }
 
     /**
@@ -941,20 +1022,14 @@ final class PaperQueryBuilder
     {
         $values = [];
 
-        foreach ($this->records() as $record) {
-            $model = $this->hydrate($record['slug'], $record['mtime'], $record['data']);
-
-            if ($this->matchesWheres($model)) {
-                $values[] = $model->getAttribute($column);
-            }
+        foreach ($this->matchingModels() as $model) {
+            $values[] = $model->getAttribute($column);
         }
 
         return $values;
     }
 
     /**
-     * Builds models lazily from the manifest, one at a time.
-     *
      * @return LazyCollection<int, TModel>
      */
     public function lazy(): LazyCollection
@@ -1071,26 +1146,21 @@ final class PaperQueryBuilder
      */
     private function yieldModels(): Generator
     {
-        $records = $this->records();
-
         if ($this->orders !== [] || $this->randomOrder) {
-            yield from $this->yieldOrdered($records);
+            yield from $this->yieldOrdered();
 
             return;
         }
 
-        yield from $this->yieldUnordered($records);
+        yield from $this->yieldUnordered();
     }
 
     /**
-     * @param  Collection<int, array{slug: string, mtime: int, data: array<string, mixed>}>  $records
      * @return Generator<int, TModel>
      */
-    private function yieldOrdered(Collection $records): Generator
+    private function yieldOrdered(): Generator
     {
-        $models = $records
-            ->map(fn (array $record) => $this->hydrate($record['slug'], $record['mtime'], $record['data']))
-            ->filter(fn (Model $model): bool => $this->matchesWheres($model));
+        $models = new Collection($this->matchingModels());
 
         foreach ($this->applyOrdersAndLimits($models) as $model) {
             yield $model;
@@ -1177,21 +1247,14 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @param  Collection<int, array{slug: string, mtime: int, data: array<string, mixed>}>  $records
      * @return Generator<int, TModel>
      */
-    private function yieldUnordered(Collection $records): Generator
+    private function yieldUnordered(): Generator
     {
         $yielded = 0;
         $skipped = 0;
 
-        foreach ($records as $record) {
-            $model = $this->hydrate($record['slug'], $record['mtime'], $record['data']);
-
-            if (! $this->matchesWheres($model)) {
-                continue;
-            }
-
+        foreach ($this->matchingModels() as $model) {
             if ($skipped < $this->offsetValue) {
                 $skipped++;
 
@@ -1306,13 +1369,27 @@ final class PaperQueryBuilder
         }
     }
 
-    /**
-     * @param  ?array<int, array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool}>  $wheres
-     */
-    private function matchesWheres(Model $model, ?array $wheres = null): bool
+    private function matchesWheres(Model $model): bool
     {
-        $wheres ??= $this->wheres;
+        return $this->matches(fn (string $column): mixed => $model->getAttribute($column), $this->wheres);
+    }
 
+    /**
+     * @param  array{slug: string, mtime: int, data: array<string, mixed>}  $record
+     */
+    private function recordMatches(array $record): bool
+    {
+        $row = ['slug' => $record['slug']] + $record['data'];
+
+        return $this->matches(fn (string $column): mixed => $row[$column] ?? null, $this->wheres);
+    }
+
+    /**
+     * @param  Closure(string): mixed  $resolve
+     * @param  array<int, array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool}>  $wheres
+     */
+    private function matches(Closure $resolve, array $wheres): bool
+    {
         if ($wheres === []) {
             return true;
         }
@@ -1320,8 +1397,7 @@ final class PaperQueryBuilder
         $result = true;
 
         foreach ($wheres as $index => $where) {
-            /** @var array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>} $where */
-            $matches = $this->evaluateWhere($model, $where);
+            $matches = $this->evaluateWhere($resolve, $where);
 
             if ($index === 0) {
                 $result = $matches;
@@ -1336,18 +1412,17 @@ final class PaperQueryBuilder
     }
 
     /**
+     * @param  Closure(string): mixed  $resolve
      * @param  array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, wheres?: array<int, array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>}>}  $where
      */
-    private function evaluateWhere(Model $model, array $where): bool
+    private function evaluateWhere(Closure $resolve, array $where): bool
     {
         if ($where['type'] === 'group') {
-            $nested = $where['wheres'] ?? [];
-
-            return $this->matchesWheres($model, $nested);
+            return $this->matches($resolve, $where['wheres'] ?? []);
         }
 
         $column = $where['column'] ?? '';
-        $value = $model->getAttribute($column);
+        $value = $resolve($column);
 
         return match ($where['type']) {
             'in' => $value !== null && in_array($value, $where['values'] ?? []),
