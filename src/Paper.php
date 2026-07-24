@@ -124,6 +124,16 @@ trait Paper
     }
 
     /**
+     * @param  (callable(PaperQueryBuilder<static>, mixed): mixed)|null  $callback
+     * @param  (callable(PaperQueryBuilder<static>, mixed): mixed)|null  $default
+     * @return PaperQueryBuilder<static>
+     */
+    public static function unless(mixed $value, ?callable $callback = null, ?callable $default = null): PaperQueryBuilder
+    {
+        return static::query()->unless($value, $callback, $default);
+    }
+
+    /**
      * @param  array<int, scalar>  $values
      * @return PaperQueryBuilder<static>
      */
