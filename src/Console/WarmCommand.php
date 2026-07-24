@@ -9,9 +9,9 @@ use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
 use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 
-final class CacheCommand extends Command
+final class WarmCommand extends Command
 {
-    protected $signature = 'paper:cache {model* : One or more Paper model classes}';
+    protected $signature = 'paper:warm {model* : One or more Paper model classes}';
 
     protected $description = 'Warm the manifest for the given Paper models';
 
@@ -36,9 +36,9 @@ final class CacheCommand extends Command
             $resolved = PaperQueryBuilder::resolveFor($model);
             $path = PaperQueryBuilder::contentPathFor($model);
 
-            $records = $manifest->records($resolved['adapter'], $resolved['driver'], $path, $resolved['nested']);
+            $records = $manifest->reconcile($resolved['adapter'], $resolved['driver'], $path, $resolved['nested']);
 
-            $this->info(sprintf('%s: cached %d records.', $model, count($records)));
+            $this->info(sprintf('%s: warmed %d records.', $model, count($records)));
         }
 
         return $failed ? self::FAILURE : self::SUCCESS;

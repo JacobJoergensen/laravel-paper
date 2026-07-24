@@ -31,15 +31,21 @@ final class PaperManifest
      */
     public function records(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, bool $nested = false): array
     {
-        $key = $this->key($adapter, $contentPath);
+        $trusted = $this->trusted($this->key($adapter, $contentPath));
 
-        $trusted = $this->trusted($key);
+        return $trusted ?? $this->reconcile($adapter, $driver, $contentPath, $nested);
+    }
 
-        if ($trusted !== null) {
-            return $trusted;
-        }
-
+    /**
+     * Lists the directory and reparses what changed, skipping the trusted cache, so paper:warm
+     * reflects the disk even with the watcher off.
+     *
+     * @return array<string, array{mtime: int, data: array<string, mixed>}>
+     */
+    public function reconcile(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, bool $nested = false): array
+    {
         $index = $this->index($adapter, $driver, $contentPath, $nested);
+        $key = $this->key($adapter, $contentPath);
         $cached = $this->read($key);
 
         if ($this->stale($cached, $index)) {

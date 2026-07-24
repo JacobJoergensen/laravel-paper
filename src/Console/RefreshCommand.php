@@ -17,8 +17,8 @@ final class RefreshCommand extends Command
         $models = $this->argument('model');
 
         $cleared = $this->callSilently('paper:clear', ['model' => $models]);
-        $cached = $this->call('paper:cache', ['model' => $models]);
+        $warmed = $this->call('paper:warm', ['model' => $models]);
 
-        return $cleared === self::SUCCESS && $cached === self::SUCCESS ? self::SUCCESS : self::FAILURE;
+        return $cleared === self::SUCCESS && $warmed === self::SUCCESS ? self::SUCCESS : self::FAILURE;
     }
 }

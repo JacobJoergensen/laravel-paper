@@ -329,7 +329,7 @@ Paper doesn't read every file on each query. It keeps one cache entry per conten
 Warm the manifest at deploy time so the first request doesn't pay for the cold read, and clear it when you need to:
 
 ```
-php artisan paper:cache "App\Models\Article"
+php artisan paper:warm "App\Models\Article"
 php artisan paper:clear "App\Models\Article"
 ```
 

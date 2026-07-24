@@ -9,9 +9,9 @@ use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
 use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
-use JacobJoergensen\LaravelPaper\Console\CacheCommand;
 use JacobJoergensen\LaravelPaper\Console\ClearCommand;
 use JacobJoergensen\LaravelPaper\Console\RefreshCommand;
+use JacobJoergensen\LaravelPaper\Console\WarmCommand;
 use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
 use JacobJoergensen\LaravelPaper\Drivers\JsonDriver;
 use JacobJoergensen\LaravelPaper\Drivers\MarkdownDriver;
@@ -58,9 +58,9 @@ final class PaperServiceProvider extends ServiceProvider
             ], 'paper-config');
 
             $this->commands([
-                CacheCommand::class,
                 ClearCommand::class,
                 RefreshCommand::class,
+                WarmCommand::class,
             ]);
         }
     }

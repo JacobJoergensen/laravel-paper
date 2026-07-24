@@ -52,3 +52,15 @@ it('rebuilds from a listing when the cached manifest is gone', function (): void
     expect($records)->toHaveCount(1)
         ->and($adapter->counts['listing'])->toBe(1);
 });
+
+it('reconciles against the disk even when the watcher trusts the cache', function (): void {
+    $adapter = new CountingAdapter;
+    $adapter->seed('blog/post-1.md', "---\nstatus: published\n---\n", 1_000);
+
+    $this->manifest->records($adapter, $this->driver, 'blog');
+
+    $adapter->seed('blog/post-2.md', "---\nstatus: published\n---\n", 2_000);
+
+    expect($this->manifest->records($adapter, $this->driver, 'blog'))->toHaveCount(1)
+        ->and($this->manifest->reconcile($adapter, $this->driver, 'blog'))->toHaveCount(2);
+});
