@@ -44,7 +44,7 @@ use Throwable;
  */
 final class PaperQueryBuilder
 {
-    /** @var list<array{type: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, wheres?: list<array<string, mixed>>, relation?: string, count?: int, constraint?: ?Closure, boolean: string}> */
+    /** @var list<array{type: string, column?: string, second?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, wheres?: list<array<string, mixed>>, relation?: string, count?: int, constraint?: ?Closure, boolean: string}> */
     private array $wheres = [];
 
     /** @var array<string, callable(Model): int> */
@@ -726,6 +726,37 @@ final class PaperQueryBuilder
         return $this;
     }
 
+    public function whereColumn(string $first, string $operator, ?string $second = null, string $boolean = 'and'): static
+    {
+        if ($second === null) {
+            $second = $operator;
+            $operator = '=';
+        }
+
+        if ($this->columnSafe($first) !== $this->columnSafe($second)) {
+            throw new InvalidArgumentException(sprintf(
+                "whereColumn('%s', '%s'): columns must have the same cast status; one is transformed on hydration and the other is not.",
+                $first,
+                $second,
+            ));
+        }
+
+        $this->wheres[] = [
+            'type' => 'column',
+            'column' => $first,
+            'second' => $second,
+            'operator' => $operator,
+            'boolean' => $boolean,
+        ];
+
+        return $this;
+    }
+
+    public function orWhereColumn(string $first, string $operator, ?string $second = null): static
+    {
+        return $this->whereColumn($first, $operator, $second, 'or');
+    }
+
     /**
      * @param  array<int, string>  $columns
      * @param  ?scalar  $operator
@@ -1383,6 +1414,10 @@ final class PaperQueryBuilder
                 continue;
             } elseif (isset($where['column']) && is_string($where['column'])) {
                 $columns[] = $where['column'];
+
+                if (isset($where['second']) && is_string($where['second'])) {
+                    $columns[] = $where['second'];
+                }
             }
         }
 
@@ -1798,7 +1833,7 @@ final class PaperQueryBuilder
 
     /**
      * @param  Closure(string): mixed  $resolve
-     * @param  array<int, array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, relation?: string, count?: int, constraint?: ?Closure}>  $wheres
+     * @param  array<int, array{type: string, boolean: string, column?: string, second?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, relation?: string, count?: int, constraint?: ?Closure}>  $wheres
      */
     private function matches(Closure $resolve, array $wheres, ?Model $model): bool
     {
@@ -1825,7 +1860,7 @@ final class PaperQueryBuilder
 
     /**
      * @param  Closure(string): mixed  $resolve
-     * @param  array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, relation?: string, count?: int, constraint?: ?Closure, wheres?: array<int, array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>}>}  $where
+     * @param  array{type: string, boolean: string, column?: string, second?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, relation?: string, count?: int, constraint?: ?Closure, wheres?: array<int, array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>}>}  $where
      */
     private function evaluateWhere(Closure $resolve, array $where, ?Model $model): bool
     {
@@ -1853,6 +1888,7 @@ final class PaperQueryBuilder
             'between' => $value !== null && $this->evaluateBetween($value, $where['values'] ?? []),
             'notBetween' => $value !== null && ! $this->evaluateBetween($value, $where['values'] ?? []),
             'date', 'year', 'month', 'day' => $this->evaluateDate($value, $where['type'], $where['operator'] ?? '=', $where['value'] ?? null),
+            'column' => $this->evaluateCondition($value, $where['operator'] ?? '=', $resolve($where['second'] ?? '')),
             default => $this->evaluateCondition($value, $where['operator'] ?? '=', $where['value'] ?? null),
         };
     }

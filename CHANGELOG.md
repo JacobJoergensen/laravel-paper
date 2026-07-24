@@ -5,6 +5,7 @@
 * Added `countBy` to count a column's distinct values, flattening array fields like `tags` and skipping null so a missing field adds no bucket
 * Added an array form to `where` and `orWhere` for applying several conditions at once, e.g. `where([['status', '=', 'a'], ['x', '!=', 'b']])`
 * Added `unless`, the counterpart to `when`, running its callback when the value is falsy
+* Added `whereColumn` and `orWhereColumn` to compare two frontmatter fields; both columns must share the same cast status, validated when the query is built
 * Added `whereNotLike`, `whereRegexp`, and `whereNotRegexp`, plus `or` variants; regex patterns must carry their own delimiters and are validated when the query is built
 * Added `has`, `doesntHave`, `whereHas`, `whereDoesntHave`, and `whereRelation`, plus `or` variants, to filter on relations with count constraints like `has('posts', '>=', 3)`
 * Added dot-notation for `where`, `orderBy`, and aggregates to reach into nested frontmatter, e.g. `where('seo.title', 'x')`

@@ -197,6 +197,22 @@ trait Paper
     /**
      * @return PaperQueryBuilder<static>
      */
+    public static function whereColumn(string $first, string $operator, ?string $second = null): PaperQueryBuilder
+    {
+        return static::query()->whereColumn($first, $operator, $second);
+    }
+
+    /**
+     * @return PaperQueryBuilder<static>
+     */
+    public static function orWhereColumn(string $first, string $operator, ?string $second = null): PaperQueryBuilder
+    {
+        return static::query()->orWhereColumn($first, $operator, $second);
+    }
+
+    /**
+     * @return PaperQueryBuilder<static>
+     */
     public static function whereRegexp(string $column, string $pattern): PaperQueryBuilder
     {
         return static::query()->whereRegexp($column, $pattern);
