@@ -167,6 +167,86 @@ trait Paper
     }
 
     /**
+     * @param  ?scalar  $operator
+     * @param  ?scalar  $value
+     * @return PaperQueryBuilder<static>
+     */
+    public static function whereDate(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
+    {
+        return static::query()->whereDate($column, $operator, $value);
+    }
+
+    /**
+     * @param  ?scalar  $operator
+     * @param  ?scalar  $value
+     * @return PaperQueryBuilder<static>
+     */
+    public static function orWhereDate(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
+    {
+        return static::query()->orWhereDate($column, $operator, $value);
+    }
+
+    /**
+     * @param  ?scalar  $operator
+     * @param  ?scalar  $value
+     * @return PaperQueryBuilder<static>
+     */
+    public static function whereYear(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
+    {
+        return static::query()->whereYear($column, $operator, $value);
+    }
+
+    /**
+     * @param  ?scalar  $operator
+     * @param  ?scalar  $value
+     * @return PaperQueryBuilder<static>
+     */
+    public static function orWhereYear(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
+    {
+        return static::query()->orWhereYear($column, $operator, $value);
+    }
+
+    /**
+     * @param  ?scalar  $operator
+     * @param  ?scalar  $value
+     * @return PaperQueryBuilder<static>
+     */
+    public static function whereMonth(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
+    {
+        return static::query()->whereMonth($column, $operator, $value);
+    }
+
+    /**
+     * @param  ?scalar  $operator
+     * @param  ?scalar  $value
+     * @return PaperQueryBuilder<static>
+     */
+    public static function orWhereMonth(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
+    {
+        return static::query()->orWhereMonth($column, $operator, $value);
+    }
+
+    /**
+     * @param  ?scalar  $operator
+     * @param  ?scalar  $value
+     * @return PaperQueryBuilder<static>
+     */
+    public static function whereDay(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
+    {
+        return static::query()->whereDay($column, $operator, $value);
+    }
+
+    /**
+     * @param  ?scalar  $operator
+     * @param  ?scalar  $value
+     * @return PaperQueryBuilder<static>
+     */
+    public static function orWhereDay(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
+    {
+        return static::query()->orWhereDay($column, $operator, $value);
+    }
+
+    /**
      * @param  array<int, string>  $columns
      * @param  ?scalar  $operator
      * @param  ?scalar  $value

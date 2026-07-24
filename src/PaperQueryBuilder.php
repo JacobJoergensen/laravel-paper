@@ -6,6 +6,7 @@ namespace JacobJoergensen\LaravelPaper;
 
 use BadMethodCallException;
 use Closure;
+use DateTimeInterface;
 use Generator;
 use Illuminate\Contracts\Filesystem\Factory as StorageFactory;
 use Illuminate\Database\Eloquent\Attributes\Scope as ScopeAttribute;
@@ -15,6 +16,7 @@ use Illuminate\Database\MultipleRecordsFoundException;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\LazyCollection;
 use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
@@ -34,6 +36,7 @@ use JacobJoergensen\LaravelPaper\StorageAdapters\DiskAdapter;
 use JacobJoergensen\LaravelPaper\StorageAdapters\LocalAdapter;
 use ReflectionClass;
 use ReflectionMethod;
+use Throwable;
 
 /**
  * @template TModel of Model&PaperModel
@@ -317,20 +320,30 @@ final class PaperQueryBuilder
             return $this->whereGroup($column, $boolean);
         }
 
+        [$operator, $value] = $this->resolveOperator($operator, $value);
+
+        $this->wheres[] = [
+            'type' => 'basic',
+            'column' => $column,
+            'operator' => $operator,
+            'value' => is_scalar($value) ? $value : null,
+            'boolean' => $boolean,
+        ];
+
+        return $this;
+    }
+
+    /**
+     * @return array{string, mixed}
+     */
+    private function resolveOperator(mixed $operator, mixed $value): array
+    {
         if ($value === null && ! in_array($operator, ['=', '==', '===', '!=', '<>', '!==', '>', '>=', '<', '<=', 'like'], true)) {
             $value = $operator;
             $operator = '=';
         }
 
-        $this->wheres[] = [
-            'type' => 'basic',
-            'column' => $column,
-            'operator' => is_string($operator) ? $operator : '=',
-            'value' => $value,
-            'boolean' => $boolean,
-        ];
-
-        return $this;
+        return [is_string($operator) ? $operator : '=', $value];
     }
 
     /**
@@ -350,6 +363,71 @@ final class PaperQueryBuilder
         $this->wheres[] = [
             'type' => 'group',
             'wheres' => $nested->wheres,
+            'boolean' => $boolean,
+        ];
+
+        return $this;
+    }
+
+    public function whereDate(string $column, mixed $operator, mixed $value = null, string $boolean = 'and'): static
+    {
+        return $this->addDateWhere('date', $column, $operator, $value, $boolean);
+    }
+
+    public function orWhereDate(string $column, mixed $operator, mixed $value = null): static
+    {
+        return $this->addDateWhere('date', $column, $operator, $value, 'or');
+    }
+
+    public function whereYear(string $column, mixed $operator, mixed $value = null, string $boolean = 'and'): static
+    {
+        return $this->addDateWhere('year', $column, $operator, $value, $boolean);
+    }
+
+    public function orWhereYear(string $column, mixed $operator, mixed $value = null): static
+    {
+        return $this->addDateWhere('year', $column, $operator, $value, 'or');
+    }
+
+    public function whereMonth(string $column, mixed $operator, mixed $value = null, string $boolean = 'and'): static
+    {
+        return $this->addDateWhere('month', $column, $operator, $value, $boolean);
+    }
+
+    public function orWhereMonth(string $column, mixed $operator, mixed $value = null): static
+    {
+        return $this->addDateWhere('month', $column, $operator, $value, 'or');
+    }
+
+    public function whereDay(string $column, mixed $operator, mixed $value = null, string $boolean = 'and'): static
+    {
+        return $this->addDateWhere('day', $column, $operator, $value, $boolean);
+    }
+
+    public function orWhereDay(string $column, mixed $operator, mixed $value = null): static
+    {
+        return $this->addDateWhere('day', $column, $operator, $value, 'or');
+    }
+
+    private function addDateWhere(string $type, string $column, mixed $operator, mixed $value, string $boolean): static
+    {
+        [$operator, $value] = $this->resolveOperator($operator, $value);
+
+        if ($value instanceof DateTimeInterface) {
+            $carbon = Carbon::instance($value);
+            $value = match ($type) {
+                'date' => $carbon->format('Y-m-d'),
+                'year' => $carbon->year,
+                'month' => $carbon->month,
+                default => $carbon->day,
+            };
+        }
+
+        $this->wheres[] = [
+            'type' => $type,
+            'column' => $column,
+            'operator' => $operator,
+            'value' => is_scalar($value) ? $value : null,
             'boolean' => $boolean,
         ];
 
@@ -1433,8 +1511,53 @@ final class PaperQueryBuilder
             'notNull' => $value !== null,
             'between' => $value !== null && $this->evaluateBetween($value, $where['values'] ?? []),
             'notBetween' => $value !== null && ! $this->evaluateBetween($value, $where['values'] ?? []),
+            'date', 'year', 'month', 'day' => $this->evaluateDate($value, $where['type'], $where['operator'] ?? '=', $where['value'] ?? null),
             default => $this->evaluateCondition($value, $where['operator'] ?? '=', $where['value'] ?? null),
         };
+    }
+
+    private function evaluateDate(mixed $value, string $part, string $operator, mixed $expected): bool
+    {
+        $date = $this->toDate($value);
+
+        if ($date === null) {
+            return false;
+        }
+
+        if ($part === 'date') {
+            $bound = $this->toDate($expected);
+
+            return $bound !== null && $this->evaluateCondition($date->format('Y-m-d'), $operator, $bound->format('Y-m-d'));
+        }
+
+        $actual = match ($part) {
+            'year' => $date->year,
+            'month' => $date->month,
+            default => $date->day,
+        };
+
+        return $this->evaluateCondition($actual, $operator, $expected);
+    }
+
+    private function toDate(mixed $value): ?Carbon
+    {
+        if ($value instanceof DateTimeInterface) {
+            return Carbon::instance($value);
+        }
+
+        if (is_int($value)) {
+            return Carbon::createFromTimestamp($value, 'UTC');
+        }
+
+        if (is_string($value) && $value !== '') {
+            try {
+                return Carbon::parse($value, 'UTC');
+            } catch (Throwable) {
+                return null;
+            }
+        }
+
+        return null;
     }
 
     private function evaluateCondition(mixed $actual, string $operator, mixed $expected): bool
