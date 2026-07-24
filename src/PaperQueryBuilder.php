@@ -761,7 +761,9 @@ final class PaperQueryBuilder
 
     public function value(string $column): mixed
     {
-        return $this->first()?->getAttribute($column);
+        $model = $this->first();
+
+        return $model === null ? null : $this->attribute($model, $column);
     }
 
     /**
@@ -1046,17 +1048,25 @@ final class PaperQueryBuilder
 
     private function canPushDown(): bool
     {
-        $model = $this->model();
-        $updatedAt = $this->updatedAtColumn();
+        return array_all($this->whereColumns($this->wheres), $this->columnSafe(...));
+    }
 
-        return array_all(
-            $this->whereColumns($this->wheres),
-            fn (string $column): bool => $column !== $updatedAt
-                && ! $model->hasCast($column)
-                && ! $model->hasGetMutator($column)
-                && ! $model->hasAttributeGetMutator($column)
-                && ! method_exists($model, $column),
-        );
+    private function columnSafe(string $column): bool
+    {
+        $model = $this->model();
+        $root = explode('.', $column, 2)[0];
+
+        return $root !== $this->updatedAtColumn()
+            && ! method_exists($model, $root)
+            && ! $this->hasCastOrMutator($model, $column)
+            && ! $this->hasCastOrMutator($model, $root);
+    }
+
+    private function hasCastOrMutator(Model $model, string $column): bool
+    {
+        return $model->hasCast($column)
+            || $model->hasGetMutator($column)
+            || $model->hasAttributeGetMutator($column);
     }
 
     private function canCountRaw(): bool
@@ -1101,7 +1111,7 @@ final class PaperQueryBuilder
         $values = [];
 
         foreach ($this->matchingModels() as $model) {
-            $values[] = $model->getAttribute($column);
+            $values[] = $this->attribute($model, $column);
         }
 
         return $values;
@@ -1253,7 +1263,7 @@ final class PaperQueryBuilder
     {
         foreach (array_reverse($this->orders) as $order) {
             $models = $models->sortBy(
-                fn (Model $model): mixed => $model->getAttribute($order['column']),
+                fn (Model $model): mixed => $this->attribute($model, $order['column']),
                 SORT_REGULAR,
                 $order['direction'] === 'desc'
             );
@@ -1449,7 +1459,7 @@ final class PaperQueryBuilder
 
     private function matchesWheres(Model $model): bool
     {
-        return $this->matches(fn (string $column): mixed => $model->getAttribute($column), $this->wheres);
+        return $this->matches(fn (string $column): mixed => $this->attribute($model, $column), $this->wheres);
     }
 
     /**
@@ -1459,7 +1469,28 @@ final class PaperQueryBuilder
     {
         $row = ['slug' => $record['slug']] + $record['data'];
 
-        return $this->matches(fn (string $column): mixed => $row[$column] ?? null, $this->wheres);
+        return $this->matches(fn (string $column): mixed => $this->rowValue($row, $column), $this->wheres);
+    }
+
+    private function attribute(Model $model, string $column): mixed
+    {
+        if (! str_contains($column, '.') || array_key_exists($column, $model->getAttributes())) {
+            return $model->getAttribute($column);
+        }
+
+        return data_get($model, $column);
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    private function rowValue(array $row, string $column): mixed
+    {
+        if (array_key_exists($column, $row)) {
+            return $row[$column];
+        }
+
+        return str_contains($column, '.') ? data_get($row, $column) : null;
     }
 
     /**

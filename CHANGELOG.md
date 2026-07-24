@@ -2,6 +2,7 @@
 
 ## Unreleased
 * Added `config/paper.php` to put the manifest on a dedicated cache store that survives `cache:clear`, and to tune the rebuild lock timing
+* Added dot-notation for `where`, `orderBy`, and aggregates to reach into nested frontmatter, e.g. `where('seo.title', 'x')`
 * Added `whereDate`, `whereMonth`, `whereDay`, and `whereYear`, plus their `or` variants, to query frontmatter dates
 * Added `paper.watch` to skip the per-request directory scan when the manifest is trusted; auto by default, on locally and off in production
 * Added `PaperModel` interface that models using the `Paper` trait must implement, so pointing a relation at a non-Paper model is caught before runtime
