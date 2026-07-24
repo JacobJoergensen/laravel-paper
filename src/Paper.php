@@ -167,6 +167,54 @@ trait Paper
     }
 
     /**
+     * @return PaperQueryBuilder<static>
+     */
+    public static function whereNotLike(string $column, string $value, bool $caseSensitive = false): PaperQueryBuilder
+    {
+        return static::query()->whereNotLike($column, $value, $caseSensitive);
+    }
+
+    /**
+     * @return PaperQueryBuilder<static>
+     */
+    public static function orWhereNotLike(string $column, string $value, bool $caseSensitive = false): PaperQueryBuilder
+    {
+        return static::query()->orWhereNotLike($column, $value, $caseSensitive);
+    }
+
+    /**
+     * @return PaperQueryBuilder<static>
+     */
+    public static function whereRegexp(string $column, string $pattern): PaperQueryBuilder
+    {
+        return static::query()->whereRegexp($column, $pattern);
+    }
+
+    /**
+     * @return PaperQueryBuilder<static>
+     */
+    public static function orWhereRegexp(string $column, string $pattern): PaperQueryBuilder
+    {
+        return static::query()->orWhereRegexp($column, $pattern);
+    }
+
+    /**
+     * @return PaperQueryBuilder<static>
+     */
+    public static function whereNotRegexp(string $column, string $pattern): PaperQueryBuilder
+    {
+        return static::query()->whereNotRegexp($column, $pattern);
+    }
+
+    /**
+     * @return PaperQueryBuilder<static>
+     */
+    public static function orWhereNotRegexp(string $column, string $pattern): PaperQueryBuilder
+    {
+        return static::query()->orWhereNotRegexp($column, $pattern);
+    }
+
+    /**
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      * @return PaperQueryBuilder<static>
