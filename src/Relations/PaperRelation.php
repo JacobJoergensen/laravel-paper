@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper\Relations;
 
+use Closure;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
@@ -26,6 +27,11 @@ abstract readonly class PaperRelation
      * @param  Collection<int, Model>  $parents
      */
     abstract public function eagerLoad(Collection $parents, string $relationName): void;
+
+    /**
+     * @return callable(Model): int
+     */
+    abstract public function counter(?Closure $constraint): callable;
 
     /**
      * @param  Collection<int, Model>  $parents

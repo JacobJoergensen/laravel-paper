@@ -52,6 +52,19 @@ it('counts a pushdown filter from the raw records, building none of the matches'
         ->and($onCount)->toBeLessThan($onGet);
 });
 
+it('plucks a safe column from raw records without building models', function (): void {
+    CountingModel::$hydrations = 0;
+    $safe = ($this->build)()->pluck('published');
+    $onSafe = CountingModel::$hydrations;
+
+    CountingModel::$hydrations = 0;
+    ($this->build)()->pluck('rank');
+    $onCast = CountingModel::$hydrations;
+
+    expect($safe)->toHaveCount(5)
+        ->and($onSafe)->toBeLessThan($onCast);
+});
+
 it('pushes the filter down for aggregates', function (): void {
     CountingModel::$hydrations = 0;
     $sum = ($this->build)()->where('published', true)->sum('rank');

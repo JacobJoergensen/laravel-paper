@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper\Relations;
 
+use Closure;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
@@ -33,6 +34,32 @@ final readonly class HasManyPaper extends PaperRelation
     public function getResults(): Collection
     {
         return $this->query()->get();
+    }
+
+    /**
+     * @return callable(Model): int
+     */
+    public function counter(?Closure $constraint): callable
+    {
+        $query = PaperQueryBuilder::forModel($this->relatedClass);
+
+        if ($constraint !== null) {
+            $constraint($query);
+        }
+
+        $counts = [];
+
+        foreach ($query->pluck($this->foreignKey) as $key) {
+            if (is_string($key) || is_int($key)) {
+                $counts[$key] = ($counts[$key] ?? 0) + 1;
+            }
+        }
+
+        return function (Model $parent) use ($counts): int {
+            $key = $this->keyOf($parent, $parent->getKeyName());
+
+            return $key === null ? 0 : ($counts[$key] ?? 0);
+        };
     }
 
     /**

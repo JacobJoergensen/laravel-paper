@@ -19,6 +19,7 @@ use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\LazyCollection;
+use InvalidArgumentException;
 use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
 use JacobJoergensen\LaravelPaper\Attributes\Disk;
 use JacobJoergensen\LaravelPaper\Attributes\Driver;
@@ -43,8 +44,11 @@ use Throwable;
  */
 final class PaperQueryBuilder
 {
-    /** @var list<array{type: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, wheres?: list<array<string, mixed>>, boolean: string}> */
+    /** @var list<array{type: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, wheres?: list<array<string, mixed>>, relation?: string, count?: int, constraint?: ?Closure, boolean: string}> */
     private array $wheres = [];
+
+    /** @var array<string, callable(Model): int> */
+    private array $hasCounters = [];
 
     /** @var array<int, array{column: string, direction: string}> */
     private array $orders = [];
@@ -428,6 +432,84 @@ final class PaperQueryBuilder
             'column' => $column,
             'operator' => $operator,
             'value' => is_scalar($value) ? $value : null,
+            'boolean' => $boolean,
+        ];
+
+        return $this;
+    }
+
+    public function has(string $relation, string $operator = '>=', int $count = 1, string $boolean = 'and'): static
+    {
+        return $this->addHasWhere($relation, null, $operator, $count, $boolean);
+    }
+
+    public function orHas(string $relation, string $operator = '>=', int $count = 1): static
+    {
+        return $this->addHasWhere($relation, null, $operator, $count, 'or');
+    }
+
+    public function doesntHave(string $relation, string $boolean = 'and'): static
+    {
+        return $this->addHasWhere($relation, null, '<', 1, $boolean);
+    }
+
+    public function orDoesntHave(string $relation): static
+    {
+        return $this->addHasWhere($relation, null, '<', 1, 'or');
+    }
+
+    public function whereHas(string $relation, ?Closure $constraint = null, string $operator = '>=', int $count = 1, string $boolean = 'and'): static
+    {
+        return $this->addHasWhere($relation, $constraint, $operator, $count, $boolean);
+    }
+
+    public function orWhereHas(string $relation, ?Closure $constraint = null, string $operator = '>=', int $count = 1): static
+    {
+        return $this->addHasWhere($relation, $constraint, $operator, $count, 'or');
+    }
+
+    public function whereDoesntHave(string $relation, ?Closure $constraint = null, string $boolean = 'and'): static
+    {
+        return $this->addHasWhere($relation, $constraint, '<', 1, $boolean);
+    }
+
+    public function orWhereDoesntHave(string $relation, ?Closure $constraint = null): static
+    {
+        return $this->addHasWhere($relation, $constraint, '<', 1, 'or');
+    }
+
+    /**
+     * @param  ?scalar  $operator
+     * @param  ?scalar  $value
+     */
+    public function whereRelation(string $relation, string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
+    {
+        return $this->addHasWhere($relation, fn (self $query): mixed => $query->where($column, $operator, $value), '>=', 1, $boolean);
+    }
+
+    /**
+     * @param  ?scalar  $operator
+     * @param  ?scalar  $value
+     */
+    public function orWhereRelation(string $relation, string $column, mixed $operator = null, mixed $value = null): static
+    {
+        return $this->whereRelation($relation, $column, $operator, $value, 'or');
+    }
+
+    private function addHasWhere(string $relation, ?Closure $constraint, string $operator, int $count, string $boolean): static
+    {
+        if (str_contains($relation, '.')) {
+            throw new InvalidArgumentException(
+                sprintf('Nested relation "%s" is not supported; constrain it with a closure instead.', $relation)
+            );
+        }
+
+        $this->wheres[] = [
+            'type' => 'has',
+            'relation' => $relation,
+            'constraint' => $constraint,
+            'operator' => $operator,
+            'count' => $count,
             'boolean' => $boolean,
         ];
 
@@ -913,7 +995,24 @@ final class PaperQueryBuilder
      */
     public function pluck(string $column, ?string $key = null): Collection
     {
+        if ($key === null && $this->isUnconstrained() && $this->columnSafe($column)) {
+            return $this->records()->map(function (array $record) use ($column): mixed {
+                $row = ['slug' => $record['slug']] + $record['data'];
+
+                return data_get($row, $column);
+            });
+        }
+
         return $this->getModels()->pluck($column, $key);
+    }
+
+    private function isUnconstrained(): bool
+    {
+        return $this->wheres === []
+            && $this->orders === []
+            && ! $this->randomOrder
+            && $this->limitValue === null
+            && $this->offsetValue === 0;
     }
 
     /**
@@ -1048,7 +1147,32 @@ final class PaperQueryBuilder
 
     private function canPushDown(): bool
     {
-        return array_all($this->whereColumns($this->wheres), $this->columnSafe(...));
+        return ! $this->hasRelationWhere($this->wheres)
+            && array_all($this->whereColumns($this->wheres), $this->columnSafe(...));
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $wheres
+     */
+    private function hasRelationWhere(array $wheres): bool
+    {
+        foreach ($wheres as $where) {
+            if (! is_array($where)) {
+                continue;
+            }
+
+            if (($where['type'] ?? null) === 'has') {
+                return true;
+            }
+
+            $nested = $where['wheres'] ?? [];
+
+            if (is_array($nested) && $this->hasRelationWhere($nested)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function columnSafe(string $column): bool
@@ -1093,6 +1217,8 @@ final class PaperQueryBuilder
                 if (is_array($nested)) {
                     $columns = [...$columns, ...$this->whereColumns($nested)];
                 }
+            } elseif (($where['type'] ?? null) === 'has') {
+                continue;
             } elseif (isset($where['column']) && is_string($where['column'])) {
                 $columns[] = $where['column'];
             }
@@ -1459,7 +1585,7 @@ final class PaperQueryBuilder
 
     private function matchesWheres(Model $model): bool
     {
-        return $this->matches(fn (string $column): mixed => $this->attribute($model, $column), $this->wheres);
+        return $this->matches(fn (string $column): mixed => $this->attribute($model, $column), $this->wheres, $model);
     }
 
     /**
@@ -1469,7 +1595,7 @@ final class PaperQueryBuilder
     {
         $row = ['slug' => $record['slug']] + $record['data'];
 
-        return $this->matches(fn (string $column): mixed => $this->rowValue($row, $column), $this->wheres);
+        return $this->matches(fn (string $column): mixed => $this->rowValue($row, $column), $this->wheres, null);
     }
 
     private function attribute(Model $model, string $column): mixed
@@ -1495,9 +1621,9 @@ final class PaperQueryBuilder
 
     /**
      * @param  Closure(string): mixed  $resolve
-     * @param  array<int, array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool}>  $wheres
+     * @param  array<int, array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, relation?: string, count?: int, constraint?: ?Closure}>  $wheres
      */
-    private function matches(Closure $resolve, array $wheres): bool
+    private function matches(Closure $resolve, array $wheres, ?Model $model): bool
     {
         if ($wheres === []) {
             return true;
@@ -1506,7 +1632,7 @@ final class PaperQueryBuilder
         $result = true;
 
         foreach ($wheres as $index => $where) {
-            $matches = $this->evaluateWhere($resolve, $where);
+            $matches = $this->evaluateWhere($resolve, $where, $model);
 
             if ($index === 0) {
                 $result = $matches;
@@ -1522,12 +1648,16 @@ final class PaperQueryBuilder
 
     /**
      * @param  Closure(string): mixed  $resolve
-     * @param  array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, wheres?: array<int, array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>}>}  $where
+     * @param  array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, relation?: string, count?: int, constraint?: ?Closure, wheres?: array<int, array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>}>}  $where
      */
-    private function evaluateWhere(Closure $resolve, array $where): bool
+    private function evaluateWhere(Closure $resolve, array $where, ?Model $model): bool
     {
         if ($where['type'] === 'group') {
-            return $this->matches($resolve, $where['wheres'] ?? []);
+            return $this->matches($resolve, $where['wheres'] ?? [], $model);
+        }
+
+        if ($where['type'] === 'has') {
+            return $model !== null && $this->evaluateHas($model, $where);
         }
 
         $column = $where['column'] ?? '';
@@ -1545,6 +1675,48 @@ final class PaperQueryBuilder
             'date', 'year', 'month', 'day' => $this->evaluateDate($value, $where['type'], $where['operator'] ?? '=', $where['value'] ?? null),
             default => $this->evaluateCondition($value, $where['operator'] ?? '=', $where['value'] ?? null),
         };
+    }
+
+    /**
+     * @param  array{relation?: string, constraint?: ?Closure, operator?: string, count?: int}  $where
+     */
+    private function evaluateHas(Model $model, array $where): bool
+    {
+        $counter = $this->hasCounter($model, $where['relation'] ?? '', $where['constraint'] ?? null);
+
+        return $this->evaluateCondition($counter($model), $where['operator'] ?? '>=', $where['count'] ?? 1);
+    }
+
+    /**
+     * @return callable(Model): int
+     */
+    private function hasCounter(Model $model, string $relation, ?Closure $constraint): callable
+    {
+        $key = $constraint === null ? 'r:'.$relation : 'c:'.$relation.':'.spl_object_id($constraint);
+
+        return $this->hasCounters[$key] ??= $this->buildHasCounter($model, $relation, $constraint);
+    }
+
+    /**
+     * @return callable(Model): int
+     */
+    private function buildHasCounter(Model $model, string $relation, ?Closure $constraint): callable
+    {
+        if (! method_exists($model, $relation)) {
+            throw new BadMethodCallException(
+                sprintf('Relation %s::%s does not exist.', $model::class, $relation)
+            );
+        }
+
+        $paperRelation = $model->{$relation}();
+
+        if (! $paperRelation instanceof PaperRelation) {
+            throw new BadMethodCallException(
+                sprintf('Relation %s::%s must return %s to filter on.', $model::class, $relation, PaperRelation::class)
+            );
+        }
+
+        return $paperRelation->counter($constraint);
     }
 
     private function evaluateDate(mixed $value, string $part, string $operator, mixed $expected): bool

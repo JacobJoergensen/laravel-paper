@@ -247,6 +247,90 @@ trait Paper
     }
 
     /**
+     * @return PaperQueryBuilder<static>
+     */
+    public static function has(string $relation, string $operator = '>=', int $count = 1): PaperQueryBuilder
+    {
+        return static::query()->has($relation, $operator, $count);
+    }
+
+    /**
+     * @return PaperQueryBuilder<static>
+     */
+    public static function orHas(string $relation, string $operator = '>=', int $count = 1): PaperQueryBuilder
+    {
+        return static::query()->orHas($relation, $operator, $count);
+    }
+
+    /**
+     * @return PaperQueryBuilder<static>
+     */
+    public static function doesntHave(string $relation): PaperQueryBuilder
+    {
+        return static::query()->doesntHave($relation);
+    }
+
+    /**
+     * @return PaperQueryBuilder<static>
+     */
+    public static function orDoesntHave(string $relation): PaperQueryBuilder
+    {
+        return static::query()->orDoesntHave($relation);
+    }
+
+    /**
+     * @return PaperQueryBuilder<static>
+     */
+    public static function whereHas(string $relation, ?Closure $constraint = null, string $operator = '>=', int $count = 1): PaperQueryBuilder
+    {
+        return static::query()->whereHas($relation, $constraint, $operator, $count);
+    }
+
+    /**
+     * @return PaperQueryBuilder<static>
+     */
+    public static function orWhereHas(string $relation, ?Closure $constraint = null, string $operator = '>=', int $count = 1): PaperQueryBuilder
+    {
+        return static::query()->orWhereHas($relation, $constraint, $operator, $count);
+    }
+
+    /**
+     * @return PaperQueryBuilder<static>
+     */
+    public static function whereDoesntHave(string $relation, ?Closure $constraint = null): PaperQueryBuilder
+    {
+        return static::query()->whereDoesntHave($relation, $constraint);
+    }
+
+    /**
+     * @return PaperQueryBuilder<static>
+     */
+    public static function orWhereDoesntHave(string $relation, ?Closure $constraint = null): PaperQueryBuilder
+    {
+        return static::query()->orWhereDoesntHave($relation, $constraint);
+    }
+
+    /**
+     * @param  ?scalar  $operator
+     * @param  ?scalar  $value
+     * @return PaperQueryBuilder<static>
+     */
+    public static function whereRelation(string $relation, string $column, mixed $operator = null, mixed $value = null): PaperQueryBuilder
+    {
+        return static::query()->whereRelation($relation, $column, $operator, $value);
+    }
+
+    /**
+     * @param  ?scalar  $operator
+     * @param  ?scalar  $value
+     * @return PaperQueryBuilder<static>
+     */
+    public static function orWhereRelation(string $relation, string $column, mixed $operator = null, mixed $value = null): PaperQueryBuilder
+    {
+        return static::query()->orWhereRelation($relation, $column, $operator, $value);
+    }
+
+    /**
      * @param  array<int, string>  $columns
      * @param  ?scalar  $operator
      * @param  ?scalar  $value

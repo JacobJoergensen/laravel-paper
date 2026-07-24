@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use JacobJoergensen\LaravelPaper\Tests\Fixtures\Author;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\PostObserver;
 
@@ -47,6 +48,15 @@ it('does not fire retrieved when only counting or checking existence', function 
 
     Post::where('published', true)->count();
     Post::where('published', true)->exists();
+
+    expect(PostObserver::$events)->toBe([]);
+});
+
+it('does not fire retrieved for the related models a has query only counts', function (): void {
+    Author::resetPaperState();
+    PostObserver::$events = [];
+
+    Author::has('posts')->get();
 
     expect(PostObserver::$events)->toBe([]);
 });
