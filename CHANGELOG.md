@@ -2,6 +2,7 @@
 
 ## Unreleased
 * Added `config/paper.php` to put the manifest on a dedicated cache store that survives `cache:clear`, and to tune the rebuild lock timing
+* Added an array form to `where` and `orWhere` for applying several conditions at once, e.g. `where([['status', '=', 'a'], ['x', '!=', 'b']])`
 * Added `unless`, the counterpart to `when`, running its callback when the value is falsy
 * Added `whereNotLike`, `whereRegexp`, and `whereNotRegexp`, plus `or` variants; regex patterns must carry their own delimiters and are validated when the query is built
 * Added `has`, `doesntHave`, `whereHas`, `whereDoesntHave`, and `whereRelation`, plus `or` variants, to filter on relations with count constraints like `has('posts', '>=', 3)`

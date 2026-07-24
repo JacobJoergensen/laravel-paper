@@ -94,21 +94,23 @@ trait Paper
     }
 
     /**
+     * @param  (Closure(PaperQueryBuilder<static>): mixed)|string|array<array-key, mixed>  $column
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      * @return PaperQueryBuilder<static>
      */
-    public static function where(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
+    public static function where(Closure|string|array $column, mixed $operator = null, mixed $value = null): PaperQueryBuilder
     {
         return static::query()->where($column, $operator, $value);
     }
 
     /**
+     * @param  (Closure(PaperQueryBuilder<static>): mixed)|string|array<array-key, mixed>  $column
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      * @return PaperQueryBuilder<static>
      */
-    public static function orWhere(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
+    public static function orWhere(Closure|string|array $column, mixed $operator = null, mixed $value = null): PaperQueryBuilder
     {
         return static::query()->orWhere($column, $operator, $value);
     }

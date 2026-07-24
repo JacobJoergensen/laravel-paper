@@ -315,12 +315,17 @@ final class PaperQueryBuilder
     }
 
     /**
+     * @param  (Closure(static): mixed)|string|array<array-key, mixed>  $column
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      */
-    public function where(callable|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
+    public function where(Closure|string|array $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
-        if (is_callable($column)) {
+        if (is_array($column)) {
+            return $this->addArrayOfWheres($column, $boolean);
+        }
+
+        if ($column instanceof Closure) {
             return $this->whereGroup($column, $boolean);
         }
 
@@ -338,6 +343,36 @@ final class PaperQueryBuilder
     }
 
     /**
+     * @param  array<array-key, mixed>  $conditions
+     */
+    private function addArrayOfWheres(array $conditions, string $boolean): static
+    {
+        if ($conditions === []) {
+            return $this;
+        }
+
+        return $this->whereGroup(function (self $query) use ($conditions): void {
+            foreach ($conditions as $key => $value) {
+                if (is_string($key)) {
+                    $query->where($key, '=', is_scalar($value) ? $value : null);
+
+                    continue;
+                }
+
+                $column = is_array($value) ? ($value[0] ?? null) : null;
+
+                if (! is_string($column)) {
+                    throw new InvalidArgumentException('Each array condition must be [column, value] or [column, operator, value].');
+                }
+
+                $operator = $value[1] ?? null;
+                $bound = $value[2] ?? null;
+                $query->where($column, is_scalar($operator) ? $operator : null, is_scalar($bound) ? $bound : null);
+            }
+        }, $boolean);
+    }
+
+    /**
      * @return array{string, mixed}
      */
     private function resolveOperator(mixed $operator, mixed $value): array
@@ -351,10 +386,11 @@ final class PaperQueryBuilder
     }
 
     /**
+     * @param  (Closure(static): mixed)|string|array<array-key, mixed>  $column
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      */
-    public function orWhere(callable|string $column, mixed $operator = null, mixed $value = null): static
+    public function orWhere(Closure|string|array $column, mixed $operator = null, mixed $value = null): static
     {
         return $this->where($column, $operator, $value, 'or');
     }
@@ -886,11 +922,12 @@ final class PaperQueryBuilder
     }
 
     /**
+     * @param  (Closure(static): mixed)|string|array<array-key, mixed>  $column
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      * @return ?TModel
      */
-    public function firstWhere(callable|string $column, mixed $operator = null, mixed $value = null): ?Model
+    public function firstWhere(Closure|string|array $column, mixed $operator = null, mixed $value = null): ?Model
     {
         return $this->where($column, $operator, $value)->first();
     }
