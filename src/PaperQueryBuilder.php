@@ -1048,6 +1048,17 @@ final class PaperQueryBuilder
         return $this->avg($column);
     }
 
+    /**
+     * @return Collection<array-key, int>
+     */
+    public function countBy(string $column): Collection
+    {
+        return collect($this->columnValues($column))
+            ->flatten(1)
+            ->reject(fn (mixed $value): bool => ! is_scalar($value))
+            ->countBy();
+    }
+
     public function delete(): int
     {
         $deleted = 0;

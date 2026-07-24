@@ -530,6 +530,14 @@ trait Paper
         return static::query()->average($column);
     }
 
+    /**
+     * @return Collection<array-key, int>
+     */
+    public static function countBy(string $column): Collection
+    {
+        return static::query()->countBy($column);
+    }
+
     public static function exists(): bool
     {
         return static::query()->exists();
