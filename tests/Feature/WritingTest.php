@@ -25,6 +25,8 @@ afterEach(function (): void {
     foreach (glob(__DIR__.'/../content/*/.paper-*') ?: [] as $file) {
         @unlink($file);
     }
+
+    File::deleteDirectory(__DIR__.'/../content/drafts');
 });
 
 it('reads a hand-authored YAML list into an array-cast attribute', function (): void {
@@ -74,6 +76,13 @@ it('throws when creating without a slug', function (): void {
     Post::create(['title' => 'No Slug']);
 })->throws(InvalidSlugException::class);
 
+it('refuses to save a model without a slug', function (): void {
+    $post = new Post;
+    $post->title = 'No Slug';
+
+    expect($post->save())->toBeFalse();
+});
+
 it('returns the existing record or creates one with firstOrCreate', function (): void {
     $existing = Post::firstOrCreate(['slug' => 'hello-world'], ['title' => 'Ignored']);
 
@@ -95,7 +104,7 @@ it('updates the existing record or creates one with updateOrCreate', function ()
     expect(Post::find('__save_test__uoc')->title)->toBe('Second');
 });
 
-it('writes save atomically and leaves no temp files behind', function (): void {
+it('saves without leaving a temp file behind', function (): void {
     $post = new Post;
     $post->slug = '__save_test__';
     $post->title = 'Atomic Write';
@@ -184,8 +193,6 @@ it('saves a model whose slug is "0"', function (): void {
 
     expect($draft->save())->toBeTrue()
         ->and(Draft::find('0'))->not->toBeNull();
-
-    File::deleteDirectory($dir);
 });
 
 it('creates the content directory when it does not exist', function (): void {
@@ -201,8 +208,6 @@ it('creates the content directory when it does not exist', function (): void {
     expect($draft->save())->toBeTrue()
         ->and(is_dir($dir))->toBeTrue()
         ->and(Draft::find('first-draft'))->not->toBeNull();
-
-    File::deleteDirectory($dir);
 });
 
 it('overwrites the existing .markdown file instead of creating a duplicate', function (): void {

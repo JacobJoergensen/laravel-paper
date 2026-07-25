@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\File;
-use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Doc;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\FlatDoc;
 
@@ -31,10 +30,6 @@ it('lists records from every depth below the content path', function (): void {
 it('ignores subdirectories when the content path is not nested', function (): void {
     expect(FlatDoc::pluck('slug')->all())->toBe(['index']);
 });
-
-it('rejects a parent traversal segment inside a multi-segment slug', function (): void {
-    Doc::find('guides/../../../config/app');
-})->throws(InvalidSlugException::class);
 
 it('creates the directory when saving a record to a new subdirectory', function (): void {
     $doc = Doc::create([

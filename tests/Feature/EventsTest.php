@@ -2,12 +2,14 @@
 
 declare(strict_types=1);
 
+use Illuminate\Events\Dispatcher;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Author;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\PostObserver;
 
 beforeEach(function (): void {
     Post::resetPaperState();
+    Author::resetPaperState();
 });
 
 afterEach(function (): void {
@@ -53,7 +55,6 @@ it('does not fire retrieved when only counting or checking existence', function 
 });
 
 it('does not fire retrieved for the related models a has query only counts', function (): void {
-    Author::resetPaperState();
     PostObserver::$events = [];
 
     Author::has('posts')->get();
@@ -67,6 +68,25 @@ it('fires retrieved only for the models on the requested page', function (): voi
     Post::paginate(2);
 
     expect(PostObserver::$events)->toHaveCount(2);
+});
+
+it('abandons the write when a saving listener returns false', function (): void {
+    $dispatcher = Post::getEventDispatcher();
+
+    try {
+        Post::setEventDispatcher(new Dispatcher);
+        Post::saving(fn (): bool => false);
+
+        $post = new Post;
+        $post->slug = '__save_test__cancelled';
+        $post->title = 'Cancelled';
+
+        expect($post->save())->toBeFalse();
+    } finally {
+        Post::setEventDispatcher($dispatcher);
+    }
+
+    expect(Post::find('__save_test__cancelled'))->toBeNull();
 });
 
 it('does not fire events when saved with saveQuietly', function (): void {

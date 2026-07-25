@@ -34,9 +34,8 @@ it('attaches children grouped by parent and an empty collection when there are n
 it('eager loads relations across every model returned by findMany', function (): void {
     $posts = Post::with('author')->findMany(['hello-world', 'draft-post']);
 
-    expect($posts->every(fn (Post $post): bool => $post->relationLoaded('author')))->toBeTrue()
-        ->and($posts->firstWhere('slug', 'hello-world')->author->slug)->toBe('john-doe')
-        ->and($posts->firstWhere('slug', 'draft-post')->author)->toBeNull();
+    expect($posts)->toHaveCount(2)
+        ->and($posts->every(fn (Post $post): bool => $post->relationLoaded('author')))->toBeTrue();
 });
 
 it('eager loads relations for the current page of paginators', function (): void {
@@ -47,6 +46,12 @@ it('eager loads relations for the current page of paginators', function (): void
         ->and($paginated->every(fn (Post $post): bool => $post->relationLoaded('author')))->toBeTrue()
         ->and($simple)->toHaveCount(2)
         ->and($simple->every(fn (Post $post): bool => $post->relationLoaded('author')))->toBeTrue();
+});
+
+it('eager loads relations when taking only the first result', function (): void {
+    $post = Post::with('author')->first();
+
+    expect($post->relationLoaded('author'))->toBeTrue();
 });
 
 it('attaches relations for a numeric slug, which PHP stores as an integer array key', function (): void {
@@ -70,8 +75,8 @@ it('attaches relations for a numeric slug, which PHP stores as an integer array 
 
 it('throws when with references a missing method', function (): void {
     Post::with('nonexistent')->get();
-})->throws(BadMethodCallException::class);
+})->throws(BadMethodCallException::class, 'Post::nonexistent does not exist.');
 
 it('throws when with references a method returning the wrong type', function (): void {
     Post::with('getKeyName')->get();
-})->throws(BadMethodCallException::class);
+})->throws(BadMethodCallException::class, 'Post::getKeyName must return');

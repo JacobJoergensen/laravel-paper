@@ -25,19 +25,22 @@ it('lists matching files with their modification times', function (): void {
     Storage::disk('paper')->put('articles/ignored.txt', '');
 
     $listing = $this->adapter->listing('articles', ['md', 'markdown']);
-    $basenames = array_map(fn (string $path): string => basename($path), array_keys($listing));
-    sort($basenames);
+    $paths = array_keys($listing);
+    sort($paths);
 
-    expect($basenames)->toBe(['one.md', 'two.markdown'])
-        ->and($listing)->each->toBeInt();
+    expect($paths)->toBe(['articles/one.md', 'articles/two.markdown'])
+        ->and($listing)->each->toBeGreaterThan(0);
 });
 
 it('returns an empty list for a missing directory instead of throwing', function (): void {
     expect($this->adapter->listing('nope', ['md']))->toBe([]);
 });
 
-it('returns null for lastModified when the file is missing', function (): void {
-    expect($this->adapter->lastModified('missing.md'))->toBeNull();
+it('reports lastModified for a file it wrote and null for a missing one', function (): void {
+    $this->adapter->write('post.md', 'body');
+
+    expect($this->adapter->lastModified('post.md'))->toBeGreaterThan(0)
+        ->and($this->adapter->lastModified('missing.md'))->toBeNull();
 });
 
 it('namespaces the cache key by disk so identical paths do not collide', function (): void {

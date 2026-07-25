@@ -13,6 +13,27 @@ beforeEach(function (): void {
     $this->driver = new MarkdownDriver;
 });
 
+it('watches locally and trusts the manifest elsewhere when watch is auto', function (): void {
+    $listingsOnWarmQuery = function (string $environment): int {
+        config(['paper.watch' => 'auto']);
+        app()->detectEnvironment(fn (): string => $environment);
+        app()->forgetInstance(PaperManifest::class);
+
+        $manifest = app(PaperManifest::class);
+        $adapter = new CountingAdapter;
+        $adapter->seed('blog/post-1.md', "---\nstatus: published\n---\n", 1_000);
+
+        $manifest->records($adapter, new MarkdownDriver, 'blog');
+        $adapter->reset();
+        $manifest->records($adapter, new MarkdownDriver, 'blog');
+
+        return $adapter->counts['listing'];
+    };
+
+    expect($listingsOnWarmQuery('local'))->toBe(1)
+        ->and($listingsOnWarmQuery('production'))->toBe(0);
+});
+
 it('serves a warm manifest without a directory listing when the watcher is off', function (): void {
     $adapter = new CountingAdapter;
     $adapter->seed('blog/post-1.md', "---\nstatus: published\n---\n", 1_000);
@@ -53,7 +74,7 @@ it('rebuilds from a listing when the cached manifest is gone', function (): void
         ->and($adapter->counts['listing'])->toBe(1);
 });
 
-it('reconciles against the disk even when the watcher trusts the cache', function (): void {
+it('reconciles against the disk even when the manifest is trusted', function (): void {
     $adapter = new CountingAdapter;
     $adapter->seed('blog/post-1.md', "---\nstatus: published\n---\n", 1_000);
 

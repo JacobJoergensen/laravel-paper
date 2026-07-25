@@ -10,7 +10,7 @@ use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\CastKeyModel;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\CountingAdapter;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\NestedModel;
-use JacobJoergensen\LaravelPaper\Tests\Fixtures\RawNestedModel;
+use JacobJoergensen\LaravelPaper\Tests\Fixtures\RawModel;
 
 beforeEach(function (): void {
     $manifest = new PaperManifest(new Repository(new ArrayStore), 60, 10, true);
@@ -18,7 +18,7 @@ beforeEach(function (): void {
     $adapter->seed('blog/alpha.md', "---\nseo:\n  title: Alpha\n  meta:\n    robots: index\n---\n", 1_000);
     $adapter->seed('blog/beta.md', "---\nseo:\n  title: Beta\n  meta:\n    robots: noindex\n---\n", 2_000);
 
-    $this->raw = fn (): PaperQueryBuilder => new PaperQueryBuilder($adapter, new MarkdownDriver, $manifest, 'blog', RawNestedModel::class);
+    $this->raw = fn (): PaperQueryBuilder => new PaperQueryBuilder($adapter, new MarkdownDriver, $manifest, 'blog', RawModel::class);
     $this->cast = fn (): PaperQueryBuilder => new PaperQueryBuilder($adapter, new MarkdownDriver, $manifest, 'blog', NestedModel::class);
 });
 
@@ -35,7 +35,7 @@ it('prefers a literal flat key over a nested lookup', function (): void {
     $adapter = new CountingAdapter;
     $adapter->seed('flat/doc.md', "---\n'seo.title': Flat\n---\n", 1_000);
 
-    $query = new PaperQueryBuilder($adapter, new MarkdownDriver, $manifest, 'flat', RawNestedModel::class);
+    $query = new PaperQueryBuilder($adapter, new MarkdownDriver, $manifest, 'flat', RawModel::class);
 
     expect($query->where('seo.title', 'Flat')->get()->pluck('slug')->all())->toBe(['doc']);
 });
@@ -51,16 +51,7 @@ it('does not push a filter down onto a cast flat key', function (): void {
 });
 
 it('gives the same answer whether the nested root is cast or raw', function (): void {
-    $cases = [
-        fn (PaperQueryBuilder $q): PaperQueryBuilder => $q->where('seo.title', 'Beta'),
-        fn (PaperQueryBuilder $q): PaperQueryBuilder => $q->where('seo.meta.robots', 'index'),
-        fn (PaperQueryBuilder $q): PaperQueryBuilder => $q->orderBy('seo.title'),
-    ];
-
-    foreach ($cases as $case) {
-        $raw = $case(($this->raw)())->get()->pluck('slug')->all();
-        $cast = $case(($this->cast)())->get()->pluck('slug')->all();
-
-        expect($cast)->toBe($raw);
-    }
+    expect(($this->cast)()->where('seo.title', 'Alpha')->get()->pluck('slug')->all())->toBe(['alpha'])
+        ->and(($this->cast)()->where('seo.meta.robots', 'noindex')->get()->pluck('slug')->all())->toBe(['beta'])
+        ->and(($this->cast)()->orderBy('seo.title')->get()->pluck('slug')->all())->toBe(['alpha', 'beta']);
 });

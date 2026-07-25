@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace JacobJoergensen\LaravelPaper\Drivers;
 
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
+use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
 use Spatie\YamlFrontMatter\YamlFrontMatter;
+use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
 
 final readonly class MarkdownDriver implements DriverContract
@@ -23,7 +25,11 @@ final readonly class MarkdownDriver implements DriverContract
      */
     public function parse(string $contents): array
     {
-        $document = YamlFrontMatter::parse($contents);
+        try {
+            $document = YamlFrontMatter::parse($contents);
+        } catch (ParseException $e) {
+            throw FileParseException::invalidFrontmatter($e->getMessage());
+        }
 
         /** @var array<string, mixed> $data */
         $data = $document->matter();

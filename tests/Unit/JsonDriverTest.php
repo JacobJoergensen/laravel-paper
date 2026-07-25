@@ -22,10 +22,21 @@ it('parses json contents', function (): void {
         ->toHaveKey('active', true);
 });
 
+it('serializes without the slug and without escaping unicode', function (): void {
+    $driver = new JsonDriver;
+
+    $json = $driver->serialize(['slug' => 'about', 'title' => 'Café']);
+
+    expect(json_decode($json, true))->toBe(['title' => 'Café'])
+        ->and($json)->toContain('Café');
+});
+
 it('throws exception for invalid json', function (): void {
-    new JsonDriver()->parse('{ invalid json }');
-})->throws(FileParseException::class);
+    $driver = new JsonDriver;
+    $driver->parse('{ invalid json }');
+})->throws(FileParseException::class, 'Syntax error');
 
 it('throws when the json root is not an object', function (): void {
-    new JsonDriver()->parse('"just a string"');
-})->throws(FileParseException::class);
+    $driver = new JsonDriver;
+    $driver->parse('"just a string"');
+})->throws(FileParseException::class, 'Root must be an object');

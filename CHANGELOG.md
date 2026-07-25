@@ -36,6 +36,7 @@
 * Optimized `where` to filter on the raw record and build only the matching models when the filtered columns have no cast, accessor, or relation
 * Optimized queries to reconcile a per content-path manifest against one directory listing, so a query reads one listing instead of a metadata call per file and warm reads scale flat with file count
 * Moved driver and content path resolution to PaperQueryBuilder as a single shared cache
+* Fixed `MarkdownDriver` to throw `FileParseException` for malformed frontmatter instead of a raw Symfony exception, so the error names the file
 * Removed `FileParseException::unreadable` since drivers no longer perform I/O
 * Removed `UnsupportedRouteBindingException` now that `resolveChildRouteBinding` resolves the child instead of throwing
 

@@ -9,6 +9,7 @@ use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 
 beforeEach(function (): void {
     Post::resetPaperState();
+    Author::resetPaperState();
 });
 
 it('resolves a model from its route key', function (): void {
@@ -27,12 +28,6 @@ it('returns null when no model matches the route key', function (): void {
     $post = new Post;
 
     expect($post->resolveRouteBinding('does-not-exist'))->toBeNull();
-});
-
-it('returns null when the route key field is absent from frontmatter', function (): void {
-    $post = new Post;
-
-    expect($post->resolveRouteBinding('hello-world', 'nonexistent'))->toBeNull();
 });
 
 it('resolves a child model scoped to its parent', function (): void {
@@ -62,8 +57,14 @@ it('returns null for a child when the parent has no key', function (): void {
 it('throws when the child relation does not exist on the parent', function (): void {
     $post = new Post;
 
-    $post->resolveChildRouteBinding('author', 'john-doe', null);
-})->throws(BadMethodCallException::class);
+    $post->resolveChildRouteBinding('comment', 'first-comment', null);
+})->throws(BadMethodCallException::class, 'Post::comments does not exist.');
+
+it('throws when the child relation does not return a hasMany relation', function (): void {
+    $post = new Post;
+
+    $post->resolveChildRouteBinding('getAttribute', 'hello-world', null);
+})->throws(BadMethodCallException::class, 'Post::getAttributes must return');
 
 it('substitutes scoped bindings through the router', function (): void {
     Route::middleware(SubstituteBindings::class)

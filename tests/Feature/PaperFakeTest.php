@@ -31,14 +31,6 @@ it('runs the real cast pipeline on faked content, resolved through find', functi
         ->and($post->views)->toBe(3);
 });
 
-it('round-trips nested array frontmatter through serialize and parse', function (): void {
-    PaperFake::fake(Post::class, [
-        'a' => ['title' => 'Alpha', 'meta' => ['seo' => ['keywords' => ['x', 'y']], 'flags' => [1, 2]]],
-    ]);
-
-    expect(Post::find('a')->meta)->toBe(['seo' => ['keywords' => ['x', 'y']], 'flags' => [1, 2]]);
-});
-
 it('supports save and delete against the fake', function (): void {
     PaperFake::fake(Post::class, ['a' => ['title' => 'Alpha']]);
 
@@ -85,20 +77,13 @@ it('fakes a disk-backed model without flipping the content path', function (): v
     expect(DiskDoc::find('guide/intro')?->title)->toBe('Intro');
 });
 
-// Two mirror guards: each asserts the other's fake is gone before making its own. Author is
-// faked nowhere else, so the second to run only sees a clean slate if teardown cleared the first.
-it('does not leak a fake into the next test (guard one)', function (): void {
-    expect(Author::find('guard-two'))->toBeNull();
+it('does not leak a fake into the next test', function (string $mine, string $other): void {
+    expect(Author::find($other))->toBeNull();
 
-    PaperFake::fake(Author::class, ['guard-one' => ['name' => 'One']]);
+    PaperFake::fake(Author::class, [$mine => ['name' => 'Guard']]);
 
-    expect(Author::find('guard-one'))->not->toBeNull();
-});
-
-it('does not leak a fake into the next test (guard two)', function (): void {
-    expect(Author::find('guard-one'))->toBeNull();
-
-    PaperFake::fake(Author::class, ['guard-two' => ['name' => 'Two']]);
-
-    expect(Author::find('guard-two'))->not->toBeNull();
-});
+    expect(Author::find($mine))->not->toBeNull();
+})->with([
+    ['guard-one', 'guard-two'],
+    ['guard-two', 'guard-one'],
+]);

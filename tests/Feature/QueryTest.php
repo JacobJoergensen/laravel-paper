@@ -65,15 +65,7 @@ it('can get all posts', function (): void {
 it('can filter posts with where clause', function (): void {
     $posts = Post::where('published', true)->get();
 
-    expect($posts)->toHaveCount(2)
-        ->and($posts->pluck('slug')->toArray())->each->not->toBe('draft-post');
-});
-
-it('can filter posts with two-argument string where', function (): void {
-    $post = Post::where('title', 'Hello World')->first();
-
-    expect($post)->not->toBeNull()
-        ->and($post->slug)->toBe('hello-world');
+    expect($posts->pluck('slug')->toArray())->toBe(['hello-world', 'second-post']);
 });
 
 it('can order posts', function (): void {
@@ -177,7 +169,7 @@ it('resolves protected scopes declared with the #[Scope] attribute', function ()
         ->and($posts->first()->slug)->toBe('second-post');
 });
 
-it('counts all posts without parsing files', function (): void {
+it('counts all posts', function (): void {
     expect(Post::count())->toBe(3);
 });
 
@@ -256,6 +248,7 @@ it('rejects unsafe slugs when finding', function (string $slug): void {
     Post::find($slug);
 })->throws(InvalidSlugException::class)->with([
     'parent traversal' => '../../etc/passwd',
+    'traversal after a valid segment' => 'guides/../../secret',
     'backslash' => '..\\..\\secret',
     'null byte' => "foo\0bar",
     'absolute path' => '/etc/passwd',

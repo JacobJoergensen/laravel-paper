@@ -9,6 +9,7 @@ use JacobJoergensen\LaravelPaper\Tests\Fixtures\TimestampedPost;
 
 beforeEach(function (): void {
     TimestampedPost::resetPaperState();
+    Post::resetPaperState();
 });
 
 afterEach(function (): void {
@@ -26,6 +27,12 @@ it('exposes the file modification time as updated_at when timestamps are enabled
         ->and($post->updated_at->getTimestamp())->toBe(filemtime($path));
 });
 
+it('leaves updated_at unset when timestamps are not enabled', function (): void {
+    $post = Post::find('hello-world');
+
+    expect($post->updated_at)->toBeNull();
+});
+
 it('orders by updated_at by default with latest and oldest', function (): void {
     $dir = base_path('tests/content/posts');
     file_put_contents("$dir/__ts_test__old.md", "---\ntitle: Old\n---\n\nx\n");
@@ -36,8 +43,10 @@ it('orders by updated_at by default with latest and oldest', function (): void {
     $latest = TimestampedPost::latest()->get()->pluck('slug');
     $oldest = TimestampedPost::oldest()->get()->pluck('slug');
 
-    expect($latest->search('__ts_test__new'))->toBeLessThan($latest->search('__ts_test__old'))
-        ->and($oldest->search('__ts_test__old'))->toBeLessThan($oldest->search('__ts_test__new'));
+    expect($latest->first())->toBe('__ts_test__new')
+        ->and($latest->last())->toBe('__ts_test__old')
+        ->and($oldest->first())->toBe('__ts_test__old')
+        ->and($oldest->last())->toBe('__ts_test__new');
 });
 
 it('throws when latest or oldest is called without timestamps enabled', function (): void {

@@ -47,9 +47,9 @@ it('aggregates only the records matching a where clause', function (): void {
     expect(Post::where('published', true)->sum('order'))->toBe(3);
 });
 
-it('average returns the identical result to avg', function (): void {
+it('returns the same mean from average as from avg', function (): void {
     expect(Post::average('order'))->toBe(2)
-        ->and(Post::average('order'))->toBe(Post::avg('order'));
+        ->and(Post::avg('order'))->toBe(2);
 });
 
 it('ignores orderBy and limit when aggregating, matching SQL', function (): void {

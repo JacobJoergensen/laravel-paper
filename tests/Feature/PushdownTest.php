@@ -61,7 +61,7 @@ it('plucks a safe column from raw records without building models', function ():
     ($this->build)()->pluck('rank');
     $onCast = CountingModel::$hydrations;
 
-    expect($safe)->toHaveCount(5)
+    expect($safe->all())->toBe([true, true, false, false, false])
         ->and($onSafe)->toBeLessThan($onCast);
 });
 

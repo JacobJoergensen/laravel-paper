@@ -7,6 +7,7 @@ use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 
 beforeEach(function (): void {
     Post::resetPaperState();
+    Author::resetPaperState();
 });
 
 it('can resolve belongsTo relationship', function (): void {

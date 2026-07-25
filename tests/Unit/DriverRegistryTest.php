@@ -14,5 +14,6 @@ it('resolves a registered driver', function (): void {
 });
 
 it('throws for an unregistered driver', function (): void {
-    new DriverRegistry()->resolve('missing');
+    $registry = new DriverRegistry;
+    $registry->resolve('missing');
 })->throws(InvalidDriverException::class);

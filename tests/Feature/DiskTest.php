@@ -3,13 +3,12 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\Storage;
-use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Article;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\DiskDoc;
 
 beforeEach(function (): void {
-    PaperQueryBuilder::forgetCache(Article::class);
-    PaperQueryBuilder::forgetCache(DiskDoc::class);
+    Article::resetPaperState();
+    DiskDoc::resetPaperState();
     Storage::fake('paper');
 });
 
@@ -32,9 +31,9 @@ it('reads, writes, and deletes through the configured disk', function (): void {
     expect(Storage::disk('paper')->exists('articles/first.md'))->toBeFalse();
 });
 
-it('lists only files with the driver extension on the disk', function (): void {
+it('lists files of every driver extension on the disk, ignoring others', function (): void {
     Storage::disk('paper')->put('articles/one.md', "---\ntitle: One\n---\n");
-    Storage::disk('paper')->put('articles/two.md', "---\ntitle: Two\n---\n");
+    Storage::disk('paper')->put('articles/two.markdown', "---\ntitle: Two\n---\n");
     Storage::disk('paper')->put('articles/ignored.txt', 'not markdown');
 
     $articles = Article::all();

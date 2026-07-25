@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Storage;
-use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Article;
 
 /**
@@ -28,15 +27,13 @@ final class ArticleFactory extends Factory
 
 beforeEach(function (): void {
     Storage::fake('paper');
-    PaperQueryBuilder::forgetCache(Article::class);
+    Article::resetPaperState();
 });
 
 it('persists records created through a Laravel factory', function (): void {
-    ArticleFactory::new()->count(3)->create();
+    $created = ArticleFactory::new()->count(3)->create();
+    $first = $created->first();
 
-    $articles = Article::all();
-    $first = $articles->first();
-
-    expect($articles)->toHaveCount(3)
-        ->and(Storage::disk('paper')->exists('articles/'.$first->slug.'.md'))->toBeTrue();
+    expect(Article::all())->toHaveCount(3)
+        ->and(Article::find($first->slug)?->title)->toBe($first->title);
 });

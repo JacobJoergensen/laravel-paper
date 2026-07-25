@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use JacobJoergensen\LaravelPaper\Drivers\MarkdownDriver;
+use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
 
 it('returns correct extensions', function (): void {
     $driver = new MarkdownDriver;
@@ -19,7 +20,7 @@ it('parses frontmatter and content', function (): void {
     expect($data)
         ->toHaveKey('title', 'Hello World')
         ->toHaveKey('published', true)
-        ->toHaveKey('content');
+        ->toHaveKey('content', 'This is my first post. Welcome to the blog!');
 });
 
 it('handles content without frontmatter', function (): void {
@@ -28,6 +29,11 @@ it('handles content without frontmatter', function (): void {
 
     expect($data)->toBe(['content' => 'Just content, no frontmatter.']);
 });
+
+it('throws a Paper exception when the frontmatter is malformed', function (): void {
+    $driver = new MarkdownDriver;
+    $driver->parse("---\ntitle: [unclosed\n---\nBody");
+})->throws(FileParseException::class, 'Failed to parse frontmatter');
 
 it('serializes nested frontmatter as block yaml that round-trips', function (): void {
     $driver = new MarkdownDriver;

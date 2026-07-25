@@ -10,7 +10,7 @@ beforeEach(function (): void {
     Post::resetPaperState();
 });
 
-it('validates exists rule passes for existing model', function (): void {
+it('accepts a value that matches an existing record', function (): void {
     $validator = Validator::make(
         ['slug' => 'hello-world'],
         ['slug' => PaperRule::exists(Post::class)]
@@ -19,7 +19,7 @@ it('validates exists rule passes for existing model', function (): void {
     expect($validator->passes())->toBeTrue();
 });
 
-it('validates exists rule fails for non-existing model', function (): void {
+it('rejects a value that matches no record', function (): void {
     $validator = Validator::make(
         ['slug' => 'does-not-exist'],
         ['slug' => PaperRule::exists(Post::class)]
@@ -29,7 +29,7 @@ it('validates exists rule fails for non-existing model', function (): void {
         ->and($validator->errors()->first('slug'))->toBe('The selected slug is invalid.');
 });
 
-it('validates unique rule passes for new value', function (): void {
+it('accepts a value no record has taken', function (): void {
     $validator = Validator::make(
         ['slug' => 'brand-new-slug'],
         ['slug' => PaperRule::unique(Post::class)]
@@ -38,7 +38,7 @@ it('validates unique rule passes for new value', function (): void {
     expect($validator->passes())->toBeTrue();
 });
 
-it('validates unique rule fails for existing value', function (): void {
+it('rejects a value another record already has', function (): void {
     $validator = Validator::make(
         ['slug' => 'hello-world'],
         ['slug' => PaperRule::unique(Post::class)]
@@ -48,22 +48,19 @@ it('validates unique rule fails for existing value', function (): void {
         ->and($validator->errors()->first('slug'))->toBe('The slug has already been taken.');
 });
 
-it('validates unique rule with ignore passes for same model', function (): void {
-    $validator = Validator::make(
+it('ignores the given record but still conflicts with a different existing one', function (): void {
+    $ignored = Validator::make(
         ['slug' => 'hello-world'],
         ['slug' => PaperRule::unique(Post::class)->ignore('hello-world')]
     );
 
-    expect($validator->passes())->toBeTrue();
-});
-
-it('validates unique rule with ignore fails for different existing model', function (): void {
-    $validator = Validator::make(
+    $notIgnored = Validator::make(
         ['slug' => 'hello-world'],
         ['slug' => PaperRule::unique(Post::class)->ignore('draft-post')]
     );
 
-    expect($validator->fails())->toBeTrue();
+    expect($ignored->passes())->toBeTrue()
+        ->and($notIgnored->fails())->toBeTrue();
 });
 
 it('ignores a record by a custom column', function (): void {

@@ -56,30 +56,21 @@ it('reads only the requested file on a cold find, then serves it warm', function
         ->and($this->adapter->counts['read'])->toBe(0);
 });
 
-it('re-reads only the file whose mtime is newer than the cached entry', function (): void {
+it('re-reads only the file whose mtime differs from the cached entry', function (int $mtime): void {
     ($this->build)()->get();
 
     $this->adapter->reset();
-    $this->adapter->seed('blog/post-3.md', "---\nstatus: draft\n---\nedited", 9_999);
+    $this->adapter->seed('blog/post-3.md', "---\nstatus: draft\n---\nedited", $mtime);
 
     $models = ($this->build)()->get();
 
     expect($this->adapter->counts['listing'])->toBe(1)
         ->and($this->adapter->counts['read'])->toBe(1)
         ->and($models->firstWhere('slug', 'post-3')->status)->toBe('draft');
-});
-
-it('re-reads a file whose mtime moved backwards, as a restore from backup would', function (): void {
-    ($this->build)()->get();
-
-    $this->adapter->reset();
-    $this->adapter->seed('blog/post-3.md', "---\nstatus: draft\n---\nrestored", 500);
-
-    $models = ($this->build)()->get();
-
-    expect($this->adapter->counts['read'])->toBe(1)
-        ->and($models->firstWhere('slug', 'post-3')->status)->toBe('draft');
-});
+})->with([
+    'edited, so newer' => 9_999,
+    'restored from backup, so older' => 500,
+]);
 
 it('drops a deleted file from results without reading anything', function (): void {
     ($this->build)()->get();

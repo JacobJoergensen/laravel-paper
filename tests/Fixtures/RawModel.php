@@ -12,7 +12,7 @@ use JacobJoergensen\LaravelPaper\Paper;
 
 #[Driver('markdown')]
 #[ContentPath('blog')]
-final class RawNestedModel extends Model implements PaperModel
+final class RawModel extends Model implements PaperModel
 {
     use Paper;
 

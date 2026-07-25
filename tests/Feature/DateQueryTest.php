@@ -10,7 +10,7 @@ use JacobJoergensen\LaravelPaper\Drivers\MarkdownDriver;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\CountingAdapter;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\DateModel;
-use JacobJoergensen\LaravelPaper\Tests\Fixtures\RawDateModel;
+use JacobJoergensen\LaravelPaper\Tests\Fixtures\RawModel;
 
 beforeEach(function (): void {
     $this->timezone = date_default_timezone_get();
@@ -21,7 +21,8 @@ beforeEach(function (): void {
     $adapter->seed('blog/march.md', "---\ndate: 2024-03-15\n---\n", 1_000);
     $adapter->seed('blog/june.md', "---\ndate: '2025-06-20'\n---\n", 2_000);
 
-    $this->raw = fn (): PaperQueryBuilder => new PaperQueryBuilder($adapter, new MarkdownDriver, $manifest, 'blog', RawDateModel::class);
+    $this->adapter = $adapter;
+    $this->raw = fn (): PaperQueryBuilder => new PaperQueryBuilder($adapter, new MarkdownDriver, $manifest, 'blog', RawModel::class);
     $this->cast = fn (): PaperQueryBuilder => new PaperQueryBuilder($adapter, new MarkdownDriver, $manifest, 'blog', DateModel::class);
 });
 
@@ -43,18 +44,15 @@ it('accepts a Carbon value', function (): void {
 });
 
 it('gives the same answer whether the date column is cast or raw', function (): void {
-    $cases = [
-        fn (PaperQueryBuilder $q): PaperQueryBuilder => $q->whereYear('date', 2024),
-        fn (PaperQueryBuilder $q): PaperQueryBuilder => $q->whereMonth('date', 6),
-        fn (PaperQueryBuilder $q): PaperQueryBuilder => $q->whereDay('date', 20),
-        fn (PaperQueryBuilder $q): PaperQueryBuilder => $q->whereDate('date', '2024-03-15'),
-        fn (PaperQueryBuilder $q): PaperQueryBuilder => $q->whereDate('date', '2025-06-20'),
-    ];
+    expect(($this->cast)()->whereYear('date', 2024)->get()->pluck('slug')->all())->toBe(['march'])
+        ->and(($this->cast)()->whereMonth('date', 6)->get()->pluck('slug')->all())->toBe(['june'])
+        ->and(($this->cast)()->whereDay('date', 15)->get()->pluck('slug')->all())->toBe(['march'])
+        ->and(($this->cast)()->whereDate('date', '2024-03-15')->get()->pluck('slug')->all())->toBe(['march']);
+});
 
-    foreach ($cases as $case) {
-        $raw = $case(($this->raw)())->get()->pluck('slug')->all();
-        $cast = $case(($this->cast)())->get()->pluck('slug')->all();
+it('excludes a record whose date cannot be parsed', function (): void {
+    $this->adapter->seed('blog/broken.md', "---\ndate: banana\n---\n", 3_000);
 
-        expect($cast)->toBe($raw);
-    }
+    expect(($this->raw)()->count())->toBe(3)
+        ->and(($this->raw)()->whereYear('date', 2024)->get()->pluck('slug')->all())->toBe(['march']);
 });
