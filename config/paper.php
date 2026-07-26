@@ -43,8 +43,8 @@ return [
     |
     */
 
-    'lock_ttl' => 60,
+    'lock_ttl' => env('PAPER_LOCK_TTL', 60),
 
-    'lock_wait' => 10,
+    'lock_wait' => env('PAPER_LOCK_WAIT', 10),
 
 ];
