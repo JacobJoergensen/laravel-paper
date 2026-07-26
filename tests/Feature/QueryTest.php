@@ -311,6 +311,10 @@ it('filters with whereContains on an array field', function (): void {
         ->and(Post::whereContains('tags', 'php')->count())->toBe(0);
 });
 
+it('rejects an array of values in whereContains instead of matching nothing', function (): void {
+    expect(fn () => Post::whereContains('tags', ['laravel', 'php']))->toThrow(TypeError::class);
+});
+
 it('returns every record when ordered randomly', function (): void {
     $random = Post::inRandomOrder()->get();
     $all = Post::all();

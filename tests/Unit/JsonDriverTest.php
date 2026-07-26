@@ -22,13 +22,14 @@ it('parses json contents', function (): void {
         ->toHaveKey('active', true);
 });
 
-it('serializes without the slug and without escaping unicode', function (): void {
+it('serializes without the slug and without escaping unicode or slashes', function (): void {
     $driver = new JsonDriver;
 
-    $json = $driver->serialize(['slug' => 'about', 'title' => 'Café']);
+    $json = $driver->serialize(['slug' => 'about', 'title' => 'Café', 'url' => '/downloads/press']);
 
-    expect(json_decode($json, true))->toBe(['title' => 'Café'])
-        ->and($json)->toContain('Café');
+    expect(json_decode($json, true))->toBe(['title' => 'Café', 'url' => '/downloads/press'])
+        ->and($json)->toContain('Café')
+        ->and($json)->toContain('/downloads/press');
 });
 
 it('throws exception for invalid json', function (): void {

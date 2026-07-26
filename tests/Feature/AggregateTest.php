@@ -59,6 +59,15 @@ it('ignores orderBy and limit when aggregating, matching SQL', function (): void
         ->and($query->max('order'))->toBe(3);
 });
 
+it('compares mixed types in min and max with PHP rules rather than skipping non-numeric values', function (): void {
+    writeAggregatePost('mixed-low', 'rating: 3');
+    writeAggregatePost('mixed-text', 'rating: nope');
+    writeAggregatePost('mixed-high', 'rating: 10');
+
+    expect(Post::min('rating'))->toBe(3)
+        ->and(Post::max('rating'))->toBe('nope');
+});
+
 it('aggregates the cast value rather than the raw frontmatter string', function (): void {
     writeAggregatePost('cast', 'views: "3"');
 

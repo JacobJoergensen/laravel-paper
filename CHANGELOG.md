@@ -26,6 +26,7 @@
 * Added `paper:warm`, `paper:clear`, and `paper:refresh` commands to warm, clear, and rebuild a model's manifest
 * Changed `belongsToPaper` and `hasManyPaper` to return relation descriptors; call ->getResults() for direct resolution or use with() to eager load
 * Changed `StorageAdapterContract::listing` to take a `$nested` flag, so custom adapters must add the third argument
+* Changed `whereContains` to only accept a scalar value; passing an array silently matched nothing
 * Changed `find` to match slugs case-sensitively, like `where`; a case-mismatched slug now returns null
 * Changed `find` to throw `ContentPathNotFoundException` for a missing content directory, like `where`, instead of returning null
 * Changed `DriverContract::parse` signature to `parse(string $contents)`; drivers no longer perform I/O, the adapter reads files. `PaperQueryBuilder` wraps format errors with the filepath via `FileParseException::inFile`
@@ -37,6 +38,7 @@
 * Optimized queries to reconcile a per content-path manifest against one directory listing, so a query reads one listing instead of a metadata call per file and warm reads scale flat with file count
 * Moved driver and content path resolution to PaperQueryBuilder as a single shared cache
 * Fixed `MarkdownDriver` to throw `FileParseException` for malformed frontmatter instead of a raw Symfony exception, so the error names the file
+* Fixed `JsonDriver` to leave forward slashes unescaped, so saving a record no longer rewrites every URL in the file
 * Removed `FileParseException::unreadable` since drivers no longer perform I/O
 * Removed `UnsupportedRouteBindingException` now that `resolveChildRouteBinding` resolves the child instead of throwing
 

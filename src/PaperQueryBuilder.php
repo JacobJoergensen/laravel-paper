@@ -631,10 +631,8 @@ final class PaperQueryBuilder
 
     /**
      * Matches rows where the array field includes the given value.
-     *
-     * @param  scalar  $value
      */
-    public function whereContains(string $column, mixed $value, string $boolean = 'and'): static
+    public function whereContains(string $column, bool|float|int|string $value, string $boolean = 'and'): static
     {
         $this->wheres[] = [
             'type' => 'contains',
@@ -646,10 +644,7 @@ final class PaperQueryBuilder
         return $this;
     }
 
-    /**
-     * @param  scalar  $value
-     */
-    public function orWhereContains(string $column, mixed $value): static
+    public function orWhereContains(string $column, bool|float|int|string $value): static
     {
         return $this->whereContains($column, $value, 'or');
     }

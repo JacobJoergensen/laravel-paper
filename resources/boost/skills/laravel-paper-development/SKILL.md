@@ -140,7 +140,9 @@ $next = Post::max('order') + 1;
 $views = Post::where('published', true)->sum('views');
 ```
 
-On an empty result `sum` returns `0` and the others return `null`. Null, missing, and non-numeric values are skipped.
+On an empty result `sum` returns `0` and the others return `null`. `sum` and `avg` skip null, missing and
+non-numeric values. `min` and `max` skip only null and compare the rest with PHP's rules, so a column
+mixing numbers and text can return the text.
 
 ## Casts
 
