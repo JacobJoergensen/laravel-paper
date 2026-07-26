@@ -4,58 +4,65 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper\Console;
 
-use Illuminate\Console\Command;
-use Illuminate\Database\Eloquent\Model;
-use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
+use JacobJoergensen\LaravelPaper\Exceptions\PaperException;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 
-final class ValidateCommand extends Command
+final class ValidateCommand extends PaperCommand
 {
-    protected $signature = 'paper:validate {model* : One or more Paper model classes}';
+    protected $signature = 'paper:validate
+                            {model?* : Paper model classes, defaults to every model in app/Models}
+                            {--json : Print the failures as JSON instead of console output}';
 
-    protected $description = 'Check every content file parses and hydrates; lenient casts like integer coerce silently and are not type-checked';
+    protected $description = 'Check that every content file parses and hydrates';
+
+    /** @var list<array{model: string, path: string|null, error: string}> */
+    private array $failures = [];
 
     public function handle(): int
     {
-        $models = $this->argument('model');
+        $status = parent::handle();
 
-        if (! is_array($models)) {
-            return self::FAILURE;
+        if ($status === self::INVALID) {
+            return $status;
         }
 
-        $failed = false;
-
-        foreach ($models as $model) {
-            if (! is_string($model) || ! $this->isPaperModel($model)) {
-                $this->error(sprintf('%s is not a Paper model.', is_string($model) ? $model : 'argument'));
-                $failed = true;
-
-                continue;
-            }
-
-            $failures = PaperQueryBuilder::forModel($model)->validateFiles();
-
-            foreach ($failures as $failure) {
-                $this->error(sprintf('%s: %s', $failure['path'], $failure['error']));
-            }
-
-            if ($failures === []) {
-                $this->info(sprintf('%s: all files valid.', $model));
-
-                continue;
-            }
-
-            $failed = true;
+        if ($this->json()) {
+            $this->line(json_encode($this->failures, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
         }
 
-        return $failed ? self::FAILURE : self::SUCCESS;
+        return $this->failures === [] ? $status : self::FAILURE;
     }
 
-    /**
-     * @phpstan-assert-if-true class-string<Model&PaperModel> $model
-     */
-    private function isPaperModel(string $model): bool
+    protected function runFor(string $model): void
     {
-        return is_subclass_of($model, PaperModel::class);
+        try {
+            $failures = PaperQueryBuilder::forModel($model)->validateFiles();
+        } catch (PaperException $e) {
+            $this->record($model, null, $e->getMessage());
+
+            return;
+        }
+
+        foreach ($failures as $failure) {
+            $this->record($model, $failure['path'], $failure['error']);
+        }
+
+        if ($failures === [] && ! $this->json()) {
+            $this->info(sprintf('%s: all files valid.', $model));
+        }
+    }
+
+    private function record(string $model, ?string $path, string $error): void
+    {
+        $this->failures[] = ['model' => $model, 'path' => $path, 'error' => $error];
+
+        if (! $this->json()) {
+            $this->error(sprintf('%s: %s', $path ?? $model, $error));
+        }
+    }
+
+    private function json(): bool
+    {
+        return $this->option('json') === true;
     }
 }

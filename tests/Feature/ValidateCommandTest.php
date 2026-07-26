@@ -17,8 +17,14 @@ it('passes a model whose files all parse and cast', function (): void {
     $this->artisan('paper:validate', ['model' => [Post::class]])->assertSuccessful();
 });
 
-it('fails the run when any argument is not a Paper model', function (): void {
-    $this->artisan('paper:validate', ['model' => [Post::class, stdClass::class]])
+it('prints failures as a JSON document when --json is passed', function (): void {
+    $this->artisan('paper:validate', ['model' => [BrokenModel::class], '--json' => true])
         ->assertFailed()
-        ->expectsOutputToContain('is not a Paper model');
+        ->expectsOutputToContain('"model":');
+});
+
+it('prints no JSON document when the arguments are rejected', function (): void {
+    $this->artisan('paper:validate', ['model' => [stdClass::class], '--json' => true])
+        ->assertExitCode(2)
+        ->doesntExpectOutputToContain('[]');
 });

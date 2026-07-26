@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
+use JacobJoergensen\LaravelPaper\Tests\Fixtures\BrokenModel;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\CountingAdapter;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 
@@ -56,8 +57,28 @@ it('refreshes by rebuilding the manifest and leaving it warm', function (): void
         ->and($adapter->counts['read'])->toBe(0);
 });
 
-it('fails when any argument is not a Paper model', function (string $command): void {
-    $this->artisan($command, ['model' => [Post::class, stdClass::class]])
+it('covers every Paper model in app/Models when none are named', function (): void {
+    $this->app->useAppPath(base_path('tests/Fixtures/DiscoveryApp'));
+
+    $this->artisan('paper:clear')
+        ->assertSuccessful()
+        ->expectsOutputToContain('DiscoveredPost: manifest cleared.');
+});
+
+it('reports a malformed file instead of failing with an unhandled exception', function (): void {
+    $this->artisan('paper:warm', ['model' => [BrokenModel::class]])
         ->assertFailed()
+        ->expectsOutputToContain('broken-yaml.md');
+});
+
+it('rejects the whole run when one argument is not a Paper model', function (): void {
+    $this->artisan('paper:warm', ['model' => [Post::class, stdClass::class]])
+        ->assertExitCode(2)
         ->expectsOutputToContain('is not a Paper model');
-})->with(['paper:warm', 'paper:clear', 'paper:refresh']);
+});
+
+it('fails instead of silently passing when the app has no Paper models', function (): void {
+    $this->artisan('paper:warm')
+        ->assertExitCode(2)
+        ->expectsOutputToContain('No Paper models found');
+});

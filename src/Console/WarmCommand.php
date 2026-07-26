@@ -4,51 +4,27 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper\Console;
 
-use Illuminate\Console\Command;
 use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
-use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 
-final class WarmCommand extends Command
+final class WarmCommand extends PaperCommand
 {
-    protected $signature = 'paper:warm {model* : One or more Paper model classes}';
+    protected $signature = 'paper:warm {model?* : Paper model classes, defaults to every model in app/Models}';
 
-    protected $description = 'Warm the manifest for the given Paper models';
+    protected $description = 'Build the manifest ahead of the first request';
 
-    public function handle(PaperManifest $manifest): int
+    public function __construct(private readonly PaperManifest $manifest)
     {
-        $models = $this->argument('model');
-
-        if (! is_array($models)) {
-            return self::FAILURE;
-        }
-
-        $failed = false;
-
-        foreach ($models as $model) {
-            if (! is_string($model) || ! $this->isPaperModel($model)) {
-                $this->error(sprintf('%s is not a Paper model.', is_string($model) ? $model : 'argument'));
-                $failed = true;
-
-                continue;
-            }
-
-            $resolved = PaperQueryBuilder::resolveFor($model);
-            $path = PaperQueryBuilder::contentPathFor($model);
-
-            $records = $manifest->reconcile($resolved['adapter'], $resolved['driver'], $path, $resolved['nested']);
-
-            $this->info(sprintf('%s: warmed %d records.', $model, count($records)));
-        }
-
-        return $failed ? self::FAILURE : self::SUCCESS;
+        parent::__construct();
     }
 
-    /**
-     * @phpstan-assert-if-true class-string<PaperModel> $model
-     */
-    private function isPaperModel(string $model): bool
+    protected function runFor(string $model): void
     {
-        return is_subclass_of($model, PaperModel::class);
+        $resolved = PaperQueryBuilder::resolveFor($model);
+        $path = PaperQueryBuilder::contentPathFor($model);
+
+        $records = $this->manifest->reconcile($resolved['adapter'], $resolved['driver'], $path, $resolved['nested']);
+
+        $this->info(sprintf('%s: warmed %d records.', $model, count($records)));
     }
 }

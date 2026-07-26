@@ -4,21 +4,29 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper\Console;
 
-use Illuminate\Console\Command;
+use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
+use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 
-final class RefreshCommand extends Command
+final class RefreshCommand extends PaperCommand
 {
-    protected $signature = 'paper:refresh {model* : One or more Paper model classes}';
+    protected $signature = 'paper:refresh {model?* : Paper model classes, defaults to every model in app/Models}';
 
-    protected $description = 'Clear and rebuild the manifest for the given Paper models';
+    protected $description = 'Rebuild the manifest from scratch';
 
-    public function handle(): int
+    public function __construct(private readonly PaperManifest $manifest)
     {
-        $models = $this->argument('model');
+        parent::__construct();
+    }
 
-        $cleared = $this->callSilently('paper:clear', ['model' => $models]);
-        $warmed = $this->call('paper:warm', ['model' => $models]);
+    protected function runFor(string $model): void
+    {
+        $resolved = PaperQueryBuilder::resolveFor($model);
+        $path = PaperQueryBuilder::contentPathFor($model);
 
-        return $cleared === self::SUCCESS && $warmed === self::SUCCESS ? self::SUCCESS : self::FAILURE;
+        $this->manifest->flush($resolved['adapter'], $path);
+
+        $records = $this->manifest->reconcile($resolved['adapter'], $resolved['driver'], $path, $resolved['nested']);
+
+        $this->info(sprintf('%s: refreshed %d records.', $model, count($records)));
     }
 }

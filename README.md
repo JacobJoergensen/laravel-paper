@@ -329,9 +329,20 @@ Paper doesn't read every file on each query. It keeps one cache entry per conten
 Warm the manifest at deploy time so the first request doesn't pay for the cold read, and clear it when you need to:
 
 ```
-php artisan paper:warm "App\Models\Article"
-php artisan paper:clear "App\Models\Article"
+php artisan paper:warm
+php artisan paper:clear
+php artisan paper:refresh
 ```
+
+Each covers every Paper model in `app/Models`. Name classes to narrow it:
+
+```
+php artisan paper:warm "App\Models\Article"
+```
+
+`paper:refresh` clears before it builds, so it ignores a cached entry whose mtime still matches. Run it on deploy.
+
+`paper:validate` parses and hydrates every file so bad frontmatter fails CI instead of a request. It exits `1` for a failing file and `2` when it has no model to check, and `--json` prints the failures as a document.
 
 **Remote disks can't write atomically.** The local adapter writes to a temp file and renames it into place, so a crash mid-write leaves the old file untouched. Remote disks like S3 only offer a single `put()`, so a failed write can leave a partial object behind. That's how object stores work, not a bug in Paper.
 
