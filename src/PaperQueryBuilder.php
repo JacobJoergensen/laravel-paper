@@ -1830,7 +1830,7 @@ final class PaperQueryBuilder
 
         $column = $this->updatedAtColumn();
 
-        if ($column !== null && $mtime > 0) {
+        if ($column !== null && $mtime > 0 && ! array_key_exists($column, $data)) {
             $data[$column] = $mtime;
         }
 

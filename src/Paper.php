@@ -836,8 +836,9 @@ trait Paper
 
         if ($this->usesTimestamps()) {
             $updatedAt = $this->getUpdatedAtColumn();
+            $stored = $manifest->record($adapter, $driver, $path, $slug, $resolved['nested']);
 
-            if ($updatedAt !== null) {
+            if ($updatedAt !== null && ($stored === null || ! array_key_exists($updatedAt, $stored['data']))) {
                 unset($attributes[$updatedAt]);
             }
         }

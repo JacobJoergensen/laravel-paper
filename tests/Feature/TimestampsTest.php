@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 use Illuminate\Support\Carbon;
 use JacobJoergensen\LaravelPaper\Exceptions\MissingTimestampsException;
+use JacobJoergensen\LaravelPaper\Tests\Fixtures\DatedPost;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\TimestampedPost;
 
 beforeEach(function (): void {
     TimestampedPost::resetPaperState();
+    DatedPost::resetPaperState();
     Post::resetPaperState();
 });
 
@@ -25,6 +27,25 @@ it('exposes the file modification time as updated_at when timestamps are enabled
 
     expect($post->updated_at)->toBeInstanceOf(Carbon::class)
         ->and($post->updated_at->getTimestamp())->toBe(filemtime($path));
+});
+
+it('keeps the frontmatter value when the timestamp column names a real field', function (): void {
+    $post = DatedPost::find('hello-world');
+
+    expect($post->date->toDateString())->toBe('2024-01-15');
+});
+
+it('does not strip a frontmatter timestamp column from the file on save', function (): void {
+    $dir = base_path('tests/content/posts');
+    file_put_contents("$dir/__ts_test__dated.md", "---\ntitle: Dated\ndate: 2024-03-01\n---\n\nx\n");
+
+    $post = DatedPost::find('__ts_test__dated');
+    $post->title = 'Renamed';
+    $post->save();
+
+    DatedPost::resetPaperState();
+
+    expect(DatedPost::find('__ts_test__dated')->date->toDateString())->toBe('2024-03-01');
 });
 
 it('leaves updated_at unset when timestamps are not enabled', function (): void {

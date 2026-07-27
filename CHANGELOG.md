@@ -41,6 +41,7 @@
 * Optimized `where` to filter on the raw record and build only the matching models when the filtered columns have no cast, accessor, or relation
 * Optimized queries to reconcile a per content-path manifest against one directory listing, so a query reads one listing instead of a metadata call per file and warm reads scale flat with file count
 * Moved driver and content path resolution to PaperQueryBuilder as a single shared cache
+* Fixed `#[Timestamps]` overwriting a frontmatter field with the file mtime when `UPDATED_AT` names a real field, and stripping that field from the file on save
 * Fixed `MarkdownDriver` to throw `FileParseException` for malformed frontmatter instead of a raw Symfony exception, so the error names the file
 * Fixed `JsonDriver` to leave forward slashes unescaped, so saving a record no longer rewrites every URL in the file
 * Removed `FileParseException::unreadable` since drivers no longer perform I/O
