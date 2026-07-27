@@ -16,8 +16,10 @@ use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
 use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
+use JacobJoergensen\LaravelPaper\Contracts\ScopeContract;
 use JacobJoergensen\LaravelPaper\Contracts\StorageAdapterContract;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
+use JacobJoergensen\LaravelPaper\Exceptions\UnsupportedScopeException;
 use JacobJoergensen\LaravelPaper\Relations\BelongsToPaper;
 use JacobJoergensen\LaravelPaper\Relations\HasManyPaper;
 use ReflectionClass;
@@ -35,11 +37,50 @@ trait Paper
     }
 
     /**
+     * @param  mixed  $scope
+     * @param  mixed  $implementation
+     */
+    public static function addGlobalScope($scope, $implementation = null): void
+    {
+        $resolved = static::resolveGlobalScope($implementation ?? $scope);
+
+        $identifier = match (true) {
+            is_string($scope) => $scope,
+            $resolved instanceof Closure => spl_object_hash($resolved),
+            default => $resolved::class,
+        };
+
+        /** @var array<class-string, array<string, Closure|ScopeContract<static>>> $scopes */
+        $scopes = static::getAllGlobalScopes();
+        $scopes[static::class][$identifier] = $resolved;
+
+        static::setAllGlobalScopes($scopes);
+    }
+
+    /**
      * @return PaperQueryBuilder<static>
      */
     public static function query(): PaperQueryBuilder
     {
         return PaperQueryBuilder::forModel(static::class);
+    }
+
+    /**
+     * @param  ScopeContract<static>|string  $scope
+     * @return PaperQueryBuilder<static>
+     */
+    public static function withoutGlobalScope(ScopeContract|string $scope): PaperQueryBuilder
+    {
+        return static::query()->withoutGlobalScope($scope);
+    }
+
+    /**
+     * @param  ?array<int, ScopeContract<static>|string>  $scopes
+     * @return PaperQueryBuilder<static>
+     */
+    public static function withoutGlobalScopes(?array $scopes = null): PaperQueryBuilder
+    {
+        return static::query()->withoutGlobalScopes($scopes);
     }
 
     /**
@@ -964,6 +1005,22 @@ trait Paper
     private static function keyToString(mixed $key): string
     {
         return is_scalar($key) ? (string) $key : '';
+    }
+
+    /**
+     * @return Closure|ScopeContract<static>
+     */
+    private static function resolveGlobalScope(mixed $scope): Closure|ScopeContract
+    {
+        if (is_string($scope) && is_subclass_of($scope, ScopeContract::class)) {
+            return new $scope;
+        }
+
+        if ($scope instanceof Closure || $scope instanceof ScopeContract) {
+            return $scope;
+        }
+
+        throw UnsupportedScopeException::forScope($scope);
     }
 
     /**

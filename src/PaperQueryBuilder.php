@@ -27,6 +27,7 @@ use JacobJoergensen\LaravelPaper\Attributes\Timestamps;
 use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
+use JacobJoergensen\LaravelPaper\Contracts\ScopeContract;
 use JacobJoergensen\LaravelPaper\Contracts\StorageAdapterContract;
 use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
 use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
@@ -46,6 +47,11 @@ final class PaperQueryBuilder
 {
     /** @var list<array{type: string, column?: string, second?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, wheres?: list<array<string, mixed>>, relation?: string, count?: int, constraint?: ?Closure, boolean: string}> */
     private array $wheres = [];
+
+    /**
+     * @var array<string, list<array{type: string, column?: string, second?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, wheres?: list<array<string, mixed>>, relation?: string, count?: int, constraint?: ?Closure, boolean: string}>>
+     */
+    private array $scopeWheres = [];
 
     /** @var array<string, callable(Model): int> */
     private array $hasCounters = [];
@@ -108,13 +114,69 @@ final class PaperQueryBuilder
     {
         $resolved = self::resolveFor($modelClass);
 
-        return new self(
+        $builder = new self(
             $resolved['adapter'],
             $resolved['driver'],
             app(PaperManifest::class),
             self::contentPathFor($modelClass),
             $modelClass,
         );
+
+        $builder->applyGlobalScopes();
+
+        return $builder;
+    }
+
+    private function applyGlobalScopes(): void
+    {
+        $model = $this->model();
+
+        /** @var array<string, Closure|ScopeContract<TModel>> $scopes */
+        $scopes = $model->getGlobalScopes();
+
+        foreach ($scopes as $identifier => $scope) {
+            if ($scope instanceof Closure) {
+                $scope($this);
+            } else {
+                $scope->apply($this, $model);
+            }
+
+            $added = array_splice($this->wheres, 0);
+
+            if ($added !== []) {
+                $this->scopeWheres[$identifier] = $added;
+            }
+        }
+    }
+
+    /**
+     * @param  ScopeContract<TModel>|string  $scope
+     */
+    public function withoutGlobalScope(ScopeContract|string $scope): static
+    {
+        $identifier = is_string($scope) ? $scope : $scope::class;
+
+        unset($this->scopeWheres[$identifier]);
+
+        return $this;
+    }
+
+    /**
+     * @param  ?array<int, ScopeContract<TModel>|string>  $scopes
+     */
+    public function withoutGlobalScopes(?array $scopes = null): static
+    {
+        if ($scopes === null) {
+            $this->scopeWheres = [];
+
+            return $this;
+        }
+
+        foreach ($scopes as $scope) {
+            $this->withoutGlobalScope($scope);
+        }
+
+        return $this;
     }
 
     /**
@@ -342,7 +404,15 @@ final class PaperQueryBuilder
             return null;
         }
 
-        return $this->hydrate($entry['slug'], $entry['mtime'], $entry['data']);
+        $model = $this->hydrate($entry['slug'], $entry['mtime'], $entry['data']);
+
+        if ($this->scopeWheres === []) {
+            return $model;
+        }
+
+        $resolve = fn (string $column): mixed => $this->attribute($model, $column);
+
+        return $this->matchesScopes($resolve, $model) ? $model : null;
     }
 
     /**
@@ -1041,7 +1111,7 @@ final class PaperQueryBuilder
 
     public function count(): int
     {
-        if ($this->wheres === []) {
+        if ($this->allWheres() === []) {
             return count($this->scanSlugs());
         }
 
@@ -1054,7 +1124,7 @@ final class PaperQueryBuilder
 
     public function exists(): bool
     {
-        if ($this->wheres === []) {
+        if ($this->allWheres() === []) {
             return $this->scanSlugs() !== [];
         }
 
@@ -1196,11 +1266,23 @@ final class PaperQueryBuilder
 
     private function isUnconstrained(): bool
     {
-        return $this->wheres === []
+        return $this->allWheres() === []
             && $this->orders === []
             && ! $this->randomOrder
             && $this->limitValue === null
             && $this->offsetValue === 0;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function allWheres(): array
+    {
+        if ($this->scopeWheres === []) {
+            return $this->wheres;
+        }
+
+        return array_merge($this->wheres, ...array_values($this->scopeWheres));
     }
 
     /**
@@ -1330,13 +1412,18 @@ final class PaperQueryBuilder
 
     private function pushDown(): bool
     {
-        return $this->wheres !== [] && $this->canPushDown();
+        $wheres = $this->allWheres();
+
+        return $wheres !== [] && $this->canPushDown($wheres);
     }
 
-    private function canPushDown(): bool
+    /**
+     * @param  list<array<string, mixed>>  $wheres
+     */
+    private function canPushDown(array $wheres): bool
     {
-        return ! $this->hasRelationWhere($this->wheres)
-            && array_all($this->whereColumns($this->wheres), $this->columnSafe(...));
+        return ! $this->hasRelationWhere($wheres)
+            && array_all($this->whereColumns($wheres), $this->columnSafe(...));
     }
 
     /**
@@ -1633,7 +1720,7 @@ final class PaperQueryBuilder
      */
     private function parseFreeRecords(): ?Collection
     {
-        if ($this->wheres !== [] || $this->randomOrder) {
+        if ($this->allWheres() !== [] || $this->randomOrder) {
             return null;
         }
 
@@ -1792,7 +1879,9 @@ final class PaperQueryBuilder
 
     private function matchesWheres(Model $model): bool
     {
-        return $this->matches(fn (string $column): mixed => $this->attribute($model, $column), $this->wheres, $model);
+        $resolve = fn (string $column): mixed => $this->attribute($model, $column);
+
+        return $this->matchesScopes($resolve, $model) && $this->matches($resolve, $this->wheres, $model);
     }
 
     /**
@@ -1801,8 +1890,23 @@ final class PaperQueryBuilder
     private function recordMatches(array $record): bool
     {
         $row = ['slug' => $record['slug']] + $record['data'];
+        $resolve = fn (string $column): mixed => $this->rowValue($row, $column);
 
-        return $this->matches(fn (string $column): mixed => $this->rowValue($row, $column), $this->wheres, null);
+        return $this->matchesScopes($resolve, null) && $this->matches($resolve, $this->wheres, null);
+    }
+
+    /**
+     * @param  Closure(string): mixed  $resolve
+     */
+    private function matchesScopes(Closure $resolve, ?Model $model): bool
+    {
+        foreach ($this->scopeWheres as $wheres) {
+            if (! $this->matches($resolve, $wheres, $model)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function attribute(Model $model, string $column): mixed

@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+* Added global scopes with `addGlobalScope` and `#[ScopedBy]`, applied to every query including `find` and route model binding
+* Added `ScopeContract` for scope classes, because a Paper query does not run through Eloquent's builder
+* Added `withoutGlobalScope` and `withoutGlobalScopes` to drop a scope for a single query
 * Added `config/paper.php` to put the manifest on a dedicated cache store that survives `cache:clear`, and to tune the rebuild lock timing
 * Added `countBy` to count a column's distinct values, flattening array fields like `tags` and skipping null so a missing field adds no bucket
 * Added an array form to `where` and `orWhere` for applying several conditions at once, e.g. `where([['status', '=', 'a'], ['x', '!=', 'b']])`
@@ -24,6 +27,7 @@
 * Added the `RefreshesPaperFakes` test trait to clear fakes between tests, like `RefreshDatabase`
 * Added `paper:validate` to check every content file parses and hydrates, catching malformed frontmatter in CI
 * Added `paper:warm`, `paper:clear`, and `paper:refresh` commands to warm, clear, and rebuild a model's manifest
+* Changed `addGlobalScope` to throw `UnsupportedScopeException` for an Eloquent `Scope`, which Paper silently ignored before
 * Changed `belongsToPaper` and `hasManyPaper` to return relation descriptors; call ->getResults() for direct resolution or use with() to eager load
 * Changed `StorageAdapterContract::listing` to take a `$nested` flag, so custom adapters must add the third argument
 * Changed `whereContains` to only accept a scalar value; passing an array silently matched nothing
