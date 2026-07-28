@@ -1,0 +1,9 @@
+name: Alex Rivera
+role: Engineer
+active: true
+bio: |-
+    Joined in 2019.
+    Works on the storage layer.
+skills:
+    - php
+    - laravel

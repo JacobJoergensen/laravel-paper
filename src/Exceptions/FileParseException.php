@@ -13,6 +13,11 @@ final class FileParseException extends RuntimeException implements PaperExceptio
         return new self("Failed to parse JSON: $error");
     }
 
+    public static function invalidYaml(string $error): self
+    {
+        return new self("Failed to parse YAML: $error");
+    }
+
     public static function invalidFrontmatter(string $error): self
     {
         return new self("Failed to parse frontmatter: $error");
