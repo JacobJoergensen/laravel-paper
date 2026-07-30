@@ -37,6 +37,7 @@ jobs:
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
         with:
           php-version: ${{ matrix.php }}
+          extensions: fileinfo
           coverage: none
 
       - name: Setup Problem Matches
