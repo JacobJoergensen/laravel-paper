@@ -53,7 +53,17 @@ jobs:
         with:
           dependency-versions: ${{ matrix.dependency-version == 'prefer-lowest' && 'lowest' || 'highest' }}
 
-      - name: Run tests
+      - name: Run Linter
+        run: composer test:lint
+
+      - name: PHPStan
+        run: composer test:types
+
+      - name: Type Coverage
+        if: runner.os != 'Windows'
         env:
           FORK_MEM_PER_PROC: 1099511627776
-        run: composer test
+        run: composer test:type-coverage
+
+      - name: Test Suite
+        run: composer test:unit
