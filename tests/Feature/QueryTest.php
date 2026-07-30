@@ -296,6 +296,10 @@ it('filters with whereBetween and whereNotBetween', function (): void {
         ->and(Post::whereNotBetween('order', [1, 2])->count())->toBe(1);
 });
 
+it('reads whereBetween bounds by position so array keys do not matter', function (): void {
+    expect(Post::whereBetween('order', ['low' => 1, 'high' => 2])->count())->toBe(2);
+});
+
 it('excludes records missing the column from whereBetween and whereNotBetween', function (): void {
     expect(Post::whereBetween('author_slug', ['a', 'z'])->count())->toBe(1)
         ->and(Post::whereNotBetween('author_slug', ['a', 'z'])->count())->toBe(0);
@@ -418,6 +422,32 @@ it('orders before paging with simplePaginate', function (): void {
 
     expect($page->pluck('slug')->all())->toBe(['second-post', 'hello-world'])
         ->and($page->hasMorePages())->toBeTrue();
+});
+
+it('binds and tighter than or, matching SQL precedence', function (): void {
+    $slugs = Post::where('order', 1)
+        ->orWhere('published', false)
+        ->where('order', 3)
+        ->get()
+        ->pluck('slug')
+        ->all();
+
+    expect($slugs)->toBe(['draft-post', 'hello-world']);
+});
+
+it('treats a null value as a null check on the column', function (): void {
+    $missing = Post::where('author_slug', null)->get()->pluck('slug')->all();
+    $present = Post::where('author_slug', '!=', null)->get()->pluck('slug')->all();
+
+    expect($missing)->toBe(['draft-post', 'second-post'])
+        ->and($present)->toBe(['hello-world']);
+});
+
+it('applies pending where constraints to find', function (): void {
+    $query = fn () => Post::query()->where('published', true);
+
+    expect($query()->find('draft-post'))->toBeNull()
+        ->and($query()->find('hello-world'))->not->toBeNull();
 });
 
 it('throws when querying a model whose content directory is missing', function (): void {

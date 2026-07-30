@@ -152,7 +152,11 @@ final class PaperManifest
                 continue;
             }
 
-            $contents = $adapter->read($info['path']) ?? '';
+            $contents = $adapter->read($info['path']);
+
+            if ($contents === null) {
+                throw FileParseException::unreadable($info['path']);
+            }
 
             try {
                 $data = $driver->parse($contents);
@@ -201,7 +205,11 @@ final class PaperManifest
         if ($this->fresh($existing, $info)) {
             $entry = $existing;
         } else {
-            $contents = $adapter->read($info['path']) ?? '';
+            $contents = $adapter->read($info['path']);
+
+            if ($contents === null) {
+                throw FileParseException::unreadable($info['path']);
+            }
 
             try {
                 $data = $driver->parse($contents);

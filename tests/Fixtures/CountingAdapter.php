@@ -11,6 +11,10 @@ final class CountingAdapter implements StorageAdapterContract
     /** @var array<string, int> */
     public array $counts = ['read' => 0, 'listing' => 0, 'lastModified' => 0, 'exists' => 0, 'write' => 0, 'delete' => 0];
 
+    public bool $failDelete = false;
+
+    public bool $failRead = false;
+
     /** @var array<string, array{contents: string, mtime: int}> */
     private array $files = [];
 
@@ -33,6 +37,10 @@ final class CountingAdapter implements StorageAdapterContract
     {
         $this->counts['read']++;
 
+        if ($this->failRead) {
+            return null;
+        }
+
         return $this->files[$path]['contents'] ?? null;
     }
 
@@ -48,6 +56,11 @@ final class CountingAdapter implements StorageAdapterContract
     public function delete(string $path): bool
     {
         $this->counts['delete']++;
+
+        if ($this->failDelete) {
+            return false;
+        }
+
         unset($this->files[$path]);
 
         return true;

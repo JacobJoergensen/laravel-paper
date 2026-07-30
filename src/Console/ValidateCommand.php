@@ -36,20 +36,25 @@ final class ValidateCommand extends PaperCommand
     protected function runFor(string $model): void
     {
         try {
-            $failures = PaperQueryBuilder::forModel($model)->validateFiles();
+            $result = PaperQueryBuilder::forModel($model)->validateFiles();
         } catch (PaperException $e) {
             $this->record($model, null, $e->getMessage());
 
             return;
         }
 
-        foreach ($failures as $failure) {
+        foreach ($result['failures'] as $failure) {
             $this->record($model, $failure['path'], $failure['error']);
         }
 
-        if ($failures === [] && ! $this->json()) {
-            $this->info(sprintf('%s: all files valid.', $model));
+        if ($result['failures'] !== [] || $this->json()) {
+            return;
         }
+
+        // Reporting the count keeps a content path that matched nothing from reading as a pass.
+        $this->info($result['checked'] === 0
+            ? sprintf('%s: no content files found.', $model)
+            : sprintf('%s: %d files valid.', $model, $result['checked']));
     }
 
     private function record(string $model, ?string $path, string $error): void

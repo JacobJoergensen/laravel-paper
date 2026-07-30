@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\File;
+use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
+use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
+use JacobJoergensen\LaravelPaper\Tests\Fixtures\CountingAdapter;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Draft;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Page;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
@@ -46,6 +49,15 @@ it('writes array-cast attributes as native structures, not JSON strings', functi
 
     expect($raw)->toContain('- php')->not->toContain('["')
         ->and(Post::find('__save_test__cast')->tags)->toBe(['php', 'laravel']);
+});
+
+it('leaves an array-cast field the cast cannot read untouched on save', function (): void {
+    $path = __DIR__.'/../content/posts/__save_test__scalar.md';
+    file_put_contents($path, "---\ntitle: Scalar\ntags: hello\n---\n\nBody\n");
+
+    Post::findOrFail('__save_test__scalar')->save();
+
+    expect(file_get_contents($path))->toContain('tags: hello');
 });
 
 it('writes and reads back a json model', function (): void {
@@ -150,6 +162,23 @@ it('mass updates only the records matching the query, bypassing fillable', funct
     expect($count)->toBe(2)
         ->and(Post::find('__save_test__bulk_a')->status)->toBe('published')
         ->and(Post::find('__save_test__bulk_c')->status)->toBe('draft');
+});
+
+it('keeps the record queryable when the file delete fails', function (): void {
+    config(['paper.watch' => false]);
+    app()->forgetInstance(PaperManifest::class);
+
+    $path = PaperQueryBuilder::contentPathFor(Post::class);
+    $adapter = new CountingAdapter;
+    $adapter->seed($path.'/keeper.md', "---\ntitle: Keeper\n---\n", 1_000);
+    PaperQueryBuilder::fake(Post::class, $adapter);
+
+    $post = Post::findOrFail('keeper');
+    $adapter->failDelete = true;
+
+    expect($post->delete())->toBeFalse()
+        ->and($post->exists)->toBeTrue()
+        ->and(Post::find('keeper'))->not->toBeNull();
 });
 
 it('marks the model as not existing after a successful delete', function (): void {

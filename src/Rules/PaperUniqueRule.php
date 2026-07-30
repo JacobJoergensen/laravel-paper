@@ -40,7 +40,7 @@ final class PaperUniqueRule implements ValidationRule
             return;
         }
 
-        $query = $this->model::query();
+        $query = $this->model::query()->withoutGlobalScopes();
         $query->where($this->column, $value);
 
         if ($this->ignore !== null) {

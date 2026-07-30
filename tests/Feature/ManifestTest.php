@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 use Illuminate\Cache\ArrayStore;
 use Illuminate\Cache\Repository;
+use Illuminate\Support\Collection;
 use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
 use JacobJoergensen\LaravelPaper\Drivers\MarkdownDriver;
+use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\CountingAdapter;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
+use JacobJoergensen\LaravelPaper\Tests\Fixtures\RawModel;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\TimestampedPost;
 
 beforeEach(function (): void {
@@ -102,4 +105,17 @@ it('orders by updated_at using the manifest mtime, not the filesystem', function
     $latest = ($this->build)(TimestampedPost::class)->orderBy('updated_at', 'desc')->get();
 
     expect($latest->pluck('slug')->all())->toBe(['alpha', 'gamma', 'beta']);
+});
+
+it('fails loudly when a listed file cannot be read instead of yielding a blank record', function (): void {
+    $manifest = new PaperManifest(new Repository(new ArrayStore), 60, 10, true);
+    $adapter = new CountingAdapter;
+    $adapter->seed('blog/ghost.md', "---\ntitle: Ghost\n---\n", 1_000);
+    $adapter->failRead = true;
+
+    $builder = new PaperQueryBuilder($adapter, new MarkdownDriver, $manifest, 'blog', RawModel::class);
+
+    expect(fn (): Collection => $builder->get())
+        ->toThrow(FileParseException::class, 'Failed to read file')
+        ->and($builder->validateFiles()['failures'])->toHaveCount(1);
 });

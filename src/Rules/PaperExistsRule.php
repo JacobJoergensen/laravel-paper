@@ -25,7 +25,7 @@ final readonly class PaperExistsRule implements ValidationRule
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
         $exists = is_scalar($value)
-            && $this->model::query()->where($this->column, $value)->exists();
+            && $this->model::query()->withoutGlobalScopes()->where($this->column, $value)->exists();
 
         if (! $exists) {
             $fail('validation.exists')->translate();

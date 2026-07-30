@@ -31,6 +31,7 @@ use JacobJoergensen\LaravelPaper\Contracts\ScopeContract;
 use JacobJoergensen\LaravelPaper\Contracts\StorageAdapterContract;
 use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
 use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
+use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
 use JacobJoergensen\LaravelPaper\Exceptions\MissingTimestampsException;
 use JacobJoergensen\LaravelPaper\Relations\PaperRelation;
@@ -58,6 +59,9 @@ final class PaperQueryBuilder
 
     /** @var array<int, array{column: string, direction: string}> */
     private array $orders = [];
+
+    /** @var array<string, array<int, array{column: string, direction: string}>> */
+    private array $scopeOrders = [];
 
     private ?int $limitValue = null;
 
@@ -146,6 +150,12 @@ final class PaperQueryBuilder
             if ($added !== []) {
                 $this->scopeWheres[$identifier] = $added;
             }
+
+            $ordered = array_splice($this->orders, 0);
+
+            if ($ordered !== []) {
+                $this->scopeOrders[$identifier] = $ordered;
+            }
         }
     }
 
@@ -156,7 +166,7 @@ final class PaperQueryBuilder
     {
         $identifier = is_string($scope) ? $scope : $scope::class;
 
-        unset($this->scopeWheres[$identifier]);
+        unset($this->scopeWheres[$identifier], $this->scopeOrders[$identifier]);
 
         return $this;
     }
@@ -168,6 +178,7 @@ final class PaperQueryBuilder
     {
         if ($scopes === null) {
             $this->scopeWheres = [];
+            $this->scopeOrders = [];
 
             return $this;
         }
@@ -270,9 +281,9 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @param  class-string<PaperModel>  $modelClass
+     * @internal
      *
-     * @internal Registers an in-memory adapter for tests. Use PaperFake, not this directly.
+     * @param  class-string<PaperModel>  $modelClass
      */
     public static function fake(string $modelClass, StorageAdapterContract $adapter): void
     {
@@ -392,6 +403,7 @@ final class PaperQueryBuilder
      */
     private function locate(string $slug): ?Model
     {
+
         self::guardSlug($slug);
 
         try {
@@ -406,13 +418,11 @@ final class PaperQueryBuilder
 
         $model = $this->hydrate($entry['slug'], $entry['mtime'], $entry['data']);
 
-        if ($this->scopeWheres === []) {
+        if ($this->allWheres() === []) {
             return $model;
         }
 
-        $resolve = fn (string $column): mixed => $this->attribute($model, $column);
-
-        return $this->matchesScopes($resolve, $model) ? $model : null;
+        return $this->matchesWheres($model) ? $model : null;
     }
 
     /**
@@ -431,6 +441,16 @@ final class PaperQueryBuilder
         }
 
         [$operator, $value] = $this->resolveOperator($operator, $value);
+
+        if ($value === null) {
+            if (in_array($operator, ['=', '==', '==='], true)) {
+                return $this->whereNull($column, $boolean);
+            }
+
+            if (in_array($operator, ['!=', '<>', '!=='], true)) {
+                return $this->whereNotNull($column, $boolean);
+            }
+        }
 
         $this->wheres[] = [
             'type' => 'basic',
@@ -975,10 +995,9 @@ final class PaperQueryBuilder
 
     private function defaultTimeColumn(): string
     {
-        $model = new $this->modelClass;
-        $column = $model->getUpdatedAtColumn();
+        $column = $this->updatedAtColumn();
 
-        if (! $model->usesTimestamps() || $column === null) {
+        if ($column === null) {
             throw MissingTimestampsException::forTimeOrdering($this->modelClass);
         }
 
@@ -1041,7 +1060,8 @@ final class PaperQueryBuilder
      */
     public function first(): ?Model
     {
-        if ($this->orders === [] && $this->with === []) {
+
+        if ($this->allOrders() === [] && $this->with === []) {
             return $this->lazy()->first();
         }
 
@@ -1111,6 +1131,7 @@ final class PaperQueryBuilder
 
     public function count(): int
     {
+
         if ($this->allWheres() === []) {
             return count($this->scanSlugs());
         }
@@ -1124,6 +1145,7 @@ final class PaperQueryBuilder
 
     public function exists(): bool
     {
+
         if ($this->allWheres() === []) {
             return $this->scanSlugs() !== [];
         }
@@ -1189,7 +1211,7 @@ final class PaperQueryBuilder
     /**
      * Spans the whole content directory on purpose; query state like wheres and limits does not apply.
      *
-     * @return list<array{path: string, error: string}>
+     * @return array{checked: int, failures: list<array{path: string, error: string}>}
      */
     public function validateFiles(): array
     {
@@ -1203,7 +1225,12 @@ final class PaperQueryBuilder
 
         foreach ($files as $slug => $info) {
             try {
-                $contents = $this->adapter->read($info['path']) ?? '';
+                $contents = $this->adapter->read($info['path']);
+
+                if ($contents === null) {
+                    throw FileParseException::unreadable($info['path']);
+                }
+
                 $data = $this->driver->parse($contents);
                 $model = $this->hydrate($slug, $info['mtime'], $data);
                 $model->toArray();
@@ -1212,7 +1239,7 @@ final class PaperQueryBuilder
             }
         }
 
-        return $failures;
+        return ['checked' => count($files), 'failures' => $failures];
     }
 
     public function delete(): int
@@ -1253,6 +1280,7 @@ final class PaperQueryBuilder
      */
     public function pluck(string $column, ?string $key = null): Collection
     {
+
         if ($key === null && $this->isUnconstrained() && $this->columnSafe($column)) {
             return $this->records()->map(function (array $record) use ($column): mixed {
                 $row = ['slug' => $record['slug']] + $record['data'];
@@ -1267,7 +1295,7 @@ final class PaperQueryBuilder
     private function isUnconstrained(): bool
     {
         return $this->allWheres() === []
-            && $this->orders === []
+            && $this->allOrders() === []
             && ! $this->randomOrder
             && $this->limitValue === null
             && $this->offsetValue === 0;
@@ -1286,10 +1314,23 @@ final class PaperQueryBuilder
     }
 
     /**
+     * @return array<int, array{column: string, direction: string}>
+     */
+    private function allOrders(): array
+    {
+        if ($this->scopeOrders === []) {
+            return $this->orders;
+        }
+
+        return array_merge($this->orders, ...array_values($this->scopeOrders));
+    }
+
+    /**
      * @return LengthAwarePaginator<int, TModel>
      */
     public function paginate(int $perPage = 15, ?int $page = null): LengthAwarePaginator
     {
+
         $page ??= Paginator::resolveCurrentPage();
 
         $originalLimit = $this->limitValue;
@@ -1330,6 +1371,7 @@ final class PaperQueryBuilder
      */
     public function simplePaginate(int $perPage = 15, ?int $page = null): Paginator
     {
+
         $page ??= Paginator::resolveCurrentPage();
 
         $originalLimit = $this->limitValue;
@@ -1380,6 +1422,7 @@ final class PaperQueryBuilder
      */
     private function getModels(): Collection
     {
+
         $models = new Collection($this->matchingModels());
         $results = $this->applyOrdersAndLimits($models);
 
@@ -1513,6 +1556,7 @@ final class PaperQueryBuilder
      */
     private function columnValues(string $column): array
     {
+
         $values = [];
 
         foreach ($this->matchingModels() as $model) {
@@ -1654,7 +1698,8 @@ final class PaperQueryBuilder
      */
     private function yieldModels(): Generator
     {
-        if ($this->orders !== [] || $this->randomOrder) {
+
+        if ($this->allOrders() !== [] || $this->randomOrder) {
             yield from $this->yieldOrdered();
 
             return;
@@ -1681,7 +1726,7 @@ final class PaperQueryBuilder
      */
     private function applyOrdersAndLimits(Collection $models): Collection
     {
-        foreach (array_reverse($this->orders) as $order) {
+        foreach (array_reverse($this->allOrders()) as $order) {
             $models = $models->sortBy(
                 fn (Model $model): mixed => $this->attribute($model, $order['column']),
                 SORT_REGULAR,
@@ -1726,9 +1771,10 @@ final class PaperQueryBuilder
 
         $updatedAt = $this->updatedAtColumn();
         $parseFree = array_filter(['slug', $updatedAt]);
+        $orders = $this->allOrders();
 
         $ordered = array_all(
-            $this->orders,
+            $orders,
             fn (array $order): bool => in_array($order['column'], $parseFree, true)
         );
 
@@ -1738,12 +1784,12 @@ final class PaperQueryBuilder
 
         $records = $this->records();
 
-        if ($this->orders === []) {
+        if ($orders === []) {
             return $records;
         }
 
         // Must sort identically to applyOrdersAndLimits, which reads the same columns off a hydrated model.
-        foreach (array_reverse($this->orders) as $order) {
+        foreach (array_reverse($orders) as $order) {
             $records = $records->sortBy(
                 fn (array $record): mixed => $order['column'] === $updatedAt ? $record['mtime'] : $record['slug'],
                 SORT_REGULAR,
@@ -1940,21 +1986,19 @@ final class PaperQueryBuilder
             return true;
         }
 
-        $result = true;
+        $result = false;
+        $group = true;
 
         foreach ($wheres as $index => $where) {
-            $matches = $this->evaluateWhere($resolve, $where, $model);
-
-            if ($index === 0) {
-                $result = $matches;
-            } elseif ($where['boolean'] === 'or') {
-                $result = $result || $matches;
-            } else {
-                $result = $result && $matches;
+            if ($index > 0 && $where['boolean'] === 'or') {
+                $result = $result || $group;
+                $group = true;
             }
+
+            $group = $group && $this->evaluateWhere($resolve, $where, $model);
         }
 
-        return $result;
+        return $result || $group;
     }
 
     /**
@@ -2106,14 +2150,14 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @param  array<int, scalar>  $values
+     * @param  array<array-key, scalar>  $values
      */
     private function evaluateBetween(mixed $value, array $values): bool
     {
-        if (count($values) < 2) {
+        if ($values === []) {
             return false;
         }
 
-        return $value >= $values[0] && $value <= $values[1];
+        return $value >= reset($values) && $value <= end($values);
     }
 }

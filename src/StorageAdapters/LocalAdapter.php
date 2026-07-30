@@ -81,8 +81,9 @@ final readonly class LocalAdapter implements StorageAdapterContract
         }
 
         $matches = [];
+        $visited = [];
 
-        $this->collect($directory, array_flip($extensions), $nested, $matches);
+        $this->collect($directory, array_flip($extensions), $nested, $matches, $visited);
 
         return $matches;
     }
@@ -90,9 +91,19 @@ final readonly class LocalAdapter implements StorageAdapterContract
     /**
      * @param  array<string, int>  $allowed
      * @param  array<string, int>  $matches
+     * @param  array<string, true>  $visited
      */
-    private function collect(string $directory, array $allowed, bool $nested, array &$matches): void
+    private function collect(string $directory, array $allowed, bool $nested, array &$matches, array &$visited): void
     {
+        // Resolved rather than checked with is_link, which reports false for a Windows junction.
+        $resolved = realpath($directory);
+
+        if ($resolved === false || isset($visited[$resolved])) {
+            return;
+        }
+
+        $visited[$resolved] = true;
+
         $entries = scandir($directory, SCANDIR_SORT_NONE) ?: [];
 
         foreach ($entries as $entry) {
@@ -110,7 +121,7 @@ final readonly class LocalAdapter implements StorageAdapterContract
             }
 
             if ($nested && is_dir($path)) {
-                $this->collect($path, $allowed, $nested, $matches);
+                $this->collect($path, $allowed, $nested, $matches, $visited);
             }
         }
     }

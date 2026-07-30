@@ -8,9 +8,11 @@ use Illuminate\Database\Eloquent\Scope;
 use JacobJoergensen\LaravelPaper\Exceptions\UnsupportedScopeException;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\PublishedScope;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\ScopedPost;
+use JacobJoergensen\LaravelPaper\Tests\Fixtures\SortedPost;
 
 beforeEach(function (): void {
     ScopedPost::resetPaperState();
+    SortedPost::resetPaperState();
 });
 
 it('returns only records that pass every global scope', function (): void {
@@ -51,6 +53,15 @@ it('counts and paginates only the records a global scope allows', function (): v
     expect(ScopedPost::count())->toBe(1)
         ->and(ScopedPost::paginate(10)->total())->toBe(1)
         ->and(ScopedPost::pluck('slug')->all())->toBe(['second-post']);
+});
+
+it('lets the caller order take precedence over a global scope order', function (): void {
+    expect(SortedPost::all()->pluck('order')->all())->toBe([3, 2, 1])
+        ->and(SortedPost::query()->orderBy('order')->get()->pluck('order')->all())->toBe([1, 2, 3]);
+});
+
+it('drops the order a removed global scope contributed', function (): void {
+    expect(SortedPost::withoutGlobalScope('sorted')->get()->pluck('order')->all())->toBe([3, 1, 2]);
 });
 
 it('rejects a scope written against Eloquent instead of Paper', function (): void {

@@ -5,9 +5,11 @@ declare(strict_types=1);
 use Illuminate\Support\Facades\Validator;
 use JacobJoergensen\LaravelPaper\Rules\PaperRule;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
+use JacobJoergensen\LaravelPaper\Tests\Fixtures\ScopedPost;
 
 beforeEach(function (): void {
     Post::resetPaperState();
+    ScopedPost::resetPaperState();
 });
 
 it('accepts a value that matches an existing record', function (): void {
@@ -76,6 +78,24 @@ it('ignores a record by a custom column', function (): void {
 
     expect($ignored->passes())->toBeTrue()
         ->and($notIgnored->fails())->toBeTrue();
+});
+
+it('rejects a slug taken by a record a global scope hides', function (): void {
+    $validator = Validator::make(
+        ['slug' => 'hello-world'],
+        ['slug' => PaperRule::unique(ScopedPost::class)]
+    );
+
+    expect($validator->fails())->toBeTrue();
+});
+
+it('accepts a slug held by a record a global scope hides', function (): void {
+    $validator = Validator::make(
+        ['slug' => 'draft-post'],
+        ['slug' => PaperRule::exists(ScopedPost::class)]
+    );
+
+    expect($validator->passes())->toBeTrue();
 });
 
 it('translates the exists message to the active locale', function (): void {

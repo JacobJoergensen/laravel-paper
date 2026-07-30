@@ -36,7 +36,7 @@ final readonly class BelongsToPaper extends PaperRelation
      */
     public function counter(?Closure $constraint): callable
     {
-        $relatedKey = new $this->relatedClass()->getKeyName();
+        $relatedKey = $this->relatedKeyName();
         $query = PaperQueryBuilder::forModel($this->relatedClass);
 
         if ($constraint !== null) {
@@ -73,7 +73,7 @@ final readonly class BelongsToPaper extends PaperRelation
             return;
         }
 
-        $relatedKey = new $this->relatedClass()->getKeyName();
+        $relatedKey = $this->relatedKeyName();
 
         $related = PaperQueryBuilder::forModel($this->relatedClass)
             ->whereIn($relatedKey, $keys)
@@ -85,6 +85,13 @@ final readonly class BelongsToPaper extends PaperRelation
             $key = $this->keyOf($parent, $this->foreignKey);
             $parent->setRelation($relationName, $key !== null ? ($map[$key] ?? null) : null);
         }
+    }
+
+    private function relatedKeyName(): string
+    {
+        $relatedClass = $this->relatedClass;
+
+        return new $relatedClass()->getKeyName();
     }
 
     /**

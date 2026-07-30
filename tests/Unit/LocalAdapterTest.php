@@ -57,6 +57,20 @@ it('reports lastModified for a file it wrote and null for a missing one', functi
         ->and($this->adapter->lastModified($this->dir.'/missing.md'))->toBeNull();
 });
 
+it('lists each file once when a subdirectory links back into the tree', function (): void {
+    mkdir($this->dir.'/sub');
+    touch($this->dir.'/root.md');
+    touch($this->dir.'/sub/child.md');
+
+    if (! @symlink($this->dir, $this->dir.'/sub/loop')) {
+        $this->markTestSkipped('the platform does not allow creating a symlink');
+    }
+
+    $paths = array_keys($this->adapter->listing($this->dir, ['md'], nested: true));
+
+    expect(array_map(basename(...), $paths))->toEqualCanonicalizing(['root.md', 'child.md']);
+});
+
 it('throws when listing a directory that does not exist', function (): void {
     $this->adapter->listing($this->dir.'/nope', ['md']);
 })->throws(ContentPathNotFoundException::class);

@@ -42,10 +42,15 @@
 * Optimized `where` to filter on the raw record and build only the matching models when the filtered columns have no cast, accessor, or relation
 * Optimized queries to reconcile a per content-path manifest against one directory listing, so a query reads one listing instead of a metadata call per file and warm reads scale flat with file count
 * Moved driver and content path resolution to PaperQueryBuilder as a single shared cache
+* Fixed `save` writing null over an `array`, `json`, `object`, or `collection` field whose file value the cast could not read
+* Fixed `delete` to drop the manifest entry only after the file is gone, so a failed delete no longer hides a record that is still on disk
+* Fixed `whereBetween` and `whereNotBetween` to read the bounds by position like Laravel, so an array with string keys no longer raises a PHP error
+* Fixed `where` and `orWhere` to bind `and` tighter than `or` like SQL; a chain mixing the two silently dropped matching records
+* Fixed `where` with a null value to check the column for null, like Eloquent; it matched nothing before
+* Fixed `find` to apply the query's pending `where` constraints, so a filtered query no longer returns an excluded record
 * Fixed `#[Timestamps]` overwriting a frontmatter field with the file mtime when `UPDATED_AT` names a real field, and stripping that field from the file on save
 * Fixed `MarkdownDriver` to throw `FileParseException` for malformed frontmatter instead of a raw Symfony exception, so the error names the file
 * Fixed `JsonDriver` to leave forward slashes unescaped, so saving a record no longer rewrites every URL in the file
-* Removed `FileParseException::unreadable` since drivers no longer perform I/O
 * Removed `UnsupportedRouteBindingException` now that `resolveChildRouteBinding` resolves the child instead of throwing
 
 ## Version 1.14.0 (2026-07-22)

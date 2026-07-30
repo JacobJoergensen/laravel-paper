@@ -778,7 +778,8 @@ trait Paper
             );
         }
 
-        $childField = is_string($field) ? $field : new $relation->relatedClass()->getRouteKeyName();
+        $relatedClass = $relation->relatedClass;
+        $childField = is_string($field) ? $field : new $relatedClass()->getRouteKeyName();
 
         return $relation->query()->where($childField, static::keyToString($value))->first();
     }
@@ -946,10 +947,10 @@ trait Paper
             $filepath = $path.'/'.$slug.'.'.$ext;
 
             if ($adapter->exists($filepath)) {
-                $manifest->forget($adapter, $path, $slug);
                 $deleted = $adapter->delete($filepath);
 
                 if ($deleted) {
+                    $manifest->forget($adapter, $path, $slug);
                     $this->exists = false;
                     $this->fireModelEvent('deleted', false);
                 }

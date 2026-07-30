@@ -14,6 +14,13 @@ it('returns null when reading a missing file', function (): void {
     expect($this->adapter->read('missing.md'))->toBeNull();
 });
 
+it('still returns null rather than throwing on a disk configured to throw', function (): void {
+    Storage::fake('strict', ['throw' => true]);
+    $adapter = new DiskAdapter(Storage::disk('strict'), 'strict');
+
+    expect($adapter->read('missing.md'))->toBeNull();
+});
+
 it('round-trips contents through write and read', function (): void {
     expect($this->adapter->write('post.md', 'body'))->toBeTrue()
         ->and($this->adapter->read('post.md'))->toBe('body');

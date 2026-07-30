@@ -8,7 +8,7 @@ use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Filesystem\FilesystemAdapter;
 use JacobJoergensen\LaravelPaper\Contracts\StorageAdapterContract;
 use League\Flysystem\FileAttributes;
-use League\Flysystem\UnableToRetrieveMetadata;
+use League\Flysystem\FilesystemException;
 
 final readonly class DiskAdapter implements StorageAdapterContract
 {
@@ -17,33 +17,53 @@ final readonly class DiskAdapter implements StorageAdapterContract
         private string $name,
     ) {}
 
+    /**
+     * Flysystem failures are swallowed throughout, because a disk configured with 'throw' => true
+     * would otherwise break the nullable and boolean returns this contract promises.
+     */
     public function read(string $path): ?string
     {
-        $contents = $this->disk->get($path);
+        try {
+            $contents = $this->disk->get($path);
+        } catch (FilesystemException) {
+            return null;
+        }
 
         return is_string($contents) ? $contents : null;
     }
 
     public function write(string $path, string $contents): bool
     {
-        return $this->disk->put($path, $contents);
+        try {
+            return $this->disk->put($path, $contents);
+        } catch (FilesystemException) {
+            return false;
+        }
     }
 
     public function delete(string $path): bool
     {
-        return $this->disk->delete($path);
+        try {
+            return $this->disk->delete($path);
+        } catch (FilesystemException) {
+            return false;
+        }
     }
 
     public function exists(string $path): bool
     {
-        return $this->disk->exists($path);
+        try {
+            return $this->disk->exists($path);
+        } catch (FilesystemException) {
+            return false;
+        }
     }
 
     public function lastModified(string $path): ?int
     {
         try {
             return $this->disk->lastModified($path);
-        } catch (UnableToRetrieveMetadata) {
+        } catch (FilesystemException) {
             return null;
         }
     }
