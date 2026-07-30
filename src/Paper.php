@@ -135,6 +135,15 @@ trait Paper
     }
 
     /**
+     * @param  (callable(PaperQueryBuilder, mixed): mixed)|null  $callback
+     * @param  (callable(PaperQueryBuilder, mixed): mixed)|null  $default
+     */
+    public static function unless(mixed $value, ?callable $callback = null, ?callable $default = null): PaperQueryBuilder
+    {
+        return static::query()->unless($value, $callback, $default);
+    }
+
+    /**
      * @param  array<int, scalar>  $values
      */
     public static function whereIn(string $column, array $values): PaperQueryBuilder
@@ -166,6 +175,16 @@ trait Paper
     public static function orWhereLike(string $column, string $value, bool $caseSensitive = false): PaperQueryBuilder
     {
         return static::query()->orWhereLike($column, $value, $caseSensitive);
+    }
+
+    public static function whereNotLike(string $column, string $value, bool $caseSensitive = false): PaperQueryBuilder
+    {
+        return static::query()->whereNotLike($column, $value, $caseSensitive);
+    }
+
+    public static function orWhereNotLike(string $column, string $value, bool $caseSensitive = false): PaperQueryBuilder
+    {
+        return static::query()->orWhereNotLike($column, $value, $caseSensitive);
     }
 
     /**

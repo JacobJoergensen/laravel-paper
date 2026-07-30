@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+* Added `whereNotLike` and `orWhereNotLike`, the negated form of `whereLike`
+* Added `unless`, the counterpart to `when`, running its callback when the value is falsy
 * Fixed `where` to treat a column named after a PHP function, like `date`, as a column instead of a closure
 * Fixed `where` and `orWhere` to bind `and` tighter than `or` like SQL; a chain mixing the two silently dropped matching records
 * Fixed `where` with a null value to check the column for null, like Eloquent; it matched nothing before
@@ -8,7 +10,6 @@
 * Fixed `whereBetween` and `whereNotBetween` to read the bounds by position like Laravel, so an array with string keys no longer raises a PHP error
 * Fixed `save` writing null over an `array`, `json`, `object`, or `collection` field whose file value the cast could not read
 * Fixed `#[Timestamps]` overwriting a frontmatter field with the file mtime when `UPDATED_AT` names a real field, and stripping that field from the file on save
-* Fixed `paginate` and `simplePaginate` ordering by the file mtime when the timestamp column is a real frontmatter field, disagreeing with `get`
 * Fixed `JsonDriver` to leave forward slashes unescaped, so saving a record no longer rewrites every URL in the file
 * Fixed `MarkdownDriver` to throw `FileParseException` for malformed frontmatter instead of a raw Symfony exception, so the error names the file
 

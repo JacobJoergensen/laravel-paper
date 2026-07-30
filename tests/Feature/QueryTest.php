@@ -268,6 +268,11 @@ it('matches with whereLike and respects case sensitivity', function (): void {
         ->and(Post::whereLike('title', 'Hello World')->count())->toBe(1);
 });
 
+it('excludes matches and records missing the column with whereNotLike', function (): void {
+    expect(Post::whereNotLike('title', '%Post%')->pluck('slug')->toArray())->toBe(['hello-world'])
+        ->and(Post::whereNotLike('author_slug', '%elsewhere%')->pluck('slug')->toArray())->toBe(['hello-world']);
+});
+
 it('rejects unsafe slugs when finding', function (string $slug): void {
     Post::find($slug);
 })->throws(InvalidSlugException::class)->with([
@@ -283,6 +288,16 @@ it('runs the callback when truthy and the default when falsy', function (): void
 
     expect($whenTrue)->toBe(2)
         ->and($whenFalse)->toBe(3)
+        ->and($withDefault)->toBe(1);
+});
+
+it('runs the callback when falsy and the default when truthy with unless', function (): void {
+    $unlessFalse = Post::query()->unless(false, fn ($q) => $q->where('published', true))->count();
+    $unlessTrue = Post::query()->unless(true, fn ($q) => $q->where('published', true))->count();
+    $withDefault = Post::query()->unless(true, fn ($q) => $q->where('published', true), fn ($q) => $q->where('published', false))->count();
+
+    expect($unlessFalse)->toBe(2)
+        ->and($unlessTrue)->toBe(3)
         ->and($withDefault)->toBe(1);
 });
 

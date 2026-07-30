@@ -277,6 +277,24 @@ final class PaperQueryBuilder
         return $this->whereLike($column, $value, $caseSensitive, 'or');
     }
 
+    public function whereNotLike(string $column, string $value, bool $caseSensitive = false, string $boolean = 'and'): self
+    {
+        $this->wheres[] = [
+            'type' => 'notLike',
+            'column' => $column,
+            'value' => $value,
+            'caseSensitive' => $caseSensitive,
+            'boolean' => $boolean,
+        ];
+
+        return $this;
+    }
+
+    public function orWhereNotLike(string $column, string $value, bool $caseSensitive = false): self
+    {
+        return $this->whereNotLike($column, $value, $caseSensitive, 'or');
+    }
+
     /**
      * @param  array<int, string>  $columns
      * @param  ?scalar  $operator
@@ -829,6 +847,21 @@ final class PaperQueryBuilder
     }
 
     /**
+     * @param  (callable(self, mixed): mixed)|null  $callback
+     * @param  (callable(self, mixed): mixed)|null  $default
+     */
+    public function unless(mixed $value, ?callable $callback = null, ?callable $default = null): self
+    {
+        $active = $value ? $default : $callback;
+
+        if ($active !== null) {
+            $active($this, $value);
+        }
+
+        return $this;
+    }
+
+    /**
      * @param  array<int, mixed>  $parameters
      */
     public function __call(string $method, array $parameters): self
@@ -1131,6 +1164,7 @@ final class PaperQueryBuilder
             'notIn' => $value !== null && ! in_array($value, $where['values'] ?? []),
             'contains' => is_array($value) && in_array($where['value'] ?? null, $value, true),
             'like' => is_string($value) && $this->evaluateLike($value, (string) ($where['value'] ?? ''), $where['caseSensitive'] ?? false),
+            'notLike' => is_string($value) && ! $this->evaluateLike($value, (string) ($where['value'] ?? ''), $where['caseSensitive'] ?? false),
             'null' => $value === null,
             'notNull' => $value !== null,
             'between' => $value !== null && $this->evaluateBetween($value, $where['values'] ?? []),
