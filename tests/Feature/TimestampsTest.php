@@ -48,6 +48,39 @@ it('does not strip a frontmatter timestamp column from the file on save', functi
     expect(DatedPost::find('__ts_test__dated')->date->toDateString())->toBe('2024-03-01');
 });
 
+it('orders an authored timestamp column by its frontmatter value when paginating', function (): void {
+    $dir = base_path('tests/content/posts');
+
+    // The reverse of the frontmatter date order, so sorting by mtime cannot pass by accident.
+    $mtimes = [
+        'draft-post.markdown' => 1_700_000_100,
+        'second-post.md' => 1_700_000_200,
+        'hello-world.md' => 1_700_000_300,
+    ];
+
+    $original = [];
+
+    foreach ($mtimes as $name => $mtime) {
+        $path = $dir.'/'.$name;
+        $original[$path] = filemtime($path);
+        touch($path, $mtime);
+    }
+
+    clearstatcache();
+
+    try {
+        $paginated = DatedPost::query()->orderBy('date')->paginate(perPage: 10)->pluck('slug')->all();
+        $unpaginated = DatedPost::query()->orderBy('date')->get()->pluck('slug')->all();
+
+        expect($paginated)->toBe(['hello-world', 'second-post', 'draft-post'])
+            ->and($unpaginated)->toBe($paginated);
+    } finally {
+        foreach ($original as $path => $mtime) {
+            touch($path, $mtime);
+        }
+    }
+});
+
 it('leaves updated_at unset when timestamps are not enabled', function (): void {
     $post = Post::find('hello-world');
 

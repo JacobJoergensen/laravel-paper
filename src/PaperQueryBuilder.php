@@ -1788,6 +1788,14 @@ final class PaperQueryBuilder
             return $records;
         }
 
+        if ($updatedAt !== null && array_any($orders, fn (array $order): bool => $order['column'] === $updatedAt)) {
+            // The mtime only stands in for the timestamp column while no file supplies it, the rule
+            // hydrate() follows. Once one does, the sort has to read the hydrated, cast value.
+            if ($records->contains(fn (array $record): bool => array_key_exists($updatedAt, $record['data']))) {
+                return null;
+            }
+        }
+
         // Must sort identically to applyOrdersAndLimits, which reads the same columns off a hydrated model.
         foreach (array_reverse($orders) as $order) {
             $records = $records->sortBy(
