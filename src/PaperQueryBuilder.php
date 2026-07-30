@@ -120,7 +120,9 @@ final class PaperQueryBuilder
             $filepath = $this->contentPath.'/'.$slug.'.'.$ext;
 
             if ($this->files->exists($filepath)) {
-                return $this->fileToModel($filepath);
+                $model = $this->fileToModel($filepath);
+
+                return $this->matchesWheres($model) ? $model : null;
             }
         }
 
@@ -133,13 +135,23 @@ final class PaperQueryBuilder
      */
     public function where(callable|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): self
     {
-        if (is_callable($column)) {
+        if (! is_string($column)) {
             return $this->whereGroup($column, $boolean);
         }
 
         if ($value === null && ! in_array($operator, ['=', '==', '===', '!=', '<>', '!==', '>', '>=', '<', '<=', 'like'], true)) {
             $value = $operator;
             $operator = '=';
+        }
+
+        if ($value === null) {
+            if (in_array($operator, ['=', '==', '==='], true)) {
+                return $this->whereNull($column, $boolean);
+            }
+
+            if (in_array($operator, ['!=', '<>', '!=='], true)) {
+                return $this->whereNotNull($column, $boolean);
+            }
         }
 
         $this->wheres[] = [
@@ -613,10 +625,8 @@ final class PaperQueryBuilder
     {
         $page ??= Paginator::resolveCurrentPage();
 
-        $updatedAt = $this->updatedAtColumn();
-
-        if ($this->wheres === [] && $this->ordersAreParseFree($updatedAt)) {
-            $files = $this->orderedFiles($updatedAt);
+        if ($this->wheres === [] && $this->ordersAreParseFree()) {
+            $files = $this->orderedFiles();
             $total = $files->count();
 
             $items = $files->slice(($page - 1) * $perPage)
@@ -660,12 +670,10 @@ final class PaperQueryBuilder
     {
         $page ??= Paginator::resolveCurrentPage();
 
-        $updatedAt = $this->updatedAtColumn();
-
-        if ($this->wheres === [] && $this->ordersAreParseFree($updatedAt)) {
+        if ($this->wheres === [] && $this->ordersAreParseFree()) {
             $offset = ($page - 1) * $perPage;
 
-            $items = $this->orderedFiles($updatedAt)
+            $items = $this->orderedFiles()
                 ->slice($offset)
                 ->take($perPage + 1)
                 ->map(fn (string $filepath): Model => $this->fileToModel($filepath))
@@ -926,21 +934,22 @@ final class PaperQueryBuilder
         return $model->usesTimestamps() ? $model->getUpdatedAtColumn() : null;
     }
 
-    private function ordersAreParseFree(?string $updatedAt): bool
+    /**
+     * Only the slug is readable from the filename; a timestamp column can come from the file itself.
+     */
+    private function ordersAreParseFree(): bool
     {
         if ($this->randomOrder) {
             return false;
         }
 
-        $parseFree = array_filter(['slug', $updatedAt]);
-
-        return array_all($this->orders, fn (array $order): bool => in_array($order['column'], $parseFree, true));
+        return array_all($this->orders, fn (array $order): bool => $order['column'] === 'slug');
     }
 
     /**
      * @return Collection<int, string>
      */
-    private function orderedFiles(?string $updatedAt): Collection
+    private function orderedFiles(): Collection
     {
         $files = $this->scanFiles();
 
@@ -949,11 +958,11 @@ final class PaperQueryBuilder
         }
 
         foreach (array_reverse($this->orders) as $order) {
-            $key = $order['column'] === $updatedAt
-                ? static fn (string $file): int => (int) @filemtime($file)
-                : static fn (string $file): string => pathinfo($file, PATHINFO_FILENAME);
-
-            $files = $files->sortBy($key, SORT_REGULAR, $order['direction'] === 'desc');
+            $files = $files->sortBy(
+                static fn (string $file): string => pathinfo($file, PATHINFO_FILENAME),
+                SORT_REGULAR,
+                $order['direction'] === 'desc'
+            );
         }
 
         return $files->values();
@@ -1047,7 +1056,7 @@ final class PaperQueryBuilder
 
         $column = $this->updatedAtColumn();
 
-        if ($column !== null && is_int($mtime)) {
+        if ($column !== null && is_int($mtime) && ! array_key_exists($column, $data)) {
             $data[$column] = $mtime;
         }
 
@@ -1087,22 +1096,20 @@ final class PaperQueryBuilder
             return true;
         }
 
-        $result = true;
+        $result = false;
+        $group = true;
 
         foreach ($wheres as $index => $where) {
             /** @var array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>} $where */
-            $matches = $this->evaluateWhere($model, $where);
-
-            if ($index === 0) {
-                $result = $matches;
-            } elseif ($where['boolean'] === 'or') {
-                $result = $result || $matches;
-            } else {
-                $result = $result && $matches;
+            if ($index > 0 && $where['boolean'] === 'or') {
+                $result = $result || $group;
+                $group = true;
             }
+
+            $group = $group && $this->evaluateWhere($model, $where);
         }
 
-        return $result;
+        return $result || $group;
     }
 
     /**
@@ -1164,10 +1171,12 @@ final class PaperQueryBuilder
      */
     private function evaluateBetween(mixed $value, array $values): bool
     {
-        if (count($values) < 2) {
+        $bounds = array_values($values);
+
+        if (count($bounds) < 2) {
             return false;
         }
 
-        return $value >= $values[0] && $value <= $values[1];
+        return $value >= $bounds[0] && $value <= $bounds[1];
     }
 }

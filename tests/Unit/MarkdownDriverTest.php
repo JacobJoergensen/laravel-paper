@@ -23,6 +23,19 @@ it('parses frontmatter and content', function (): void {
         ->toHaveKey('content');
 });
 
+it('throws a paper exception naming the file when the frontmatter is malformed', function (): void {
+    $tempFile = tempnam(sys_get_temp_dir(), 'md_');
+    file_put_contents($tempFile, "---\ntitle: [unclosed\n---\n\nBody.\n");
+
+    $driver = new MarkdownDriver;
+
+    try {
+        $driver->parse($tempFile);
+    } finally {
+        unlink($tempFile);
+    }
+})->throws(FileParseException::class, 'Failed to parse frontmatter in file');
+
 it('handles files without frontmatter', function (): void {
     $tempFile = tempnam(sys_get_temp_dir(), 'md_');
     file_put_contents($tempFile, 'Just content, no frontmatter.');

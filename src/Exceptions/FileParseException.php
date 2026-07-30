@@ -15,6 +15,13 @@ final class FileParseException extends RuntimeException implements PaperExceptio
         );
     }
 
+    public static function invalidFrontmatter(string $filepath, string $error): self
+    {
+        return new self(
+            "Failed to parse frontmatter in file '$filepath': $error"
+        );
+    }
+
     public static function unreadable(string $filepath): self
     {
         return new self(

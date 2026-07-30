@@ -8,6 +8,7 @@ use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\File;
 use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
+use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Draft;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 
@@ -30,6 +31,11 @@ it('returns null for non-existent slug', function (): void {
     expect($post)->toBeNull();
 });
 
+it('returns null from find when a where clause excludes the record', function (): void {
+    expect(Post::where('published', true)->find('draft-post'))->toBeNull()
+        ->and(Post::where('published', true)->find('hello-world'))->not->toBeNull();
+});
+
 it('discovers files across every driver extension', function (): void {
     $post = Post::find('draft-post');
 
@@ -42,6 +48,11 @@ it('finds many posts by slug, omitting missing and duplicate ids', function (): 
 
     expect($posts)->toHaveCount(2)
         ->and($posts->pluck('slug')->sort()->values()->toArray())->toBe(['hello-world', 'second-post']);
+});
+
+it('checks the column for null when the value is null', function (): void {
+    expect(Post::where('author_slug', null)->pluck('slug')->toArray())->toBe(['draft-post', 'second-post'])
+        ->and(Post::where('author_slug', '!=', null)->pluck('slug')->toArray())->toBe(['hello-world']);
 });
 
 it('excludes null fields from comparison operators', function (): void {
@@ -68,6 +79,29 @@ it('can filter posts with two-argument string where', function (): void {
 
     expect($post)->not->toBeNull()
         ->and($post->slug)->toBe('hello-world');
+});
+
+it('filters on a column whose name matches a php function', function (): void {
+    $posts = Post::where('date', '>', strtotime('2024-01-18 UTC'))->get();
+
+    expect($posts->pluck('slug')->toArray())->toBe(['draft-post', 'second-post']);
+});
+
+it('groups conditions passed as a closure', function (): void {
+    $posts = Post::query()
+        ->where('published', true)
+        ->where(function (PaperQueryBuilder $query): void {
+            $query->where('order', 1)->orWhere('order', 2);
+        })
+        ->get();
+
+    expect($posts->pluck('slug')->toArray())->toBe(['hello-world', 'second-post']);
+});
+
+it('binds and tighter than or when a chain mixes both', function (): void {
+    $posts = Post::where('order', 1)->orWhere('published', false)->where('order', 3)->get();
+
+    expect($posts->pluck('slug')->toArray())->toBe(['draft-post', 'hello-world']);
 });
 
 it('can order posts', function (): void {
@@ -275,6 +309,11 @@ it('filters with whereBetween and whereNotBetween', function (): void {
 it('excludes records missing the column from whereBetween and whereNotBetween', function (): void {
     expect(Post::whereBetween('author_slug', ['a', 'z'])->count())->toBe(1)
         ->and(Post::whereNotBetween('author_slug', ['a', 'z'])->count())->toBe(0);
+});
+
+it('matches whereBetween bounds given as a string-keyed array', function (): void {
+    expect(Post::whereBetween('order', ['from' => 2, 'to' => 3])->pluck('slug')->toArray())
+        ->toBe(['draft-post', 'second-post']);
 });
 
 it('filters with whereNull and whereNotNull', function (): void {

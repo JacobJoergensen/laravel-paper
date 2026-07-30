@@ -7,6 +7,7 @@ namespace JacobJoergensen\LaravelPaper\Drivers;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
 use Spatie\YamlFrontMatter\YamlFrontMatter;
+use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
 
 final readonly class MarkdownDriver implements DriverContract
@@ -30,7 +31,11 @@ final readonly class MarkdownDriver implements DriverContract
             throw FileParseException::unreadable($filepath);
         }
 
-        $document = YamlFrontMatter::parse($content);
+        try {
+            $document = YamlFrontMatter::parse($content);
+        } catch (ParseException $e) {
+            throw FileParseException::invalidFrontmatter($filepath, $e->getMessage());
+        }
 
         /** @var array<string, mixed> $data */
         $data = $document->matter();

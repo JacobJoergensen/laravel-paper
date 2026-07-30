@@ -493,8 +493,9 @@ trait Paper
 
         if ($this->usesTimestamps()) {
             $updatedAt = $this->getUpdatedAtColumn();
+            $stored = is_file($filepath) ? $driver->parse($filepath) : [];
 
-            if ($updatedAt !== null) {
+            if ($updatedAt !== null && ! array_key_exists($updatedAt, $stored)) {
                 unset($attributes[$updatedAt]);
             }
         }
