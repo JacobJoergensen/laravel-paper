@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## Version 1.15.0 (2026-07-30)
 * Added `whereNotLike` and `orWhereNotLike`, the negated form of `whereLike`
 * Added `unless`, the counterpart to `when`, running its callback when the value is falsy
 * Fixed `where` to treat a column named after a PHP function, like `date`, as a column instead of a closure
