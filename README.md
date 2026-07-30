@@ -355,7 +355,7 @@ guidance for writing and querying flat-file models.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for filing bugs and submitting PRs.
+See [CONTRIBUTING.md](.github/CONTRIBUTING.md) for filing bugs and submitting PRs.
 
 ## License
 
