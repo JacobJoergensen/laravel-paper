@@ -219,16 +219,6 @@ trait Paper
         return static::query()->orWhereLike($column, $value, $caseSensitive);
     }
 
-    public static function whereNotLike(string $column, string $value, bool $caseSensitive = false): PaperQueryBuilder
-    {
-        return static::query()->whereNotLike($column, $value, $caseSensitive);
-    }
-
-    public static function orWhereNotLike(string $column, string $value, bool $caseSensitive = false): PaperQueryBuilder
-    {
-        return static::query()->orWhereNotLike($column, $value, $caseSensitive);
-    }
-
     /**
      * @return PaperQueryBuilder<static>
      */
