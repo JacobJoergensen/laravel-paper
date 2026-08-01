@@ -51,13 +51,16 @@ it('writes array-cast attributes as native structures, not JSON strings', functi
         ->and(Post::find('__save_test__cast')->tags)->toBe(['php', 'laravel']);
 });
 
-it('leaves an array-cast field the cast cannot read untouched on save', function (): void {
+it('leaves an array-cast field alone when the file value is not valid json', function (): void {
     $path = __DIR__.'/../content/posts/__save_test__scalar.md';
-    file_put_contents($path, "---\ntitle: Scalar\ntags: hello\n---\n\nBody\n");
+    File::put($path, "---\ntitle: Scalar Tags\ntags: laravel\n---\n\nBody.\n");
 
-    Post::findOrFail('__save_test__scalar')->save();
+    $post = Post::find('__save_test__scalar');
+    $post->title = 'Renamed';
+    $post->save();
 
-    expect(file_get_contents($path))->toContain('tags: hello');
+    expect(file_get_contents($path))->toContain('tags: laravel')
+        ->and(Post::find('__save_test__scalar')->title)->toBe('Renamed');
 });
 
 it('writes and reads back a json model', function (): void {

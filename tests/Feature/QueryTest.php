@@ -8,6 +8,7 @@ use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\File;
 use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
+use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Draft;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 
@@ -64,6 +65,23 @@ it('can get all posts', function (): void {
 
 it('can filter posts with where clause', function (): void {
     $posts = Post::where('published', true)->get();
+
+    expect($posts->pluck('slug')->toArray())->toBe(['hello-world', 'second-post']);
+});
+
+it('filters on a column whose name matches a php function', function (): void {
+    $posts = Post::where('date', '>', strtotime('2024-01-18 UTC'))->get();
+
+    expect($posts->pluck('slug')->toArray())->toBe(['draft-post', 'second-post']);
+});
+
+it('groups conditions passed as a closure', function (): void {
+    $posts = Post::query()
+        ->where('published', true)
+        ->where(function (PaperQueryBuilder $query): void {
+            $query->where('order', 1)->orWhere('order', 2);
+        })
+        ->get();
 
     expect($posts->pluck('slug')->toArray())->toBe(['hello-world', 'second-post']);
 });

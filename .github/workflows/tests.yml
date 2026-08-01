@@ -14,20 +14,21 @@ concurrency:
 
 jobs:
   ci:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
 
     strategy:
       matrix:
-        php: [8.5, 8.4]
-        laravel: ['12.*', '13.*']
+        os: [ ubuntu-latest, windows-latest ]
+        php: [ 8.4, 8.5 ]
+        laravel: [ 12.*, 13.* ]
         dependency-version: [prefer-lowest, prefer-stable]
         include:
           - laravel: 12.*
-            testbench: ^10.0
+            testbench: 10.*
           - laravel: 13.*
-            testbench: ^11.0
+            testbench: 11.*
 
-    name: P${{ matrix.php }} - L${{ matrix.laravel }} - ${{ matrix.dependency-version }}
+    name: P${{ matrix.php }} - L${{ matrix.laravel }} - ${{ matrix.dependency-version }} - ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -36,6 +37,7 @@ jobs:
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
         with:
           php-version: ${{ matrix.php }}
+          extensions: fileinfo
           coverage: none
 
       - name: Setup Problem Matches
@@ -51,7 +53,17 @@ jobs:
         with:
           dependency-versions: ${{ matrix.dependency-version == 'prefer-lowest' && 'lowest' || 'highest' }}
 
-      - name: Run tests
+      - name: Run Linter
+        run: composer test:lint
+
+      - name: PHPStan
+        run: composer test:types
+
+      - name: Type Coverage
+        if: runner.os != 'Windows'
         env:
           FORK_MEM_PER_PROC: 1099511627776
-        run: composer test
+        run: composer test:type-coverage
+
+      - name: Test Suite
+        run: composer test:unit

@@ -44,6 +44,19 @@
 * Fixed `delete` to drop the manifest entry only after the file is gone, so a failed delete no longer hides a record that is still on disk
 * Removed `UnsupportedRouteBindingException` now that `resolveChildRouteBinding` resolves the child instead of throwing
 
+## Version 1.15.0 (2026-07-30)
+* Added `whereNotLike` and `orWhereNotLike`, the negated form of `whereLike`
+* Added `unless`, the counterpart to `when`, running its callback when the value is falsy
+* Fixed `where` to treat a column named after a PHP function, like `date`, as a column instead of a closure
+* Fixed `where` and `orWhere` to bind `and` tighter than `or` like SQL; a chain mixing the two silently dropped matching records
+* Fixed `where` with a null value to check the column for null, like Eloquent; it matched nothing before
+* Fixed `find` to apply the query's pending `where` constraints, so a filtered query no longer returns an excluded record
+* Fixed `whereBetween` and `whereNotBetween` to read the bounds by position like Laravel, so an array with string keys no longer raises a PHP error
+* Fixed `save` writing null over an `array`, `json`, `object`, or `collection` field whose file value the cast could not read
+* Fixed `#[Timestamps]` overwriting a frontmatter field with the file mtime when `UPDATED_AT` names a real field, and stripping that field from the file on save
+* Fixed `JsonDriver` to leave forward slashes unescaped, so saving a record no longer rewrites every URL in the file
+* Fixed `MarkdownDriver` to throw `FileParseException` for malformed frontmatter instead of a raw Symfony exception, so the error names the file
+
 ## Version 1.14.0 (2026-07-22)
 * Improved the `laravel-paper-development` skill to cover lazy loading, route model binding, and driver extension order
 * Optimized queries to list the content directory once instead of once per driver extension

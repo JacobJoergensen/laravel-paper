@@ -452,6 +452,16 @@ final class PaperQueryBuilder
             }
         }
 
+        if ($value === null) {
+            if (in_array($operator, ['=', '==', '==='], true)) {
+                return $this->whereNull($column, $boolean);
+            }
+
+            if (in_array($operator, ['!=', '<>', '!=='], true)) {
+                return $this->whereNotNull($column, $boolean);
+            }
+        }
+
         $this->wheres[] = [
             'type' => 'basic',
             'column' => $column,
