@@ -14,10 +14,8 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
 use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
-use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
 use JacobJoergensen\LaravelPaper\Contracts\ScopeContract;
-use JacobJoergensen\LaravelPaper\Contracts\StorageAdapterContract;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
 use JacobJoergensen\LaravelPaper\Exceptions\UnsupportedScopeException;
 use JacobJoergensen\LaravelPaper\Relations\BelongsToPaper;
@@ -31,6 +29,8 @@ use ReflectionClass;
  */
 trait Paper
 {
+    private ?string $paperExtension = null;
+
     public static function resetPaperState(): void
     {
         PaperQueryBuilder::forgetCache(static::class);
@@ -743,6 +743,34 @@ trait Paper
         return $attribute?->newInstance()->path ?? 'content';
     }
 
+    public function getFilePath(): string
+    {
+        $slug = static::keyToString($this->getAttribute($this->getKeyName()));
+
+        if ($slug === '') {
+            throw InvalidSlugException::missing();
+        }
+
+        PaperQueryBuilder::guardSlug($slug);
+
+        $resolved = PaperQueryBuilder::resolveFor(static::class);
+        $driver = $resolved['driver'];
+        $directory = PaperQueryBuilder::contentPathFor(static::class);
+
+        if ($this->paperExtension === null) {
+            $manifest = app(PaperManifest::class);
+
+            $record = $this->exists
+                ? $manifest->record($resolved['adapter'], $driver, $directory, $slug, $resolved['nested'])
+                : null;
+
+            // Held on the model so a deleted record still names the file it was stored in.
+            $this->paperExtension = $record['ext'] ?? $driver->extensions()[0];
+        }
+
+        return $directory.'/'.$slug.'.'.$this->paperExtension;
+    }
+
     /**
      * @param  ?string  $field
      */
@@ -854,7 +882,7 @@ trait Paper
             return false;
         }
 
-        $filepath = $this->paperFilepath($path, $slug, $driver, $isCreating, $adapter);
+        $filepath = $this->getFilePath();
 
         $this->loadPaperBody();
 
@@ -960,31 +988,24 @@ trait Paper
 
         $manifest = app(PaperManifest::class);
 
-        $resolved = PaperQueryBuilder::resolveFor(static::class);
-        $driver = $resolved['driver'];
+        $adapter = PaperQueryBuilder::resolveFor(static::class)['adapter'];
         $path = PaperQueryBuilder::contentPathFor(static::class);
-        $adapter = $resolved['adapter'];
         $slug = static::keyToString($this->getAttribute($this->getKeyName()));
+        $filepath = $this->getFilePath();
 
-        PaperQueryBuilder::guardSlug($slug);
-
-        foreach ($driver->extensions() as $ext) {
-            $filepath = $path.'/'.$slug.'.'.$ext;
-
-            if ($adapter->exists($filepath)) {
-                $deleted = $adapter->delete($filepath);
-
-                if ($deleted) {
-                    $manifest->forget($adapter, $path, $slug);
-                    $this->exists = false;
-                    $this->fireModelEvent('deleted', false);
-                }
-
-                return $deleted;
-            }
+        if (! $adapter->exists($filepath)) {
+            return false;
         }
 
-        return false;
+        $deleted = $adapter->delete($filepath);
+
+        if ($deleted) {
+            $manifest->forget($adapter, $path, $slug);
+            $this->exists = false;
+            $this->fireModelEvent('deleted', false);
+        }
+
+        return $deleted;
     }
 
     public function deleteQuietly(): bool
@@ -1033,23 +1054,6 @@ trait Paper
 
         $this->attributes[$column] = $attributes[$column];
         $this->original[$column] = $attributes[$column];
-    }
-
-    private function paperFilepath(string $directory, string $slug, DriverContract $driver, bool $isCreating, StorageAdapterContract $adapter): string
-    {
-        $extensions = $driver->extensions();
-
-        if (! $isCreating) {
-            foreach ($extensions as $extension) {
-                $existing = $directory.'/'.$slug.'.'.$extension;
-
-                if ($adapter->exists($existing)) {
-                    return $existing;
-                }
-            }
-        }
-
-        return $directory.'/'.$slug.'.'.$extensions[0];
     }
 
     private static function keyToString(mixed $key): string

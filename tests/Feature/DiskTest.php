@@ -31,6 +31,13 @@ it('reads, writes, and deletes through the configured disk', function (): void {
     expect(Storage::disk('paper')->exists('articles/first.md'))->toBeFalse();
 });
 
+it('reports a disk relative file path, not an absolute one', function (): void {
+    $article = new Article;
+    $article->slug = 'first';
+
+    expect($article->getFilePath())->toBe('articles/first.md');
+});
+
 it('lists files of every driver extension on the disk, ignoring others', function (): void {
     Storage::disk('paper')->put('articles/one.md', "---\ntitle: One\n---\n");
     Storage::disk('paper')->put('articles/two.markdown', "---\ntitle: Two\n---\n");

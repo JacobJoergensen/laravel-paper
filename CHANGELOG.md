@@ -16,6 +16,7 @@
 * Added `paper.watch` to skip the per-request directory scan when the manifest is trusted; auto by default, on locally and off in production
 * Added `PaperModel` interface that models using the `Paper` trait must implement, so pointing a relation at a non-Paper model is caught before runtime
 * Added `getContentPath` so a model can resolve its content directory at runtime, e.g. a per-tenant root; defaults to the `#[ContentPath]` attribute
+* Added `getFilePath` for the file a record is stored in, kept on the model so a `deleted` listener can still name it
 * Added `with` for eager loading relations, batching reads to avoid N+1 in loops
 * Added `PaperRelation` abstract base for relation descriptors, with `BelongsToPaper` and `HasManyPaper` as concrete types exposing `getResults()` for lazy resolution and property access after eager loading
 * Added `nested` to `#[ContentPath]` so a model reads subdirectories, turning `docs/guides/installation.md` into the slug `guides/installation`
@@ -31,6 +32,7 @@
 * Changed `belongsToPaper` and `hasManyPaper` to return relation descriptors; call ->getResults() for direct resolution or use with() to eager load
 * Changed `StorageAdapterContract::listing` to take a `$nested` flag, so custom adapters must add the third argument
 * Changed `whereContains` to only accept a scalar value; passing an array silently matched nothing
+* Changed `save` and `delete` to resolve the file through `getFilePath` instead of probing every driver extension on disk; a record that was never loaded uses the driver's first extension
 * Changed `find` to match slugs case-sensitively, like `where`; a case-mismatched slug now returns null
 * Changed `find` to throw `ContentPathNotFoundException` for a missing content directory, like `where`, instead of returning null
 * Changed `DriverContract` to require `bodyColumn()`, naming the column that holds the file's body, or null for a format without one

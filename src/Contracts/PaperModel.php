@@ -18,4 +18,6 @@ interface PaperModel
     public static function query(): PaperQueryBuilder;
 
     public function getContentPath(): string;
+
+    public function getFilePath(): string;
 }
