@@ -5,11 +5,13 @@ declare(strict_types=1);
 use Illuminate\Cache\ArrayStore;
 use Illuminate\Cache\Repository;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
 use JacobJoergensen\LaravelPaper\Drivers\MarkdownDriver;
 use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\CountingAdapter;
+use JacobJoergensen\LaravelPaper\Tests\Fixtures\CountingStore;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\RawModel;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\TimestampedPost;
@@ -105,6 +107,40 @@ it('orders by updated_at using the manifest mtime, not the filesystem', function
     $latest = ($this->build)(TimestampedPost::class)->orderBy('updated_at', 'desc')->get();
 
     expect($latest->pluck('slug')->all())->toBe(['alpha', 'gamma', 'beta']);
+});
+
+it('serves later queries in a request from the manifest it already read', function (): void {
+    $store = new CountingStore;
+    $manifest = new PaperManifest(new Repository($store), 60, 10, false);
+
+    $build = fn (): PaperQueryBuilder => new PaperQueryBuilder(
+        $this->adapter, new MarkdownDriver, $manifest, 'blog', Post::class,
+    );
+
+    $build()->get();
+    $store->reset();
+
+    $build()->find('post-3');
+    $build()->where('status', 'published')->get();
+    $build()->count();
+
+    expect($store->counts['get'])->toBe(0);
+});
+
+it('drops what it memoized between requests, so a cleared cache is noticed', function (): void {
+    $driver = new MarkdownDriver;
+    $adapter = new CountingAdapter;
+    $adapter->seed('blog/post-1.md', "---\nstatus: published\n---\n", 1_000);
+
+    app(PaperManifest::class)->record($adapter, $driver, 'blog', 'post-1');
+
+    Cache::flush();
+    $adapter->reset();
+    $this->app->forgetScopedInstances();
+
+    app(PaperManifest::class)->record($adapter, $driver, 'blog', 'post-1');
+
+    expect($adapter->counts['read'])->toBe(1);
 });
 
 it('fails loudly when a listed file cannot be read instead of yielding a blank record', function (): void {

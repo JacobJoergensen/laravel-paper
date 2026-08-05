@@ -800,6 +800,28 @@ trait Paper
     }
 
     /**
+     * @param  string  $key
+     */
+    public function getAttribute($key): mixed
+    {
+        if (! array_key_exists($key, $this->attributes)) {
+            $this->loadPaperBody($key);
+        }
+
+        return parent::getAttribute($key);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function attributesToArray(): array
+    {
+        $this->loadPaperBody();
+
+        return parent::attributesToArray();
+    }
+
+    /**
      * @param  array<string, mixed>  $options
      */
     public function save(array $options = []): bool
@@ -833,6 +855,9 @@ trait Paper
         }
 
         $filepath = $this->paperFilepath($path, $slug, $driver, $isCreating, $adapter);
+
+        $this->loadPaperBody();
+
         $attributes = PaperCasts::toStorage($this, $this->getAttributes());
 
         if ($this->usesTimestamps()) {
@@ -852,7 +877,7 @@ trait Paper
 
         if ($success) {
             $this->exists = true;
-            $manifest->put($adapter, $path, $slug, $adapter->lastModified($filepath) ?? 0, $driver->parse($content));
+            $manifest->put($adapter, $driver, $path, $slug, $filepath, $driver->parse($content));
 
             if ($isCreating) {
                 $this->wasRecentlyCreated = true;
@@ -985,6 +1010,29 @@ trait Paper
                 static::setEventDispatcher($dispatcher);
             }
         }
+    }
+
+    private function loadPaperBody(?string $key = null): void
+    {
+        $resolved = PaperQueryBuilder::resolveFor(static::class);
+        $column = $resolved['driver']->bodyColumn();
+
+        if ($column === null || ($key !== null && $key !== $column)) {
+            return;
+        }
+
+        if (! $this->exists || array_key_exists($column, $this->attributes)) {
+            return;
+        }
+
+        $path = PaperQueryBuilder::contentPathFor(static::class);
+        $slug = static::keyToString($this->attributes[$this->getKeyName()] ?? null);
+
+        $body = app(PaperManifest::class)->body($resolved['adapter'], $resolved['driver'], $path, $slug, $resolved['nested']);
+        $attributes = PaperCasts::fromStorage($this, [$column => $body]);
+
+        $this->attributes[$column] = $attributes[$column];
+        $this->original[$column] = $attributes[$column];
     }
 
     private function paperFilepath(string $directory, string $slug, DriverContract $driver, bool $isCreating, StorageAdapterContract $adapter): string

@@ -17,6 +17,11 @@ final readonly class JsonDriver implements DriverContract
         return ['json'];
     }
 
+    public function bodyColumn(): ?string
+    {
+        return null;
+    }
+
     /**
      * @return array<string, mixed>
      */

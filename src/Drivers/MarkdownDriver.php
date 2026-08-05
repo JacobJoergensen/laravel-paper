@@ -20,6 +20,11 @@ final readonly class MarkdownDriver implements DriverContract
         return ['md', 'markdown'];
     }
 
+    public function bodyColumn(): string
+    {
+        return 'content';
+    }
+
     /**
      * @return array<string, mixed>
      */

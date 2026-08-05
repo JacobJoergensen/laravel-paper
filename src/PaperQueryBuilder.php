@@ -1509,6 +1509,7 @@ final class PaperQueryBuilder
         $root = explode('.', $column, 2)[0];
 
         return $root !== $this->updatedAtColumn()
+            && $root !== $this->driver->bodyColumn()
             && ! method_exists($model, $root)
             && ! $this->hasCastOrMutator($model, $column)
             && ! $this->hasCastOrMutator($model, $root);

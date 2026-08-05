@@ -11,6 +11,8 @@ interface DriverContract
      */
     public function extensions(): array;
 
+    public function bodyColumn(): ?string;
+
     /**
      * @return array<string, mixed>
      */

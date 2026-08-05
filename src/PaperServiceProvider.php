@@ -24,7 +24,7 @@ final class PaperServiceProvider extends ServiceProvider
     {
         $this->mergeConfigFrom(__DIR__.'/../config/paper.php', 'paper');
 
-        $this->app->singleton(PaperManifest::class, function (Application $app): PaperManifest {
+        $this->app->scoped(PaperManifest::class, function (Application $app): PaperManifest {
             $config = $app->make(Config::class);
             $store = $config->get('paper.cache_store');
             $cache = $app->make(CacheFactory::class)->store(is_string($store) ? $store : null);

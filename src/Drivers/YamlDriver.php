@@ -19,6 +19,11 @@ final readonly class YamlDriver implements DriverContract
         return ['yaml', 'yml'];
     }
 
+    public function bodyColumn(): ?string
+    {
+        return null;
+    }
+
     /**
      * @return array<string, mixed>
      */
