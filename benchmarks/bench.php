@@ -20,11 +20,20 @@ foreach ($counts as $count) {
     progress("find / $count / cold");
     $rows[] = ['find($slug)', $count, 'cold', coldStats('find')];
 
+    progress("find / $count / hot");
+    $rows[] = ['find($slug)', $count, 'hot', hotStats('find')];
+
     progress("where()->get() / $count / cold");
     $rows[] = ['where()->get()', $count, 'cold', coldStats('where')];
 
+    progress("where()->get() / $count / hot");
+    $rows[] = ['where()->get()', $count, 'hot', hotStats('where')];
+
     progress("where()->get() / $count / warm");
     $rows[] = ['where()->get()', $count, 'warm', warmStats('where')];
+
+    progress("read every body / $count / hot");
+    $rows[] = ['read every body', $count, 'hot', hotStats('bodies')];
 
     progress("count() / $count / cold");
     $rows[] = ['count()', $count, 'cold', coldStats('count')];
@@ -32,8 +41,14 @@ foreach ($counts as $count) {
     progress("paginate(15) / $count / cold");
     $rows[] = ['paginate(15)', $count, 'cold', coldStats('paginate')];
 
+    progress("paginate(15) / $count / hot");
+    $rows[] = ['paginate(15)', $count, 'hot', hotStats('paginate')];
+
     progress("paginate(15) / $count / warm");
     $rows[] = ['paginate(15)', $count, 'warm', warmStats('paginate')];
+
+    progress("page of 3 queries / $count / hot");
+    $rows[] = ['page of 3 queries', $count, 'hot', hotStats('page')];
 }
 
 generate(10000, $seed);
@@ -41,18 +56,29 @@ generate(10000, $seed);
 progress('find / 10000 / cold');
 $rows[] = ['find($slug)', 10000, 'cold', coldStats('find')];
 
+progress('find / 10000 / hot');
+$rows[] = ['find($slug)', 10000, 'hot', hotStats('find')];
+
 progress('where()->get() / 10000 / cold');
 $rows[] = ['where()->get()', 10000, 'cold', coldStats('where')];
 
-generate(1000, $seed, 1);
-progress('validation / 1KB');
-$small = coldStats('where');
+progress('where()->get() / 10000 / hot');
+$rows[] = ['where()->get()', 10000, 'hot', hotStats('where')];
 
-generate(1000, $seed, 50);
-progress('validation / 50KB');
-$large = coldStats('where');
+$cold = [];
+$hot = [];
 
-writeResults($rows, $small, $large, $seed, $counts);
+foreach ([1, 50] as $bodyKb) {
+    generate(1000, $seed, $bodyKb);
+
+    progress("validation / {$bodyKb}KB / cold");
+    $cold[$bodyKb.'KB'] = coldStats('where');
+
+    progress("validation / {$bodyKb}KB / hot");
+    $hot[$bodyKb.'KB'] = hotStats('where');
+}
+
+writeResults($rows, validationSection($cold, $hot, 1000), $seed, $counts);
 
 progress('done — benchmarks/RESULTS.md');
 
@@ -81,6 +107,37 @@ function coldStats(string $shape): array
 function warmStats(string $shape): array
 {
     return stats(sample($shape, 'warm'));
+}
+
+/**
+ * @return array{median: float, min: float, p90: float, peak: float}
+ */
+function hotStats(string $shape): array
+{
+    putenv('BENCH_CACHE_STORE=file');
+    flushStore();
+
+    // The first process builds and persists the manifest, the measured ones only read it.
+    sample($shape, 'hot');
+
+    $samples = [];
+
+    for ($i = 0; $i < COLD_SAMPLES; $i++) {
+        $samples[] = sample($shape, 'hot')[0];
+    }
+
+    putenv('BENCH_CACHE_STORE=array');
+
+    return stats($samples);
+}
+
+function flushStore(): void
+{
+    $entries = glob(dirname(__DIR__).'/storage/framework/cache/data/*/*/*') ?: [];
+
+    foreach ($entries as $entry) {
+        @unlink($entry);
+    }
 }
 
 /**
@@ -170,15 +227,14 @@ function percentile(array $sorted, float $quantile): float
 
 /**
  * @param  list<array{0: string, 1: int, 2: string, 3: array{median: float, min: float, p90: float, peak: float}}>  $rows
- * @param  array{median: float, min: float, p90: float, peak: float}  $small
- * @param  array{median: float, min: float, p90: float, peak: float}  $large
  * @param  list<int>  $counts
  */
-function writeResults(array $rows, array $small, array $large, int $seed, array $counts): void
+function writeResults(array $rows, string $validation, int $seed, array $counts): void
 {
     $body = "# Benchmark results\n\n";
     $body .= machineBlock($seed, $counts);
     $body .= "\nCold runs measure a fresh PHP process with an empty application cache. Page cache and PHP opcache stay warm, so this is a first request after a deploy, not a bare-metal disk read.\n";
+    $body .= "\nHot runs measure a fresh process against a manifest already held in the file store, which is what a request hits in production once the cache is populated.\n";
 
     if (PHP_OS_FAMILY === 'Windows') {
         $body .= "\nPHP's `glob()` is far slower on Windows than on glibc, by more than an order of magnitude, so `count()` and `paginate(15)` are listing-bound here.\n";
@@ -201,22 +257,37 @@ function writeResults(array $rows, array $small, array $large, int $seed, array 
         );
     }
 
-    $ratio = $large['median'] / $small['median'];
-    $dominant = $ratio >= 1.5;
+    file_put_contents(__DIR__.'/RESULTS.md', $body.$validation);
+}
 
-    $body .= "\n## File-size validation\n\n";
-    $body .= "`where()->get()` cold over 1,000 files, 1KB vs 50KB bodies:\n\n";
-    $body .= "| body | median | min | p90 |\n";
-    $body .= "|------|-------:|----:|----:|\n";
-    $body .= sprintf("| 1KB | %s | %s | %s |\n", ms($small['median']), ms($small['min']), ms($small['p90']));
-    $body .= sprintf("| 50KB | %s | %s | %s |\n", ms($large['median']), ms($large['min']), ms($large['p90']));
-    $body .= sprintf("\n50KB is %.2f× the 1KB time. ", $ratio);
+/**
+ * @param  array<string, array{median: float, min: float, p90: float, peak: float}>  $cold
+ * @param  array<string, array{median: float, min: float, p90: float, peak: float}>  $hot
+ */
+function validationSection(array $cold, array $hot, int $files): string
+{
+    $body = "\n## File-size validation\n\n";
+    $body .= sprintf("`where()->get()` over %s files, 1KB vs 50KB bodies:\n\n", number_format($files));
+    $body .= "| cache | 1KB | 50KB | ratio |\n";
+    $body .= "|-------|----:|-----:|------:|\n";
 
-    $body .= $dominant
-        ? "File size is decision-relevant and kept as an axis.\n"
-        : "Paper parses only the frontmatter, so file size is not decision-relevant; the axis is dropped per the design.\n";
+    foreach (['cold' => $cold, 'hot' => $hot] as $cache => $stats) {
+        $ratio = $stats['50KB']['median'] / $stats['1KB']['median'];
 
-    file_put_contents(__DIR__.'/RESULTS.md', $body);
+        $body .= sprintf(
+            "| %s | %s | %s | %.2f× |\n",
+            $cache,
+            ms($stats['1KB']['median']),
+            ms($stats['50KB']['median']),
+            $ratio,
+        );
+    }
+
+    $hotRatio = $hot['50KB']['median'] / $hot['1KB']['median'];
+
+    return $body.($hotRatio >= 1.5
+        ? "\nFile size is decision-relevant on the hot path and kept as an axis.\n"
+        : "\nFile size is not decision-relevant in either cache state; the axis is dropped per the design.\n");
 }
 
 /**

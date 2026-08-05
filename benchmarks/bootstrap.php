@@ -24,6 +24,6 @@ $app = Testbench::create(
 
 /** @var Repository $config */
 $config = $app['config'];
-$config->set('cache.default', 'array');
+$config->set('cache.default', getenv('BENCH_CACHE_STORE') ?: 'array');
 
 return $app;
