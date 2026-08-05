@@ -4,7 +4,7 @@
 [![Tests](https://github.com/JacobJoergensen/laravel-paper/actions/workflows/tests.yml/badge.svg)](https://github.com/JacobJoergensen/laravel-paper/actions)
 [![License](https://img.shields.io/github/license/JacobJoergensen/laravel-paper)](LICENSE)
 
-Laravel Paper is a Laravel package that adds flat-file driver support for Eloquent. It supports Markdown and JSON files and works with Laravel 12+ on PHP 8.4+.
+Laravel Paper is a Laravel package that adds flat-file driver support for Eloquent. It supports Markdown, JSON, and YAML files and works with Laravel 12+ on PHP 8.4+.
 
 ## Why Laravel Paper?
 
