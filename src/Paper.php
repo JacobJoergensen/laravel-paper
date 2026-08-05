@@ -759,12 +759,13 @@ trait Paper
 
         if ($this->paperExtension === null) {
             $manifest = app(PaperManifest::class);
+            $stored = static::keyToString($this->getRawOriginal($this->getKeyName())) ?: $slug;
 
             $record = $this->exists
-                ? $manifest->record($resolved['adapter'], $driver, $directory, $slug, $resolved['nested'])
+                ? $manifest->record($resolved['adapter'], $driver, $directory, $stored, $resolved['nested'])
                 : null;
 
-            // Held on the model so a deleted record still names the file it was stored in.
+            // Held on the model so a renamed record keeps its format and a deleted one can still name its file.
             $this->paperExtension = $record['ext'] ?? $driver->extensions()[0];
         }
 
@@ -906,6 +907,14 @@ trait Paper
         if ($success) {
             $this->exists = true;
             $manifest->put($adapter, $driver, $path, $slug, $filepath, $driver->parse($content));
+
+            $original = static::keyToString($this->getRawOriginal($this->getKeyName()));
+
+            // A changed slug moves the record, like Eloquent updating a row by its original key.
+            if ($original !== '' && $original !== $slug) {
+                $adapter->delete($path.'/'.$original.'.'.$this->paperExtension);
+                $manifest->forget($adapter, $path, $original);
+            }
 
             if ($isCreating) {
                 $this->wasRecentlyCreated = true;

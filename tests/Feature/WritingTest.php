@@ -209,6 +209,21 @@ it('still reports the file it removed after a delete', function (): void {
         ->and($post->getFilePath())->toEndWith('__save_test__.markdown');
 });
 
+it('moves the file when the slug changes', function (): void {
+    $dir = __DIR__.'/../content/posts';
+    file_put_contents($dir.'/__save_test__from.markdown', "---\ntitle: Moved\n---\n\nBody\n");
+
+    Post::resetPaperState();
+
+    $post = Post::find('__save_test__from');
+    $post->slug = '__save_test__to';
+
+    expect($post->save())->toBeTrue()
+        ->and(file_exists($dir.'/__save_test__to.markdown'))->toBeTrue()
+        ->and(file_exists($dir.'/__save_test__from.markdown'))->toBeFalse()
+        ->and(Post::find('__save_test__from'))->toBeNull();
+});
+
 it('rejects path traversal when saving', function (): void {
     $post = new Post;
     $post->slug = '../../routes/web';

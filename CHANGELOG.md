@@ -44,6 +44,7 @@
 * Optimized `where` to filter on the raw record and build only the matching models when the filtered columns have no cast, accessor, or relation
 * Optimized queries to reconcile a per content-path manifest against one directory listing, so a query reads one listing instead of a metadata call per file and warm reads scale flat with file count
 * Moved driver and content path resolution to PaperQueryBuilder as a single shared cache
+* Fixed `save` to move the file when a record's slug changes, like Eloquent updating a row by its original key; it wrote a second file and left the first behind
 * Fixed `delete` to drop the manifest entry only after the file is gone, so a failed delete no longer hides a record that is still on disk
 * Removed `UnsupportedRouteBindingException` now that `resolveChildRouteBinding` resolves the child instead of throwing
 
