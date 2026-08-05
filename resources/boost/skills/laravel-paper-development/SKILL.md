@@ -5,7 +5,7 @@ description: Build and work with Laravel Paper flat-file Eloquent models, includ
 
 # Laravel Paper Development
 
-Laravel Paper adds a flat-file driver to Eloquent. Markdown and JSON files in a content
+Laravel Paper adds a flat-file driver to Eloquent. Markdown, JSON, and YAML files in a content
 directory become queryable, writable Eloquent models, configured with PHP 8 attributes and
 the `Paper` trait instead of a database connection or migration.
 
@@ -37,7 +37,7 @@ class Post extends Model
 ```
 
 - `markdown` frontmatter becomes attributes, the body is exposed as `content`.
-- `json` top-level keys become attributes.
+- `json` and `yaml` top-level keys become attributes. `yaml` reads `.yaml` and `.yml`.
 - `#[Driver]` defaults to `markdown`, `#[ContentPath]` defaults to `content`.
 
 ## The slug is the primary key
@@ -288,37 +288,18 @@ PaperRule::unique(Post::class)->ignore($post->slug);
 
 ## Custom drivers
 
-To support another file format, implement `DriverContract` and register it in a service
-provider's `boot` method, then point a model at it with `#[Driver('yaml')]`.
+`markdown`, `json`, and `yaml` are registered by default. To support another format, implement
+`DriverContract` (`extensions`, `bodyColumn`, `parse`, `serialize`) and register it in a
+service provider's `boot` method, then point a model at it with `#[Driver('toml')]`.
 
 ```php
-use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
-use Symfony\Component\Yaml\Yaml;
 
-final readonly class YamlDriver implements DriverContract
-{
-    public function extensions(): array
-    {
-        return ['yaml', 'yml'];
-    }
-
-    public function parse(string $filepath): array
-    {
-        $data = Yaml::parseFile($filepath);
-
-        return is_array($data) ? $data : [];
-    }
-
-    public function serialize(array $data): string
-    {
-        return Yaml::dump($data);
-    }
-}
-
-// In a service provider:
-app(DriverRegistry::class)->register('yaml', YamlDriver::class);
+app(DriverRegistry::class)->register('toml', TomlDriver::class);
 ```
+
+`parse` takes the file contents, not a path. `bodyColumn` names the attribute the body is
+exposed as, `content` for Markdown, and returns `null` for a format that is data only.
 
 Order `extensions()` deliberately. New records are written with the first one, and when a slug
 exists under several, the first one wins.
