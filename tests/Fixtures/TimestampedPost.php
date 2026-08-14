@@ -4,20 +4,16 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper\Tests\Fixtures;
 
-use Illuminate\Database\Eloquent\Model;
 use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
 use JacobJoergensen\LaravelPaper\Attributes\Driver;
 use JacobJoergensen\LaravelPaper\Attributes\Timestamps;
-use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
-use JacobJoergensen\LaravelPaper\Paper;
+use JacobJoergensen\LaravelPaper\PaperModel;
 
 #[Driver('markdown')]
 #[ContentPath('tests/content/posts')]
 #[Timestamps]
-final class TimestampedPost extends Model implements PaperModel
+final class TimestampedPost extends PaperModel
 {
-    use Paper;
-
     /** @var list<string> */
     protected $guarded = [];
 }

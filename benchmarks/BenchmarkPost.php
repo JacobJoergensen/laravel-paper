@@ -4,18 +4,14 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper\Benchmarks;
 
-use Illuminate\Database\Eloquent\Model;
 use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
 use JacobJoergensen\LaravelPaper\Attributes\Driver;
-use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
-use JacobJoergensen\LaravelPaper\Paper;
+use JacobJoergensen\LaravelPaper\PaperModel;
 
 #[Driver('markdown')]
 #[ContentPath('benchmarks/.fixtures/posts')]
-final class BenchmarkPost extends Model implements PaperModel
+final class BenchmarkPost extends PaperModel
 {
-    use Paper;
-
     /** @var list<string> */
     protected $guarded = [];
 

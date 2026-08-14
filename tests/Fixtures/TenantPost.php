@@ -4,16 +4,12 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper\Tests\Fixtures;
 
-use Illuminate\Database\Eloquent\Model;
 use JacobJoergensen\LaravelPaper\Attributes\Driver;
-use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
-use JacobJoergensen\LaravelPaper\Paper;
+use JacobJoergensen\LaravelPaper\PaperModel;
 
 #[Driver('markdown')]
-final class TenantPost extends Model implements PaperModel
+final class TenantPost extends PaperModel
 {
-    use Paper;
-
     public static string $tenant = 'a';
 
     /** @var list<string> */

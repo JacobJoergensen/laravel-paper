@@ -10,6 +10,9 @@ use JacobJoergensen\LaravelPaper\Attributes\Driver;
 use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
 use JacobJoergensen\LaravelPaper\Paper;
 
+/**
+ * Stays on the trait and interface so that path keeps coverage.
+ */
 #[Driver('markdown')]
 #[ContentPath('tests/content/drafts')]
 final class Draft extends Model implements PaperModel

@@ -15,6 +15,7 @@
 * Added `whereDate`, `whereMonth`, `whereDay`, and `whereYear`, plus their `or` variants, to query frontmatter dates
 * Added `paper.watch` to skip the per-request directory scan when the manifest is trusted; auto by default, on locally and off in production
 * Added `PaperModel` interface that models using the `Paper` trait must implement, so pointing a relation at a non-Paper model is caught before runtime
+* Added a `PaperModel` base class so a model can extend it instead of wiring the `Paper` trait and the interface by hand
 * Added `getContentPath` so a model can resolve its content directory at runtime, e.g. a per-tenant root; defaults to the `#[ContentPath]` attribute
 * Added `getFilePath` for the file a record is stored in, kept on the model so a `deleted` listener can still name it
 * Added `with` for eager loading relations, batching reads to avoid N+1 in loops
@@ -25,7 +26,7 @@
 * Added `#[Disk]` attribute to point a model at any Laravel filesystem disk; default behavior (local FS) is unchanged when the attribute is absent
 * Added `StorageAdapterContract` with `LocalAdapter` and `DiskAdapter` implementations so reads, writes, listing, and existence checks go through one abstraction
 * Added `PaperFake` to define model content inline in tests instead of writing files to disk
-* Added the `RefreshesPaperFakes` test trait to clear fakes between tests, like `RefreshDatabase`
+* Added `RefreshesPaperFakes` test trait to clear fakes between tests, like `RefreshDatabase`
 * Added `paper:validate` to check every content file parses and hydrates, catching malformed frontmatter in CI
 * Added `paper:warm`, `paper:clear`, and `paper:refresh` commands to warm, clear, and rebuild a model's manifest
 * Changed `addGlobalScope` to throw `UnsupportedScopeException` for an Eloquent `Scope`, which Paper silently ignored before

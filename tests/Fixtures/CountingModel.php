@@ -4,18 +4,14 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper\Tests\Fixtures;
 
-use Illuminate\Database\Eloquent\Model;
 use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
 use JacobJoergensen\LaravelPaper\Attributes\Driver;
-use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
-use JacobJoergensen\LaravelPaper\Paper;
+use JacobJoergensen\LaravelPaper\PaperModel;
 
 #[Driver('markdown')]
 #[ContentPath('blog')]
-final class CountingModel extends Model implements PaperModel
+final class CountingModel extends PaperModel
 {
-    use Paper;
-
     public static int $hydrations = 0;
 
     /** @var list<string> */

@@ -4,19 +4,15 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper\Tests\Fixtures;
 
-use Illuminate\Database\Eloquent\Model;
 use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
 use JacobJoergensen\LaravelPaper\Attributes\Driver;
-use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
-use JacobJoergensen\LaravelPaper\Paper;
+use JacobJoergensen\LaravelPaper\PaperModel;
 use JacobJoergensen\LaravelPaper\Relations\HasManyPaper;
 
 #[Driver('json')]
 #[ContentPath('tests/content/authors')]
-final class Author extends Model implements PaperModel
+final class Author extends PaperModel
 {
-    use Paper;
-
     /**
      * @return HasManyPaper<Post>
      */

@@ -9,11 +9,9 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Attributes\Scope;
-use Illuminate\Database\Eloquent\Model;
 use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
 use JacobJoergensen\LaravelPaper\Attributes\Driver;
-use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
-use JacobJoergensen\LaravelPaper\Paper;
+use JacobJoergensen\LaravelPaper\PaperModel;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 use JacobJoergensen\LaravelPaper\Relations\BelongsToPaper;
 
@@ -23,10 +21,8 @@ use JacobJoergensen\LaravelPaper\Relations\BelongsToPaper;
 #[Fillable(['slug', 'title'])]
 #[Hidden(['order'])]
 #[ObservedBy(PostObserver::class)]
-final class Post extends Model implements PaperModel
+final class Post extends PaperModel
 {
-    use Paper;
-
     /** @var list<string> */
     protected $guarded = [];
 

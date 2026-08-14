@@ -42,7 +42,7 @@ trait Paper
      */
     public static function addGlobalScope($scope, $implementation = null): void
     {
-        $resolved = static::resolveGlobalScope($implementation ?? $scope);
+        $resolved = self::resolveGlobalScope($implementation ?? $scope);
 
         $identifier = match (true) {
             is_string($scope) => $scope,
@@ -97,7 +97,7 @@ trait Paper
      */
     public static function find(mixed $id, $columns = ['*']): ?static
     {
-        return static::query()->find(static::keyToString($id));
+        return static::query()->find(self::keyToString($id));
     }
 
     /**
@@ -108,7 +108,7 @@ trait Paper
         $model = static::find($id, $columns);
 
         if ($model === null) {
-            throw new ModelNotFoundException()->setModel(static::class, [static::keyToString($id)]);
+            throw new ModelNotFoundException()->setModel(static::class, [self::keyToString($id)]);
         }
 
         return $model;
@@ -122,7 +122,7 @@ trait Paper
      */
     public static function findOr(mixed $id, Closure $callback): mixed
     {
-        return static::query()->findOr(static::keyToString($id), $callback);
+        return static::query()->findOr(self::keyToString($id), $callback);
     }
 
     /**
@@ -669,7 +669,7 @@ trait Paper
         $model = new static;
         $model->fill($attributes);
 
-        $slug = static::keyToString($model->getAttribute($model->getKeyName()));
+        $slug = self::keyToString($model->getAttribute($model->getKeyName()));
 
         if ($slug === '') {
             throw InvalidSlugException::missing();
@@ -686,7 +686,7 @@ trait Paper
      */
     public static function firstOrCreate(array $attributes, array $values = []): static
     {
-        $existing = static::firstWhereAttributes($attributes);
+        $existing = self::firstWhereAttributes($attributes);
 
         if ($existing !== null) {
             return $existing;
@@ -701,7 +701,7 @@ trait Paper
      */
     public static function firstOrNew(array $attributes, array $values = []): static
     {
-        $existing = static::firstWhereAttributes($attributes);
+        $existing = self::firstWhereAttributes($attributes);
 
         if ($existing !== null) {
             return $existing;
@@ -719,7 +719,7 @@ trait Paper
      */
     public static function updateOrCreate(array $attributes, array $values = []): static
     {
-        $existing = static::firstWhereAttributes($attributes);
+        $existing = self::firstWhereAttributes($attributes);
 
         if ($existing !== null) {
             $existing->fill($values);
@@ -745,7 +745,7 @@ trait Paper
 
     public function getFilePath(): string
     {
-        $slug = static::keyToString($this->getAttribute($this->getKeyName()));
+        $slug = self::keyToString($this->getAttribute($this->getKeyName()));
 
         if ($slug === '') {
             throw InvalidSlugException::missing();
@@ -759,7 +759,7 @@ trait Paper
 
         if ($this->paperExtension === null) {
             $manifest = app(PaperManifest::class);
-            $stored = static::keyToString($this->getRawOriginal($this->getKeyName())) ?: $slug;
+            $stored = self::keyToString($this->getRawOriginal($this->getKeyName())) ?: $slug;
 
             $record = $this->exists
                 ? $manifest->record($resolved['adapter'], $driver, $directory, $stored, $resolved['nested'])
@@ -777,7 +777,7 @@ trait Paper
      */
     public function resolveRouteBinding(mixed $value, $field = null): ?static
     {
-        return static::query()->where($field ?? $this->getRouteKeyName(), static::keyToString($value))->first();
+        return static::query()->where($field ?? $this->getRouteKeyName(), self::keyToString($value))->first();
     }
 
     /**
@@ -810,7 +810,7 @@ trait Paper
         $relatedClass = $relation->relatedClass;
         $childField = is_string($field) ? $field : new $relatedClass()->getRouteKeyName();
 
-        return $relation->query()->where($childField, static::keyToString($value))->first();
+        return $relation->query()->where($childField, self::keyToString($value))->first();
     }
 
     public function getIncrementing(): bool
@@ -861,7 +861,7 @@ trait Paper
         $driver = $resolved['driver'];
         $path = PaperQueryBuilder::contentPathFor(static::class);
         $adapter = $resolved['adapter'];
-        $slug = static::keyToString($this->getAttribute($this->getKeyName()));
+        $slug = self::keyToString($this->getAttribute($this->getKeyName()));
 
         if ($slug === '') {
             return false;
@@ -908,7 +908,7 @@ trait Paper
             $this->exists = true;
             $manifest->put($adapter, $driver, $path, $slug, $filepath, $driver->parse($content));
 
-            $original = static::keyToString($this->getRawOriginal($this->getKeyName()));
+            $original = self::keyToString($this->getRawOriginal($this->getKeyName()));
 
             // A changed slug moves the record, like Eloquent updating a row by its original key.
             if ($original !== '' && $original !== $slug) {
@@ -999,7 +999,7 @@ trait Paper
 
         $adapter = PaperQueryBuilder::resolveFor(static::class)['adapter'];
         $path = PaperQueryBuilder::contentPathFor(static::class);
-        $slug = static::keyToString($this->getAttribute($this->getKeyName()));
+        $slug = self::keyToString($this->getAttribute($this->getKeyName()));
         $filepath = $this->getFilePath();
 
         if (! $adapter->exists($filepath)) {
@@ -1056,7 +1056,7 @@ trait Paper
         }
 
         $path = PaperQueryBuilder::contentPathFor(static::class);
-        $slug = static::keyToString($this->attributes[$this->getKeyName()] ?? null);
+        $slug = self::keyToString($this->attributes[$this->getKeyName()] ?? null);
 
         $body = app(PaperManifest::class)->body($resolved['adapter'], $resolved['driver'], $path, $slug, $resolved['nested']);
         $attributes = PaperCasts::fromStorage($this, [$column => $body]);
