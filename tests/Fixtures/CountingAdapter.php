@@ -13,6 +13,8 @@ final class CountingAdapter implements StorageAdapterContract
 
     public bool $failDelete = false;
 
+    public ?string $undeletable = null;
+
     public bool $failRead = false;
 
     /** @var array<string, array{contents: string, mtime: int}> */
@@ -57,7 +59,7 @@ final class CountingAdapter implements StorageAdapterContract
     {
         $this->counts['delete']++;
 
-        if ($this->failDelete) {
+        if ($this->failDelete || $path === $this->undeletable) {
             return false;
         }
 

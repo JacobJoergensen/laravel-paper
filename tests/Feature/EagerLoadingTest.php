@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Illuminate\Support\Facades\File;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Author;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
+use JacobJoergensen\LaravelPaper\Tests\Fixtures\PostCollection;
 
 it('attaches the matching parent for each belongsTo relation', function (): void {
     $posts = Post::with('author')->get();
@@ -80,3 +81,10 @@ it('throws when with references a missing method', function (): void {
 it('throws when with references a method returning the wrong type', function (): void {
     Post::with('getKeyName')->get();
 })->throws(BadMethodCallException::class, 'Post::getKeyName must return');
+
+it('eager loads children into the collection the related model declares', function (): void {
+    $authors = Author::with('posts')->get();
+
+    expect($authors->firstWhere('slug', 'john-doe')->posts)->toBeInstanceOf(PostCollection::class)
+        ->and($authors->firstWhere('slug', 'jane-doe')->posts)->toBeInstanceOf(PostCollection::class);
+});

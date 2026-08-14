@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Carbon;
-use JacobJoergensen\LaravelPaper\Exceptions\MissingTimestampsException;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\DatedPost;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\TimestampedPost;
@@ -87,15 +86,15 @@ it('leaves updated_at unset when timestamps are not enabled', function (): void 
     expect($post->updated_at)->toBeNull();
 });
 
-it('orders by updated_at by default with latest and oldest', function (): void {
+it('orders by the mtime-derived updated_at when latest and oldest are given that column', function (): void {
     $dir = base_path('tests/content/posts');
     file_put_contents("$dir/__ts_test__old.md", "---\ntitle: Old\n---\n\nx\n");
     file_put_contents("$dir/__ts_test__new.md", "---\ntitle: New\n---\n\nx\n");
     touch("$dir/__ts_test__old.md", 1_000_000_000);
     touch("$dir/__ts_test__new.md", 2_000_000_000);
 
-    $latest = TimestampedPost::latest()->get()->pluck('slug');
-    $oldest = TimestampedPost::oldest()->get()->pluck('slug');
+    $latest = TimestampedPost::latest('updated_at')->get()->pluck('slug');
+    $oldest = TimestampedPost::oldest('updated_at')->get()->pluck('slug');
 
     expect($latest->first())->toBe('__ts_test__new')
         ->and($latest->last())->toBe('__ts_test__old')
@@ -103,9 +102,18 @@ it('orders by updated_at by default with latest and oldest', function (): void {
         ->and($oldest->last())->toBe('__ts_test__new');
 });
 
-it('throws when latest or oldest is called without timestamps enabled', function (): void {
-    expect(fn () => Post::latest())->toThrow(MissingTimestampsException::class)
-        ->and(fn () => Post::oldest())->toThrow(MissingTimestampsException::class);
+it('orders by the frontmatter created_at when latest and oldest are given no column', function (): void {
+    $dir = base_path('tests/content/posts');
+    file_put_contents("$dir/__ts_test__first.md", "---\ncreated_at: 2024-01-01\n---\n\nx\n");
+    file_put_contents("$dir/__ts_test__second.md", "---\ncreated_at: 2024-06-01\n---\n\nx\n");
+
+    Post::resetPaperState();
+
+    $latest = Post::whereNotNull('created_at')->latest()->get()->pluck('slug')->all();
+    $oldest = Post::whereNotNull('created_at')->oldest()->get()->pluck('slug')->all();
+
+    expect($latest)->toBe(['__ts_test__second', '__ts_test__first'])
+        ->and($oldest)->toBe(['__ts_test__first', '__ts_test__second']);
 });
 
 it('orders by an explicit column when timestamps are not enabled', function (): void {

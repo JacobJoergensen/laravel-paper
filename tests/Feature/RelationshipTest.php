@@ -33,3 +33,16 @@ it('can resolve hasMany relationship', function (): void {
     expect($posts)->toHaveCount(1)
         ->and($posts->first()->slug)->toBe('hello-world');
 });
+
+it('resolves a belongsTo on property access and holds on to the result', function (): void {
+    $post = Post::find('hello-world');
+
+    expect($post->author?->slug)->toBe('john-doe')
+        ->and($post->author)->toBe($post->author);
+});
+
+it('resolves a hasMany on property access', function (): void {
+    $author = Author::find('john-doe');
+
+    expect($author->posts->pluck('slug')->all())->toBe(['hello-world']);
+});

@@ -75,3 +75,9 @@ it('leaves a content field alone for a format without a body', function (): void
     expect(Page::find('home')->content)->toBe('Home body')
         ->and($adapter->counts['read'])->toBe(0);
 });
+
+it('carries the body into a replicated model', function (): void {
+    $copy = Post::find('a')->replicate();
+
+    expect($copy->content)->toBe('Alpha body');
+});

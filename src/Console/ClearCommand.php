@@ -23,7 +23,7 @@ final class ClearCommand extends PaperCommand
         $resolved = PaperQueryBuilder::resolveFor($model);
         $path = PaperQueryBuilder::contentPathFor($model);
 
-        $this->manifest->flush($resolved['adapter'], $path);
+        $this->manifest->flush($resolved['adapter'], $resolved['driver'], $path, $resolved['nested']);
 
         $this->info(sprintf('%s: manifest cleared.', $model));
     }

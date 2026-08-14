@@ -18,6 +18,7 @@
 * Added a `PaperModel` base class so a model can extend it instead of wiring the `Paper` trait and the interface by hand
 * Added `getContentPath` so a model can resolve its content directory at runtime, e.g. a per-tenant root; defaults to the `#[ContentPath]` attribute
 * Added `getFilePath` for the file a record is stored in, kept on the model so a `deleted` listener can still name it
+* Added lazy loading for relations, so `$post->author` resolves it on first read and keeps the result
 * Added `with` for eager loading relations, batching reads to avoid N+1 in loops
 * Added `PaperRelation` abstract base for relation descriptors, with `BelongsToPaper` and `HasManyPaper` as concrete types exposing `getResults()` for lazy resolution and property access after eager loading
 * Added `nested` to `#[ContentPath]` so a model reads subdirectories, turning `docs/guides/installation.md` into the slug `guides/installation`
@@ -27,18 +28,19 @@
 * Added `StorageAdapterContract` with `LocalAdapter` and `DiskAdapter` implementations so reads, writes, listing, and existence checks go through one abstraction
 * Added `PaperFake` to define model content inline in tests instead of writing files to disk
 * Added `RefreshesPaperFakes` test trait to clear fakes between tests, like `RefreshDatabase`
-* Added `paper:validate` to check every content file parses and hydrates, catching malformed frontmatter in CI
+* Added `paper:validate` to check every content file parses and hydrates, catching malformed frontmatter and files a slug collision hides
 * Added `paper:warm`, `paper:clear`, and `paper:refresh` commands to warm, clear, and rebuild a model's manifest
 * Changed `addGlobalScope` to throw `UnsupportedScopeException` for an Eloquent `Scope`, which Paper silently ignored before
 * Changed `belongsToPaper` and `hasManyPaper` to return relation descriptors; call ->getResults() for direct resolution or use with() to eager load
 * Changed `StorageAdapterContract::listing` to take a `$nested` flag, so custom adapters must add the third argument
 * Changed `whereContains` to only accept a scalar value; passing an array silently matched nothing
+* Changed `save` to throw `DuplicateSlugException` instead of writing over a file that belongs to another record
+* Changed `save` to read the slug after the saving and creating events, so a listener can set or rewrite it
 * Changed `save` and `delete` to resolve the file through `getFilePath` instead of probing every driver extension on disk; a record that was never loaded uses the driver's first extension
 * Changed `find` to match slugs case-sensitively, like `where`; a case-mismatched slug now returns null
 * Changed `find` to throw `ContentPathNotFoundException` for a missing content directory, like `where`, instead of returning null
 * Changed `DriverContract` to require `bodyColumn()`, naming the column that holds the file's body, or null for a format without one
 * Changed `DriverContract::parse` signature to `parse(string $contents)`; drivers no longer perform I/O, the adapter reads files. `PaperQueryBuilder` wraps format errors with the filepath via `FileParseException::inFile`
-* Changed `latest` and `oldest` to default to `updated_at` and throw when the model has no `#[Timestamps]`; pass an explicit column to order without it
 * Changed `PaperQueryBuilder::resolveFor` to no longer return the content path; it resolves per call via `getContentPath` so it can vary at runtime
 * Improved `where`, `get`, and the relation descriptors to keep the model type, so `Post::where('draft', true)->get()` is a collection of `Post`
 * Improved the manifest so concurrent requests on a cold cache rebuild it once, instead of each reading every file
@@ -46,6 +48,7 @@
 * Optimized queries to reconcile a per content-path manifest against one directory listing, so a query reads one listing instead of a metadata call per file and warm reads scale flat with file count
 * Moved driver and content path resolution to PaperQueryBuilder as a single shared cache
 * Fixed `save` to move the file when a record's slug changes, like Eloquent updating a row by its original key; it wrote a second file and left the first behind
+* Fixed `delete` to remove the file the record was loaded from, so a slug changed on the model no longer deletes another record
 * Fixed `delete` to drop the manifest entry only after the file is gone, so a failed delete no longer hides a record that is still on disk
 * Removed `UnsupportedRouteBindingException` now that `resolveChildRouteBinding` resolves the child instead of throwing
 

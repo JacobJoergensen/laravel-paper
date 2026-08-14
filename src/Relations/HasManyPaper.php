@@ -78,7 +78,7 @@ final readonly class HasManyPaper extends PaperRelation
 
         if ($parentKeys === []) {
             foreach ($parents as $parent) {
-                $parent->setRelation($relationName, new Collection);
+                $parent->setRelation($relationName, $this->newCollection());
             }
 
             return;
@@ -92,7 +92,7 @@ final readonly class HasManyPaper extends PaperRelation
 
         foreach ($parents as $parent) {
             $key = $this->keyOf($parent, $parentKeyName);
-            $parent->setRelation($relationName, $key !== null ? ($grouped[$key] ?? new Collection) : new Collection);
+            $parent->setRelation($relationName, $key !== null ? ($grouped[$key] ?? $this->newCollection()) : $this->newCollection());
         }
     }
 
@@ -111,10 +111,20 @@ final readonly class HasManyPaper extends PaperRelation
                 continue;
             }
 
-            $groups[$key] ??= new Collection;
+            $groups[$key] ??= $this->newCollection();
             $groups[$key]->push($model);
         }
 
         return $groups;
+    }
+
+    /**
+     * @return Collection<int, TRelated>
+     */
+    private function newCollection(): Collection
+    {
+        $relatedClass = $this->relatedClass;
+
+        return new $relatedClass()->newCollection();
     }
 }

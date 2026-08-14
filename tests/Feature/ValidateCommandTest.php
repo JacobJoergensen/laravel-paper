@@ -41,3 +41,21 @@ it('prints no JSON document when the arguments are rejected', function (): void 
         ->assertExitCode(2)
         ->doesntExpectOutputToContain('[]');
 });
+
+it('fails on a file that is never read because another claims its slug', function (): void {
+    $dir = __DIR__.'/../content/posts';
+    file_put_contents($dir.'/__validate_test__dupe.md', "---\ntitle: Read\n---\n");
+    file_put_contents($dir.'/__validate_test__dupe.markdown', "---\ntitle: Ignored\n---\n");
+
+    Post::resetPaperState();
+
+    try {
+        $this->artisan('paper:validate', ['model' => [Post::class]])
+            ->assertFailed()
+            ->expectsOutputToContain('__validate_test__dupe.markdown')
+            ->run();
+    } finally {
+        @unlink($dir.'/__validate_test__dupe.md');
+        @unlink($dir.'/__validate_test__dupe.markdown');
+    }
+});

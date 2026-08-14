@@ -7,7 +7,9 @@ use Illuminate\Cache\Repository;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
+use JacobJoergensen\LaravelPaper\Drivers\JsonDriver;
 use JacobJoergensen\LaravelPaper\Drivers\MarkdownDriver;
+use JacobJoergensen\LaravelPaper\Drivers\YamlDriver;
 use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\CountingAdapter;
@@ -154,4 +156,86 @@ it('fails loudly when a listed file cannot be read instead of yielding a blank r
     expect(fn (): Collection => $builder->get())
         ->toThrow(FileParseException::class, 'Failed to read file')
         ->and($builder->validateFiles()['failures'])->toHaveCount(1);
+});
+
+it('keeps one manifest per driver when two models read the same directory', function (): void {
+    $manifest = new PaperManifest(new Repository(new ArrayStore), 60, 10, false);
+    $adapter = new CountingAdapter;
+    $adapter->seed('content/about.md', "---\nsource: markdown\n---\n", 1_000);
+    $adapter->seed('content/about.json', '{"source": "json"}', 1_000);
+
+    $markdown = $manifest->records($adapter, new MarkdownDriver, 'content');
+    $json = $manifest->records($adapter, new JsonDriver, 'content');
+
+    expect($markdown['about']['data']['source'])->toBe('markdown')
+        ->and($json['about']['data']['source'])->toBe('json');
+});
+
+it('keeps one manifest per nesting mode when two models read the same directory', function (): void {
+    $manifest = new PaperManifest(new Repository(new ArrayStore), 60, 10, false);
+    $adapter = new CountingAdapter;
+    $adapter->seed('docs/index.md', "---\ntitle: Index\n---\n", 1_000);
+    $adapter->seed('docs/guides/installation.md', "---\ntitle: Installation\n---\n", 1_000);
+
+    $flat = $manifest->records($adapter, new MarkdownDriver, 'docs');
+    $nested = $manifest->records($adapter, new MarkdownDriver, 'docs', nested: true);
+
+    expect(array_keys($flat))->toBe(['index'])
+        ->and(array_keys($nested))->toBe(['guides/installation', 'index']);
+});
+
+it('reparses a slug whose file swaps extension at the same modification time', function (): void {
+    $manifest = new PaperManifest(new Repository(new ArrayStore), 60, 10, true);
+    $adapter = new CountingAdapter;
+    $adapter->seed('data/config.yml', "source: yml\n", 1_000);
+
+    $manifest->records($adapter, new YamlDriver, 'data');
+
+    $adapter->remove('data/config.yml');
+    $adapter->seed('data/config.yaml', "source: yaml\n", 1_000);
+
+    $records = $manifest->records($adapter, new YamlDriver, 'data');
+
+    expect($records['config']['data']['source'])->toBe('yaml');
+});
+
+it('keeps a record another process added while it writes its own', function (): void {
+    $cache = new Repository(new ArrayStore);
+    $adapter = new CountingAdapter;
+    $adapter->seed('blog/post-1.md', "---\ntitle: One\n---\n", 1_000);
+
+    $first = new PaperManifest($cache, 60, 10, false);
+    $second = new PaperManifest($cache, 60, 10, false);
+
+    $first->records($adapter, new MarkdownDriver, 'blog');
+    $second->records($adapter, new MarkdownDriver, 'blog');
+
+    $first->put($adapter, new MarkdownDriver, 'blog', 'post-2', 'blog/post-2.md', ['title' => 'Two']);
+    $second->put($adapter, new MarkdownDriver, 'blog', 'post-3', 'blog/post-3.md', ['title' => 'Three']);
+
+    $reader = new PaperManifest($cache, 60, 10, false);
+
+    expect(array_keys($reader->records($adapter, new MarkdownDriver, 'blog')))
+        ->toBe(['post-1', 'post-2', 'post-3']);
+});
+
+it('keeps a record another process deleted while it writes its own', function (): void {
+    $cache = new Repository(new ArrayStore);
+    $adapter = new CountingAdapter;
+    $adapter->seed('blog/post-1.md', "---\ntitle: One\n---\n", 1_000);
+    $adapter->seed('blog/post-2.md', "---\ntitle: Two\n---\n", 2_000);
+
+    $first = new PaperManifest($cache, 60, 10, false);
+    $second = new PaperManifest($cache, 60, 10, false);
+
+    $first->records($adapter, new MarkdownDriver, 'blog');
+    $second->records($adapter, new MarkdownDriver, 'blog');
+
+    $first->forget($adapter, new MarkdownDriver, 'blog', 'post-1');
+    $second->put($adapter, new MarkdownDriver, 'blog', 'post-3', 'blog/post-3.md', ['title' => 'Three']);
+
+    $reader = new PaperManifest($cache, 60, 10, false);
+
+    expect(array_keys($reader->records($adapter, new MarkdownDriver, 'blog')))
+        ->toBe(['post-2', 'post-3']);
 });

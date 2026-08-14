@@ -23,7 +23,7 @@ final class RefreshCommand extends PaperCommand
         $resolved = PaperQueryBuilder::resolveFor($model);
         $path = PaperQueryBuilder::contentPathFor($model);
 
-        $this->manifest->flush($resolved['adapter'], $path);
+        $this->manifest->flush($resolved['adapter'], $resolved['driver'], $path, $resolved['nested']);
 
         $records = $this->manifest->reconcile($resolved['adapter'], $resolved['driver'], $path, $resolved['nested']);
 

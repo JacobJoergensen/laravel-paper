@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper\Cache;
 
+use Closure;
 use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Contracts\Cache\LockProvider;
 use Illuminate\Contracts\Cache\LockTimeoutException;
@@ -36,7 +37,7 @@ final class PaperManifest
      */
     public function records(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, bool $nested = false): array
     {
-        $trusted = $this->trusted($this->key($adapter, $contentPath));
+        $trusted = $this->trusted($this->key($adapter, $driver, $contentPath, $nested));
 
         return $trusted ?? $this->reconcile($adapter, $driver, $contentPath, $nested);
     }
@@ -50,7 +51,7 @@ final class PaperManifest
     public function reconcile(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, bool $nested = false): array
     {
         $index = $this->index($adapter, $driver, $contentPath, $nested);
-        $key = $this->key($adapter, $contentPath);
+        $key = $this->key($adapter, $driver, $contentPath, $nested);
         $cached = $this->read($key) ?? [];
 
         if ($this->stale($cached, $index)) {
@@ -89,16 +90,22 @@ final class PaperManifest
     }
 
     /**
-     * Compared exactly, not with >=, so a file restored to an older mtime still reparses.
+     * The mtime is compared exactly, not with >=, so a file restored to an older mtime still
+     * reparses. The extension counts too, so a slug that swaps format is not served from the
+     * entry built for the file it replaced.
      *
      * @param  array{mtime: int, ext: string, data: array<string, mixed>}|null  $existing
-     * @param  array{mtime: int}  $info
+     * @param  array{mtime: int, ext: string}  $info
      *
      * @phpstan-assert-if-true array{mtime: int, ext: string, data: array<string, mixed>} $existing
      */
     private function fresh(?array $existing, array $info): bool
     {
-        return $existing !== null && $existing['mtime'] === $info['mtime'];
+        if ($existing === null) {
+            return false;
+        }
+
+        return $existing['mtime'] === $info['mtime'] && $existing['ext'] === $info['ext'];
     }
 
     /**
@@ -192,7 +199,7 @@ final class PaperManifest
             return null;
         }
 
-        $key = $this->key($adapter, $contentPath);
+        $key = $this->key($adapter, $driver, $contentPath, $nested);
         $cached = $this->read($key) ?? [];
         $existing = $cached[$slug] ?? null;
 
@@ -258,7 +265,7 @@ final class PaperManifest
      */
     public function slugs(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, bool $nested = false): array
     {
-        $key = $this->key($adapter, $contentPath);
+        $key = $this->key($adapter, $driver, $contentPath, $nested);
 
         $trusted = $this->trusted($key);
 
@@ -282,24 +289,19 @@ final class PaperManifest
     /**
      * @param  array<string, mixed>  $data
      */
-    public function put(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, string $slug, string $path, array $data): void
+    public function put(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, string $slug, string $path, array $data, bool $nested = false): void
     {
-        $key = $this->key($adapter, $contentPath);
-
-        if (! $this->cache->has($key)) {
-            return;
-        }
-
         $info = [
             'path' => $path,
             'mtime' => $adapter->lastModified($path) ?? 0,
             'ext' => pathinfo($path, PATHINFO_EXTENSION),
         ];
 
-        $entries = $this->read($key) ?? [];
-        $entries[$slug] = $this->entry($driver, $info, $data);
+        $this->mutate($this->key($adapter, $driver, $contentPath, $nested), function (array $entries) use ($driver, $slug, $info, $data): array {
+            $entries[$slug] = $this->entry($driver, $info, $data);
 
-        $this->store($key, $entries);
+            return $entries;
+        });
     }
 
     /**
@@ -318,27 +320,65 @@ final class PaperManifest
         return ['mtime' => $info['mtime'], 'ext' => $info['ext'], 'data' => $data];
     }
 
-    public function forget(StorageAdapterContract $adapter, string $contentPath, string $slug): void
+    public function forget(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, string $slug, bool $nested = false): void
     {
-        $key = $this->key($adapter, $contentPath);
+        $this->mutate($this->key($adapter, $driver, $contentPath, $nested), function (array $entries) use ($slug): array {
+            unset($entries[$slug]);
 
-        if (! $this->cache->has($key)) {
-            return;
-        }
-
-        $entries = $this->read($key) ?? [];
-        unset($entries[$slug]);
-
-        $this->store($key, $entries);
+            return $entries;
+        });
     }
 
-    public function flush(StorageAdapterContract $adapter, string $contentPath): void
+    public function flush(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, bool $nested = false): void
     {
-        $key = $this->key($adapter, $contentPath);
+        $key = $this->key($adapter, $driver, $contentPath, $nested);
 
         unset($this->memo[$key]);
 
         $this->cache->forget($key);
+    }
+
+    /**
+     * @param  Closure(array<string, array{mtime: int, ext: string, data: array<string, mixed>}>): array<string, array{mtime: int, ext: string, data: array<string, mixed>}>  $change
+     */
+    private function mutate(string $key, Closure $change): void
+    {
+        $lock = $this->lock($key);
+
+        if ($lock === null) {
+            $this->apply($key, $change);
+
+            return;
+        }
+
+        try {
+            $lock->block($this->lockWait);
+        } catch (LockTimeoutException) {
+            $this->apply($key, $change);
+
+            return;
+        }
+
+        try {
+            $this->apply($key, $change);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    /**
+     * @param  Closure(array<string, array{mtime: int, ext: string, data: array<string, mixed>}>): array<string, array{mtime: int, ext: string, data: array<string, mixed>}>  $change
+     */
+    private function apply(string $key, Closure $change): void
+    {
+        $cached = $this->cache->get($key);
+
+        if (! is_array($cached)) {
+            return;
+        }
+
+        /** @var array<string, array{mtime: int, ext: string, data: array<string, mixed>}> $cached */
+        $this->store($key, $change($cached));
     }
 
     /**
@@ -411,9 +451,11 @@ final class PaperManifest
         $this->cache->forever($key, $entries);
     }
 
-    private function key(StorageAdapterContract $adapter, string $contentPath): string
+    private function key(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, bool $nested): string
     {
-        return self::PREFIX.md5($adapter->cacheKey($contentPath));
+        $scope = $adapter->cacheKey($contentPath).':'.$driver::class.':'.($nested ? 'nested' : 'flat');
+
+        return self::PREFIX.md5($scope);
     }
 
     private function lock(string $key): ?Lock

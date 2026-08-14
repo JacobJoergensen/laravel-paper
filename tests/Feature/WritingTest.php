@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\File;
 use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
+use JacobJoergensen\LaravelPaper\Exceptions\DuplicateSlugException;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\CountingAdapter;
@@ -232,6 +233,14 @@ it('rejects path traversal when saving', function (): void {
     $post->save();
 })->throws(InvalidSlugException::class);
 
+it('rejects a slug with a directory when the model does not read subdirectories', function (): void {
+    $post = new Post;
+    $post->slug = 'guides/unreachable';
+    $post->title = 'Nope';
+
+    $post->save();
+})->throws(InvalidSlugException::class);
+
 it('rejects path traversal when deleting', function (): void {
     $post = new Post;
     $post->slug = '../../config/app';
@@ -282,4 +291,44 @@ it('overwrites the existing .markdown file instead of creating a duplicate', fun
         ->and(file_exists($dir.'/__save_test__.markdown'))->toBeTrue()
         ->and(file_exists($dir.'/__save_test__.md'))->toBeFalse()
         ->and(glob($dir.'/__save_test__*') ?: [])->toHaveCount(1);
+});
+
+it('refuses to move a record onto a slug another record already holds', function (): void {
+    $path = PaperQueryBuilder::contentPathFor(Post::class);
+    $adapter = new CountingAdapter;
+    $adapter->seed($path.'/mover.md', "---\ntitle: Mover\n---\n", 1_000);
+    $adapter->seed($path.'/taken.md', "---\ntitle: Taken\n---\n", 2_000);
+    PaperQueryBuilder::fake(Post::class, $adapter);
+
+    $post = Post::findOrFail('mover');
+    $post->slug = 'taken';
+
+    expect(fn (): bool => $post->save())->toThrow(DuplicateSlugException::class)
+        ->and($adapter->read($path.'/taken.md'))->toContain('Taken');
+});
+
+it('refuses to create a record on a slug a file already holds', function (): void {
+    $path = PaperQueryBuilder::contentPathFor(Post::class);
+    $adapter = new CountingAdapter;
+    $adapter->seed($path.'/taken.md', "---\ntitle: Taken\n---\n", 1_000);
+    PaperQueryBuilder::fake(Post::class, $adapter);
+
+    expect(fn (): Post => Post::create(['slug' => 'taken', 'title' => 'Nope']))
+        ->toThrow(DuplicateSlugException::class)
+        ->and($adapter->read($path.'/taken.md'))->toContain('Taken');
+});
+
+it('reports failure and leaves the record in place when the moved file cannot be deleted', function (): void {
+    $path = PaperQueryBuilder::contentPathFor(Post::class);
+    $adapter = new CountingAdapter;
+    $adapter->seed($path.'/stuck.md', "---\ntitle: Stuck\n---\n", 1_000);
+    PaperQueryBuilder::fake(Post::class, $adapter);
+
+    $post = Post::findOrFail('stuck');
+    $post->slug = 'unstuck';
+    $adapter->undeletable = $path.'/stuck.md';
+
+    expect($post->save())->toBeFalse()
+        ->and($adapter->exists($path.'/unstuck.md'))->toBeFalse()
+        ->and($adapter->exists($path.'/stuck.md'))->toBeTrue();
 });

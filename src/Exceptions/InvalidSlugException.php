@@ -15,6 +15,13 @@ final class InvalidSlugException extends InvalidArgumentException implements Pap
         );
     }
 
+    public static function requiresNesting(string $slug): self
+    {
+        return new self(
+            "The slug '$slug' points into a subdirectory, which this model does not read. Add nested: true to its #[ContentPath] attribute."
+        );
+    }
+
     public static function missing(): self
     {
         return new self('A slug is required to create a record.');

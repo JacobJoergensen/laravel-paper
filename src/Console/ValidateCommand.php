@@ -13,7 +13,7 @@ final class ValidateCommand extends PaperCommand
                             {model?* : Paper model classes, defaults to every model in app/Models}
                             {--json : Print the failures as JSON instead of console output}';
 
-    protected $description = 'Check that every content file parses and hydrates';
+    protected $description = 'Check that every content file is read, parses, and hydrates';
 
     /** @var list<array{model: string, path: string|null, error: string}> */
     private array $failures = [];

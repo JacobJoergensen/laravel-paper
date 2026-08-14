@@ -65,7 +65,7 @@ it('rebuilds from a listing when the cached manifest is gone', function (): void
     $adapter->seed('blog/post-1.md', "---\nstatus: published\n---\n", 1_000);
 
     $this->manifest->records($adapter, $this->driver, 'blog');
-    $this->manifest->flush($adapter, 'blog');
+    $this->manifest->flush($adapter, $this->driver, 'blog');
     $adapter->reset();
 
     $records = $this->manifest->records($adapter, $this->driver, 'blog');

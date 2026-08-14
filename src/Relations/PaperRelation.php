@@ -24,6 +24,11 @@ abstract readonly class PaperRelation
     ) {}
 
     /**
+     * @return Collection<int, TRelated>|TRelated|null
+     */
+    abstract public function getResults(): mixed;
+
+    /**
      * @param  Collection<int, Model>  $parents
      */
     abstract public function eagerLoad(Collection $parents, string $relationName): void;

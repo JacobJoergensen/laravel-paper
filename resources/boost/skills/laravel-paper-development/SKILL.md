@@ -6,39 +6,38 @@ description: Build and work with Laravel Paper flat-file Eloquent models, includ
 # Laravel Paper Development
 
 Laravel Paper adds a flat-file driver to Eloquent. Markdown, JSON, and YAML files in a content
-directory become queryable, writable Eloquent models, configured with PHP 8 attributes and
-the `Paper` trait instead of a database connection or migration.
+directory become queryable, writable Eloquent models, configured with PHP 8 attributes
+instead of a database connection or migration.
 
 ## When to use this skill
 
-Use this skill when a model uses the `JacobJoergensen\LaravelPaper\Paper` trait, or when
-adding, querying, or writing the flat files that back those models.
+Use this skill when a model extends `JacobJoergensen\LaravelPaper\PaperModel` or uses the
+`Paper` trait, or when adding, querying, or writing the flat files that back those models.
 
 For underlying Eloquent and Laravel behavior, use Boost's `search-docs` tool. This skill
 only covers what Paper does differently.
 
 ## Defining a model
 
-A Paper model extends `Model`, uses the `Paper` trait, and declares its format and content
-directory with two attributes.
+A Paper model extends `PaperModel` and declares its format and content directory with two
+attributes.
 
 ```php
-use Illuminate\Database\Eloquent\Model;
 use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
 use JacobJoergensen\LaravelPaper\Attributes\Driver;
-use JacobJoergensen\LaravelPaper\Paper;
+use JacobJoergensen\LaravelPaper\PaperModel;
 
 #[Driver('markdown')]
 #[ContentPath('content/posts')]
-class Post extends Model
-{
-    use Paper;
-}
+class Post extends PaperModel {}
 ```
 
 - `markdown` frontmatter becomes attributes, the body is exposed as `content`.
 - `json` and `yaml` top-level keys become attributes. `yaml` reads `.yaml` and `.yml`.
 - `#[Driver]` defaults to `markdown`, `#[ContentPath]` defaults to `content`.
+
+The body is read the first time something asks for it, so `getAttributes()` and `getOriginal()`
+do not carry it until then. Property access, `toArray()`, `save()`, and `replicate()` do.
 
 ## The slug is the primary key
 
@@ -107,8 +106,10 @@ Eloquent's `Scope`, which Paper's builder cannot accept. Drop one with
 
 ## Large result sets
 
-Every query reads and parses every file in the directory. Prefer `lazy` over `get`, and
-`simplePaginate` over `paginate`, since the count is what costs.
+A query lists the directory once and serves the rest from the manifest, reading only files
+that are new or changed, so what costs on a large set is building a model per record rather
+than touching the disk. Prefer `lazy` or `chunk` over `get` there. `count` and the aggregates
+run on the manifest without building models at all.
 
 ```php
 foreach (Post::query()->lazy() as $post) {
@@ -219,15 +220,12 @@ use JacobJoergensen\LaravelPaper\Attributes\Timestamps;
 #[Driver('markdown')]
 #[ContentPath('content/posts')]
 #[Timestamps]
-class Post extends Model
-{
-    use Paper;
-}
+class Post extends PaperModel {}
 ```
 
-`latest()` and `oldest()` order by `updated_at` by default. Without `#[Timestamps]` there is
-no `updated_at` to sort on, so they throw; pass an explicit column to order without timestamps,
-e.g. `Post::latest('date')`.
+`latest()` and `oldest()` order by `created_at` like Eloquent, which in Paper means a
+frontmatter field, since nothing derives it. Pass a column for anything else, e.g.
+`Post::latest('updated_at')` to order by the file mtime.
 
 `updated_at` comes from the file's mtime and is never written to frontmatter. `created_at`
 is not derived; set it as a frontmatter field if you need it. A Git checkout resets mtimes
@@ -236,39 +234,50 @@ to deploy time, so use `#[Timestamps]` for content edited in place and keep a fr
 
 ## Relationships
 
-Use `belongsToPaper` and `hasManyPaper`, and call them as methods, not properties.
+Read a relation as a property and it resolves on first access, like Eloquent. The method
+returns a descriptor instead of the result, so `author()->getResults()` resolves it
+explicitly and `with()` eager loads a whole set.
 
 ```php
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Collection;
-use JacobJoergensen\LaravelPaper\Paper;
+use JacobJoergensen\LaravelPaper\PaperModel;
+use JacobJoergensen\LaravelPaper\Relations\BelongsToPaper;
+use JacobJoergensen\LaravelPaper\Relations\HasManyPaper;
 
-class Post extends Model
+class Post extends PaperModel
 {
-    use Paper;
-
-    public function author(): ?Author
+    /**
+     * @return BelongsToPaper<Author>
+     */
+    public function author(): BelongsToPaper
     {
         return $this->belongsToPaper(Author::class);
     }
 }
 
-class Author extends Model
+class Author extends PaperModel
 {
-    use Paper;
-
-    public function posts(): Collection
+    /**
+     * @return HasManyPaper<Post>
+     */
+    public function posts(): HasManyPaper
     {
         return $this->hasManyPaper(Post::class);
     }
 }
 
-$author = Post::find('hello-world')->author();
-$posts = Author::find('jane-doe')->posts();
+$author = Post::find('hello-world')->author;
+
+foreach (Post::with('author')->get() as $post) {
+    $post->author;
+}
 ```
 
+A lazy load reads the manifest rather than the file, so a loop without `with()` costs far
+less than an N+1 in SQL, but `with()` still saves the repeated lookup.
+
 Foreign keys default to `{model}_slug` (e.g. `author_slug`); pass a second argument to
-override.
+override. `HasManyPaper::query()` returns the parent-scoped query when a relation needs
+filtering before it runs.
 
 ## Validation
 

@@ -16,10 +16,12 @@ use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
 use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
 use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
 use JacobJoergensen\LaravelPaper\Contracts\ScopeContract;
+use JacobJoergensen\LaravelPaper\Exceptions\DuplicateSlugException;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
 use JacobJoergensen\LaravelPaper\Exceptions\UnsupportedScopeException;
 use JacobJoergensen\LaravelPaper\Relations\BelongsToPaper;
 use JacobJoergensen\LaravelPaper\Relations\HasManyPaper;
+use JacobJoergensen\LaravelPaper\Relations\PaperRelation;
 use ReflectionClass;
 
 /**
@@ -841,6 +843,24 @@ trait Paper
     }
 
     /**
+     * @param  string  $method
+     */
+    protected function getRelationshipFromMethod($method): mixed
+    {
+        $relation = $this->$method();
+
+        if (! $relation instanceof PaperRelation) {
+            return parent::getRelationshipFromMethod($method);
+        }
+
+        $results = $relation->getResults();
+
+        $this->setRelation($method, $results);
+
+        return $results;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function attributesToArray(): array
@@ -861,13 +881,6 @@ trait Paper
         $driver = $resolved['driver'];
         $path = PaperQueryBuilder::contentPathFor(static::class);
         $adapter = $resolved['adapter'];
-        $slug = self::keyToString($this->getAttribute($this->getKeyName()));
-
-        if ($slug === '') {
-            return false;
-        }
-
-        PaperQueryBuilder::guardSlug($slug);
 
         $isCreating = ! $this->exists;
 
@@ -883,7 +896,25 @@ trait Paper
             return false;
         }
 
+        // Read after the events, because a listener may have set the slug or rewritten it.
+        $slug = self::keyToString($this->getAttribute($this->getKeyName()));
+
+        if ($slug === '') {
+            return false;
+        }
+
+        PaperQueryBuilder::guardSlug($slug);
+
+        if (! $resolved['nested'] && str_contains($slug, '/')) {
+            throw InvalidSlugException::requiresNesting($slug);
+        }
+
         $filepath = $this->getFilePath();
+        $original = self::keyToString($this->getRawOriginal($this->getKeyName()));
+
+        if (($isCreating || $original !== $slug) && $adapter->exists($filepath)) {
+            throw DuplicateSlugException::forSlug($slug, $filepath);
+        }
 
         $this->loadPaperBody();
 
@@ -906,14 +937,19 @@ trait Paper
 
         if ($success) {
             $this->exists = true;
-            $manifest->put($adapter, $driver, $path, $slug, $filepath, $driver->parse($content));
-
-            $original = self::keyToString($this->getRawOriginal($this->getKeyName()));
+            $manifest->put($adapter, $driver, $path, $slug, $filepath, $driver->parse($content), $resolved['nested']);
 
             // A changed slug moves the record, like Eloquent updating a row by its original key.
             if ($original !== '' && $original !== $slug) {
-                $adapter->delete($path.'/'.$original.'.'.$this->paperExtension);
-                $manifest->forget($adapter, $path, $original);
+                // Undo the write rather than leave the record on disk twice.
+                if (! $adapter->delete($path.'/'.$original.'.'.$this->paperExtension)) {
+                    $adapter->delete($filepath);
+                    $manifest->forget($adapter, $driver, $path, $slug, $resolved['nested']);
+
+                    return false;
+                }
+
+                $manifest->forget($adapter, $driver, $path, $original, $resolved['nested']);
             }
 
             if ($isCreating) {
@@ -937,6 +973,16 @@ trait Paper
     public function saveQuietly(array $options = []): bool
     {
         return $this->quietly(fn (): bool => $this->save($options));
+    }
+
+    /**
+     * @param  ?array<int, string>  $except
+     */
+    public function replicate(?array $except = null): static
+    {
+        $this->loadPaperBody();
+
+        return parent::replicate($except);
     }
 
     /**
@@ -997,10 +1043,19 @@ trait Paper
 
         $manifest = app(PaperManifest::class);
 
-        $adapter = PaperQueryBuilder::resolveFor(static::class)['adapter'];
+        $resolved = PaperQueryBuilder::resolveFor(static::class);
+        $adapter = $resolved['adapter'];
         $path = PaperQueryBuilder::contentPathFor(static::class);
         $slug = self::keyToString($this->getAttribute($this->getKeyName()));
         $filepath = $this->getFilePath();
+        $stored = self::keyToString($this->getRawOriginal($this->getKeyName()));
+
+        // A record is deleted by the key it was loaded under, like Eloquent, so a slug changed
+        // in a listener or left dirty on the model cannot point the delete at another record.
+        if ($stored !== '' && $stored !== $slug) {
+            $slug = $stored;
+            $filepath = $path.'/'.$stored.'.'.$this->paperExtension;
+        }
 
         if (! $adapter->exists($filepath)) {
             return false;
@@ -1009,7 +1064,7 @@ trait Paper
         $deleted = $adapter->delete($filepath);
 
         if ($deleted) {
-            $manifest->forget($adapter, $path, $slug);
+            $manifest->forget($adapter, $resolved['driver'], $path, $slug, $resolved['nested']);
             $this->exists = false;
             $this->fireModelEvent('deleted', false);
         }

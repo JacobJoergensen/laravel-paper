@@ -33,7 +33,6 @@ use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
 use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
 use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
-use JacobJoergensen\LaravelPaper\Exceptions\MissingTimestampsException;
 use JacobJoergensen\LaravelPaper\Relations\PaperRelation;
 use JacobJoergensen\LaravelPaper\StorageAdapters\DiskAdapter;
 use JacobJoergensen\LaravelPaper\StorageAdapters\LocalAdapter;
@@ -441,16 +440,6 @@ final class PaperQueryBuilder
         }
 
         [$operator, $value] = $this->resolveOperator($operator, $value);
-
-        if ($value === null) {
-            if (in_array($operator, ['=', '==', '==='], true)) {
-                return $this->whereNull($column, $boolean);
-            }
-
-            if (in_array($operator, ['!=', '<>', '!=='], true)) {
-                return $this->whereNotNull($column, $boolean);
-            }
-        }
 
         if ($value === null) {
             if (in_array($operator, ['=', '==', '==='], true)) {
@@ -995,23 +984,17 @@ final class PaperQueryBuilder
 
     public function latest(?string $column = null): static
     {
-        return $this->orderBy($column ?? $this->defaultTimeColumn(), 'desc');
+        return $this->orderBy($column ?? $this->createdAtColumn(), 'desc');
     }
 
     public function oldest(?string $column = null): static
     {
-        return $this->orderBy($column ?? $this->defaultTimeColumn());
+        return $this->orderBy($column ?? $this->createdAtColumn());
     }
 
-    private function defaultTimeColumn(): string
+    private function createdAtColumn(): string
     {
-        $column = $this->updatedAtColumn();
-
-        if ($column === null) {
-            throw MissingTimestampsException::forTimeOrdering($this->modelClass);
-        }
-
-        return $column;
+        return $this->model()->getCreatedAtColumn() ?? 'created_at';
     }
 
     public function inRandomOrder(): static
@@ -1231,7 +1214,7 @@ final class PaperQueryBuilder
             throw ContentPathNotFoundException::forPath($this->contentPath, $this->modelClass);
         }
 
-        $failures = [];
+        $failures = $this->ignoredFiles($files);
 
         foreach ($files as $slug => $info) {
             try {
@@ -1250,6 +1233,44 @@ final class PaperQueryBuilder
         }
 
         return ['checked' => count($files), 'failures' => $failures];
+    }
+
+    /**
+     * @param  array<string, array{path: string, mtime: int, ext: string}>  $files
+     * @return list<array{path: string, error: string}>
+     */
+    private function ignoredFiles(array $files): array
+    {
+        $listing = $this->adapter->listing($this->contentPath, $this->driver->extensions(), $this->nested());
+        $read = [];
+
+        foreach ($files as $info) {
+            $read[$this->stem($info['path'])] = $info['path'];
+        }
+
+        $ignored = [];
+
+        foreach (array_keys($listing) as $path) {
+            $claimed = $read[$this->stem($path)] ?? null;
+
+            if ($claimed === $path) {
+                continue;
+            }
+
+            $ignored[] = [
+                'path' => $path,
+                'error' => sprintf('Never read, %s claims the same slug.', $claimed ?? $path),
+            ];
+        }
+
+        return $ignored;
+    }
+
+    private function stem(string $path): string
+    {
+        $extension = pathinfo($path, PATHINFO_EXTENSION);
+
+        return substr($path, 0, -(strlen($extension) + 1));
     }
 
     public function delete(): int
