@@ -54,6 +54,11 @@ it('throws on a malformed condition instead of widening the query', function ():
     expect(fn () => ($this->build)()->where(['status']))->toThrow(InvalidArgumentException::class);
 });
 
+it('throws on a non-scalar value instead of matching nothing', function (): void {
+    expect(fn () => ($this->build)()->where([['status', ['active', 'draft']]]))
+        ->toThrow(InvalidArgumentException::class, 'must be scalar or null');
+});
+
 it('ignores an empty condition array, keeping the count fast path', function (): void {
     $count = ($this->build)()->where([])->count();
 

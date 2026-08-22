@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper\Tests\Fixtures;
 
-use Illuminate\Database\Eloquent\Collection;
+use JacobJoergensen\LaravelPaper\PaperCollection;
 
 /**
- * @extends Collection<int, Post>
+ * @extends PaperCollection<Post>
  */
-final class PostCollection extends Collection
+final class PostCollection extends PaperCollection
 {
     public function published(): self
     {

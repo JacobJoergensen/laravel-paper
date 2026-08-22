@@ -64,8 +64,9 @@ final readonly class HasManyPaper extends PaperRelation
 
     /**
      * @param  Collection<int, Model>  $parents
+     * @param  ?Closure(PaperQueryBuilder<TRelated>): mixed  $constraint
      */
-    public function eagerLoad(Collection $parents, string $relationName): void
+    public function eagerLoad(Collection $parents, string $relationName, ?Closure $constraint): void
     {
         $first = $parents->first();
 
@@ -84,9 +85,13 @@ final readonly class HasManyPaper extends PaperRelation
             return;
         }
 
-        $related = PaperQueryBuilder::forModel($this->relatedClass)
-            ->whereIn($this->foreignKey, $parentKeys)
-            ->get();
+        $query = PaperQueryBuilder::forModel($this->relatedClass)->whereIn($this->foreignKey, $parentKeys);
+
+        if ($constraint !== null) {
+            $constraint($query);
+        }
+
+        $related = $query->get();
 
         $grouped = $this->groupBy($related, $this->foreignKey);
 

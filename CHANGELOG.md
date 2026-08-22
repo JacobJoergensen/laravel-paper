@@ -19,7 +19,9 @@
 * Added `getContentPath` so a model can resolve its content directory at runtime, e.g. a per-tenant root; defaults to the `#[ContentPath]` attribute
 * Added `getFilePath` for the file a record is stored in, kept on the model so a `deleted` listener can still name it
 * Added lazy loading for relations, so `$post->author` resolves it on first read and keeps the result
-* Added `with` for eager loading relations, batching reads to avoid N+1 in loops
+* Added `load` and `loadMissing` on the model, so a relation can be batched onto a record already in memory
+* Added `PaperCollection` as the default collection, giving `load`, `loadMissing`, and `fresh` on a result set; a class named by `#[CollectedBy]` must extend it
+* Added `with` for eager loading relations, batching reads to avoid N+1, and taking a closure per relation to constrain it
 * Added `PaperRelation` abstract base for relation descriptors, with `BelongsToPaper` and `HasManyPaper` as concrete types exposing `getResults()` for lazy resolution and property access after eager loading
 * Added `nested` to `#[ContentPath]` so a model reads subdirectories, turning `docs/guides/installation.md` into the slug `guides/installation`
 * Added scoped route model binding so `/authors/{author}/posts/{post}` resolves the child through the parent's `hasManyPaper` relation and 404s when it belongs to another parent
@@ -32,8 +34,11 @@
 * Added `paper:warm`, `paper:clear`, and `paper:refresh` commands to warm, clear, and rebuild a model's manifest
 * Changed `addGlobalScope` to throw `UnsupportedScopeException` for an Eloquent `Scope`, which Paper silently ignored before
 * Changed `belongsToPaper` and `hasManyPaper` to return relation descriptors; call ->getResults() for direct resolution or use with() to eager load
+* Changed `fresh` to eager load the relations it is given instead of ignoring them
+* Changed `toQuery` and the `loadCount` family on a result set to throw `UnsupportedCollectionMethodException` instead of querying the database
 * Changed `StorageAdapterContract::listing` to take a `$nested` flag, so custom adapters must add the third argument
 * Changed `whereContains` to only accept a scalar value; passing an array silently matched nothing
+* Changed `where` and the date family to reject a value that is not scalar or null; passing an array silently matched nothing
 * Changed `save` to throw `DuplicateSlugException` instead of writing over a file that belongs to another record
 * Changed `save` to read the slug after the saving and creating events, so a listener can set or rewrite it
 * Changed `save` and `delete` to resolve the file through `getFilePath` instead of probing every driver extension on disk; a record that was never loaded uses the driver's first extension

@@ -68,7 +68,7 @@ final class PaperQueryBuilder
 
     private bool $randomOrder = false;
 
-    /** @var list<string> */
+    /** @var array<string, ?Closure> */
     private array $with = [];
 
     /** @var ?TModel */
@@ -352,7 +352,7 @@ final class PaperQueryBuilder
 
         if ($model !== null) {
             if ($this->with !== []) {
-                $this->eagerLoadRelations(collect([$model]));
+                $this->eagerLoadRelations([$model]);
             }
 
             $this->fireRetrieved($model);
@@ -390,7 +390,7 @@ final class PaperQueryBuilder
 
         $collection = $this->model()->newCollection($models);
 
-        $this->eagerLoadRelations($collection);
+        $this->eagerLoadRelations($models);
 
         $collection->each($this->fireRetrieved(...));
 
@@ -426,10 +426,8 @@ final class PaperQueryBuilder
 
     /**
      * @param  (Closure(static): mixed)|string|array<array-key, mixed>  $column
-     * @param  ?scalar  $operator
-     * @param  ?scalar  $value
      */
-    public function where(array|Closure|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
+    public function where(array|Closure|string $column, null|bool|float|int|string $operator = null, null|bool|float|int|string $value = null, string $boolean = 'and'): static
     {
         if (is_array($column)) {
             return $this->addArrayOfWheres($column, $boolean);
@@ -455,7 +453,7 @@ final class PaperQueryBuilder
             'type' => 'basic',
             'column' => $column,
             'operator' => $operator,
-            'value' => is_scalar($value) ? $value : null,
+            'value' => $value,
             'boolean' => $boolean,
         ];
 
@@ -474,7 +472,7 @@ final class PaperQueryBuilder
         return $this->whereGroup(function (self $query) use ($conditions): void {
             foreach ($conditions as $key => $value) {
                 if (is_string($key)) {
-                    $query->where($key, '=', is_scalar($value) ? $value : null);
+                    $query->where($key, '=', $this->scalarOrNull($value));
 
                     continue;
                 }
@@ -487,13 +485,28 @@ final class PaperQueryBuilder
 
                 $operator = $value[1] ?? null;
                 $bound = $value[2] ?? null;
-                $query->where($column, is_scalar($operator) ? $operator : null, is_scalar($bound) ? $bound : null);
+                $query->where($column, $this->scalarOrNull($operator), $this->scalarOrNull($bound));
             }
         }, $boolean);
     }
 
+    private function scalarOrNull(mixed $value): null|bool|float|int|string
+    {
+        if ($value !== null && ! is_scalar($value)) {
+            throw new InvalidArgumentException(
+                sprintf('A where value must be scalar or null, %s given.', get_debug_type($value))
+            );
+        }
+
+        return $value;
+    }
+
     /**
-     * @return array{string, mixed}
+     * @template TValue
+     *
+     * @param  TValue  $operator
+     * @param  TValue  $value
+     * @return array{string, TValue}
      */
     private function resolveOperator(mixed $operator, mixed $value): array
     {
@@ -507,10 +520,8 @@ final class PaperQueryBuilder
 
     /**
      * @param  (Closure(static): mixed)|string|array<array-key, mixed>  $column
-     * @param  ?scalar  $operator
-     * @param  ?scalar  $value
      */
-    public function orWhere(array|Closure|string $column, mixed $operator = null, mixed $value = null): static
+    public function orWhere(array|Closure|string $column, null|bool|float|int|string $operator = null, null|bool|float|int|string $value = null): static
     {
         return $this->where($column, $operator, $value, 'or');
     }
@@ -587,16 +598,16 @@ final class PaperQueryBuilder
             'type' => $type,
             'column' => $column,
             'operator' => $operator,
-            'value' => is_scalar($value) ? $value : null,
+            'value' => $this->scalarOrNull($value),
             'boolean' => $boolean,
         ];
 
         return $this;
     }
 
-    public function has(string $relation, string $operator = '>=', int $count = 1, string $boolean = 'and'): static
+    public function has(string $relation, string $operator = '>=', int $count = 1, string $boolean = 'and', ?Closure $constraint = null): static
     {
-        return $this->addHasWhere($relation, null, $operator, $count, $boolean);
+        return $this->addHasWhere($relation, $constraint, $operator, $count, $boolean);
     }
 
     public function orHas(string $relation, string $operator = '>=', int $count = 1): static
@@ -604,9 +615,9 @@ final class PaperQueryBuilder
         return $this->addHasWhere($relation, null, $operator, $count, 'or');
     }
 
-    public function doesntHave(string $relation, string $boolean = 'and'): static
+    public function doesntHave(string $relation, string $boolean = 'and', ?Closure $constraint = null): static
     {
-        return $this->addHasWhere($relation, null, '<', 1, $boolean);
+        return $this->addHasWhere($relation, $constraint, '<', 1, $boolean);
     }
 
     public function orDoesntHave(string $relation): static
@@ -1029,20 +1040,26 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @param  array<int, string>|string  $relations
+     * @param  array<int|string, string|Closure>|string  $relations
      */
     public function with(array|string $relations): static
     {
         $relations = is_string($relations) ? func_get_args() : $relations;
 
-        foreach ($relations as $relation) {
-            if (! is_string($relation)) {
-                continue;
+        foreach ($relations as $name => $constraint) {
+            if (is_int($name)) {
+                [$name, $constraint] = [$constraint, null];
             }
 
-            if (! in_array($relation, $this->with, true)) {
-                $this->with[] = $relation;
+            if (! is_string($name)) {
+                throw new InvalidArgumentException('Each eager load must be a relation name, on its own or keyed to a closure.');
             }
+
+            if ($constraint !== null && ! $constraint instanceof Closure) {
+                throw new InvalidArgumentException(sprintf('The eager load constraint for %s must be a closure.', $name));
+            }
+
+            $this->with[$name] = $constraint;
         }
 
         return $this;
@@ -1385,7 +1402,7 @@ final class PaperQueryBuilder
                 $items = $all->slice(($page - 1) * $perPage)->take($perPage)->values();
             }
 
-            $this->eagerLoadRelations($items);
+            $this->eagerLoadRelations($items->all());
             $items->each($this->fireRetrieved(...));
 
             return new LengthAwarePaginator($items, $total, $perPage, $page, [
@@ -1422,7 +1439,7 @@ final class PaperQueryBuilder
                     ->values()
                 : $this->lazyModels()->skip($offset)->take($perPage + 1)->collect();
 
-            $this->eagerLoadRelations($items);
+            $this->eagerLoadRelations($items->all());
             $items->each($this->fireRetrieved(...));
 
             return new Paginator($items, $perPage, $page, [
@@ -1441,7 +1458,7 @@ final class PaperQueryBuilder
     {
         $models = $this->getModels();
 
-        $this->eagerLoadRelations($models);
+        $this->eagerLoadRelations($models->all());
 
         $models->each($this->fireRetrieved(...));
 
@@ -1929,17 +1946,23 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @param  Collection<int, Model>  $models
+     * @param  array<int, Model>  $models
+     * @return array<int, Model>
      */
-    private function eagerLoadRelations(Collection $models): void
+    public function eagerLoadRelations(array $models): array
     {
-        if ($this->with === [] || $models->isEmpty()) {
-            return;
+        if ($this->with === [] || $models === []) {
+            return $models;
         }
 
-        $first = $models->first();
+        $parents = collect($models);
+        $first = $parents->first();
 
-        foreach ($this->with as $name) {
+        if ($first === null) {
+            return $models;
+        }
+
+        foreach ($this->with as $name => $constraint) {
             if (! method_exists($first, $name)) {
                 throw new BadMethodCallException(
                     sprintf('Relation %s::%s does not exist.', $first::class, $name)
@@ -1959,8 +1982,10 @@ final class PaperQueryBuilder
                 );
             }
 
-            $relation->eagerLoad($models, $name);
+            $relation->eagerLoad($parents, $name, $constraint);
         }
+
+        return $models;
     }
 
     private function matchesWheres(Model $model): bool

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\File;
+use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Author;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\PostCollection;
@@ -87,4 +88,78 @@ it('eager loads children into the collection the related model declares', functi
 
     expect($authors->firstWhere('slug', 'john-doe')->posts)->toBeInstanceOf(PostCollection::class)
         ->and($authors->firstWhere('slug', 'jane-doe')->posts)->toBeInstanceOf(PostCollection::class);
+});
+
+it('applies a constraint given with the relation to a hasMany eager load', function (): void {
+    $authors = Author::with(['posts' => fn (PaperQueryBuilder $query): PaperQueryBuilder => $query->where('published', false)])->get();
+
+    expect($authors->firstWhere('slug', 'john-doe')->posts)->toHaveCount(0);
+});
+
+it('applies a constraint given with the relation to a belongsTo eager load', function (): void {
+    $posts = Post::with(['author' => fn (PaperQueryBuilder $query): PaperQueryBuilder => $query->where('name', 'Jane Doe')])->get();
+
+    expect($posts->firstWhere('slug', 'hello-world')->author)->toBeNull()
+        ->and($posts->firstWhere('slug', 'hello-world')->relationLoaded('author'))->toBeTrue();
+});
+
+it('lazy eager loads a relation onto a model that is already in memory', function (): void {
+    $post = Post::find('hello-world');
+
+    expect($post->relationLoaded('author'))->toBeFalse();
+
+    $post->load('author');
+
+    expect($post->relationLoaded('author'))->toBeTrue()
+        ->and($post->getRelation('author')->slug)->toBe('john-doe');
+});
+
+it('lazy eager loads a relation only when the model does not have it yet', function (): void {
+    $post = Post::find('hello-world');
+    $post->loadMissing('author');
+
+    expect($post->getRelation('author')->slug)->toBe('john-doe');
+
+    $post->setRelation('author', null);
+    $post->loadMissing('author');
+
+    expect($post->getRelation('author'))->toBeNull();
+});
+
+it('lazy eager loads a relation across a collection', function (): void {
+    $authors = Author::all()->load('posts');
+
+    expect($authors->firstWhere('slug', 'john-doe')->posts->pluck('slug')->all())->toBe(['hello-world']);
+});
+
+it('lazy eager loads across a collection declared with #[CollectedBy]', function (): void {
+    $posts = Post::all()->load('author');
+
+    expect($posts)->toBeInstanceOf(PostCollection::class)
+        ->and($posts->firstWhere('slug', 'hello-world')->getRelation('author')->slug)->toBe('john-doe');
+});
+
+it('lazy eager loads across a collection without touching a model that already has the relation', function (): void {
+    $authors = Author::all();
+    $john = $authors->firstWhere('slug', 'john-doe');
+    $john->setRelation('posts', new PostCollection);
+
+    $authors->loadMissing('posts');
+
+    expect($john->getRelation('posts'))->toBeEmpty()
+        ->and($authors->firstWhere('slug', 'jane-doe')->relationLoaded('posts'))->toBeTrue();
+});
+
+it('eager loads the relations given to fresh', function (): void {
+    $post = Post::find('hello-world');
+
+    $fresh = $post->fresh(['author']);
+
+    expect($fresh->relationLoaded('author'))->toBeTrue()
+        ->and($fresh->getRelation('author')->slug)->toBe('john-doe');
+});
+
+it('lazy eager loads every relation name it is given', function (): void {
+    expect(fn (): mixed => Post::all()->load('author', 'nonexistent'))
+        ->toThrow(BadMethodCallException::class, 'Post::nonexistent does not exist.');
 });

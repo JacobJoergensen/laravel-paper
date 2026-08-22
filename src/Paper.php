@@ -17,6 +17,7 @@ use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
 use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
 use JacobJoergensen\LaravelPaper\Contracts\ScopeContract;
 use JacobJoergensen\LaravelPaper\Exceptions\DuplicateSlugException;
+use JacobJoergensen\LaravelPaper\Exceptions\InvalidCollectionException;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
 use JacobJoergensen\LaravelPaper\Exceptions\UnsupportedScopeException;
 use JacobJoergensen\LaravelPaper\Relations\BelongsToPaper;
@@ -31,6 +32,8 @@ use ReflectionClass;
  */
 trait Paper
 {
+    protected static string $collectionClass = PaperCollection::class;
+
     private ?string $paperExtension = null;
 
     public static function resetPaperState(): void
@@ -138,22 +141,18 @@ trait Paper
 
     /**
      * @param  (Closure(PaperQueryBuilder<static>): mixed)|string|array<array-key, mixed>  $column
-     * @param  ?scalar  $operator
-     * @param  ?scalar  $value
      * @return PaperQueryBuilder<static>
      */
-    public static function where(array|Closure|string $column, mixed $operator = null, mixed $value = null): PaperQueryBuilder
+    public static function where(array|Closure|string $column, null|bool|float|int|string $operator = null, null|bool|float|int|string $value = null): PaperQueryBuilder
     {
         return static::query()->where($column, $operator, $value);
     }
 
     /**
      * @param  (Closure(PaperQueryBuilder<static>): mixed)|string|array<array-key, mixed>  $column
-     * @param  ?scalar  $operator
-     * @param  ?scalar  $value
      * @return PaperQueryBuilder<static>
      */
-    public static function orWhere(array|Closure|string $column, mixed $operator = null, mixed $value = null): PaperQueryBuilder
+    public static function orWhere(array|Closure|string $column, null|bool|float|int|string $operator = null, null|bool|float|int|string $value = null): PaperQueryBuilder
     {
         return static::query()->orWhere($column, $operator, $value);
     }
@@ -197,10 +196,9 @@ trait Paper
     }
 
     /**
-     * @param  scalar  $value
      * @return PaperQueryBuilder<static>
      */
-    public static function whereContains(string $column, mixed $value): PaperQueryBuilder
+    public static function whereContains(string $column, bool|float|int|string $value): PaperQueryBuilder
     {
         return static::query()->whereContains($column, $value);
     }
@@ -368,9 +366,9 @@ trait Paper
     /**
      * @return PaperQueryBuilder<static>
      */
-    public static function has(string $relation, string $operator = '>=', int $count = 1): PaperQueryBuilder
+    public static function has(string $relation, string $operator = '>=', int $count = 1, ?Closure $constraint = null): PaperQueryBuilder
     {
-        return static::query()->has($relation, $operator, $count);
+        return static::query()->has($relation, $operator, $count, 'and', $constraint);
     }
 
     /**
@@ -384,9 +382,9 @@ trait Paper
     /**
      * @return PaperQueryBuilder<static>
      */
-    public static function doesntHave(string $relation): PaperQueryBuilder
+    public static function doesntHave(string $relation, ?Closure $constraint = null): PaperQueryBuilder
     {
-        return static::query()->doesntHave($relation);
+        return static::query()->doesntHave($relation, 'and', $constraint);
     }
 
     /**
@@ -653,14 +651,60 @@ trait Paper
     }
 
     /**
-     * @param  array<int, string>|string  $relations
+     * @param  array<int, Model>  $models
+     * @return PaperCollection<static>
+     */
+    public function newCollection(array $models = []): PaperCollection
+    {
+        $collection = parent::newCollection($models);
+
+        if (! $collection instanceof PaperCollection) {
+            throw InvalidCollectionException::forCollection($collection::class, static::class);
+        }
+
+        return $collection;
+    }
+
+    /**
+     * @param  array<int|string, string|Closure>|string  $relations
+     */
+    public function load($relations, string ...$more): static
+    {
+        $names = is_string($relations) ? [$relations, ...$more] : $relations;
+
+        static::query()->with($names)->eagerLoadRelations([$this]);
+
+        return $this;
+    }
+
+    /**
+     * @param  array<int|string, string|Closure>|string  $relations
+     */
+    public function loadMissing($relations, string ...$more): static
+    {
+        $names = is_string($relations) ? [$relations, ...$more] : $relations;
+        $missing = [];
+
+        foreach ($names as $key => $relation) {
+            $name = is_int($key) ? $relation : $key;
+
+            if (is_string($name) && ! $this->relationLoaded($name)) {
+                $missing[$key] = $relation;
+            }
+        }
+
+        return $missing === [] ? $this : $this->load($missing);
+    }
+
+    /**
+     * @param  array<int|string, string|Closure>|string  $relations
      * @return PaperQueryBuilder<static>
      */
     public static function with($relations, string ...$more): PaperQueryBuilder
     {
         $names = is_string($relations) ? [$relations, ...$more] : $relations;
 
-        return static::query()->with(array_values($names));
+        return static::query()->with($names);
     }
 
     /**
@@ -912,8 +956,14 @@ trait Paper
         $filepath = $this->getFilePath();
         $original = self::keyToString($this->getRawOriginal($this->getKeyName()));
 
-        if (($isCreating || $original !== $slug) && $adapter->exists($filepath)) {
-            throw DuplicateSlugException::forSlug($slug, $filepath);
+        if ($isCreating || $original !== $slug) {
+            foreach ($driver->extensions() as $extension) {
+                $taken = $path.'/'.$slug.'.'.$extension;
+
+                if ($adapter->exists($taken)) {
+                    throw DuplicateSlugException::forSlug($slug, $taken);
+                }
+            }
         }
 
         $this->loadPaperBody();
@@ -986,7 +1036,7 @@ trait Paper
     }
 
     /**
-     * @param  array<int, string>|string  $with  Ignored, kept for Eloquent parity.
+     * @param  array<int|string, string|Closure>|string  $with
      */
     public function fresh($with = []): ?static
     {
@@ -994,7 +1044,10 @@ trait Paper
             return null;
         }
 
-        return static::find($this->getAttribute($this->getKeyName()));
+        $names = is_string($with) ? [$with] : $with;
+        $key = self::keyToString($this->getAttribute($this->getKeyName()));
+
+        return static::with($names)->find($key);
     }
 
     public function refresh(): static

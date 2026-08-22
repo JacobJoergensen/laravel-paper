@@ -8,6 +8,7 @@ use Closure;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
+use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 
 /**
  * @template TRelated of Model&PaperModel
@@ -30,8 +31,9 @@ abstract readonly class PaperRelation
 
     /**
      * @param  Collection<int, Model>  $parents
+     * @param  ?Closure(PaperQueryBuilder<TRelated>): mixed  $constraint
      */
-    abstract public function eagerLoad(Collection $parents, string $relationName): void;
+    abstract public function eagerLoad(Collection $parents, string $relationName, ?Closure $constraint): void;
 
     /**
      * @return callable(Model): int

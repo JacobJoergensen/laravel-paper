@@ -50,3 +50,10 @@ it('ors each relation filter onto an existing condition', function (): void {
 it('rejects a dot-nested relation name', function (): void {
     expect(fn () => Author::has('posts.author'))->toThrow(InvalidArgumentException::class);
 });
+
+it('narrows the related query with a constraint passed to has and doesntHave', function (): void {
+    $other = fn (PaperQueryBuilder $query): PaperQueryBuilder => $query->where('name', 'Jane Doe');
+
+    expect(Post::has('author', '>=', 1, $other)->get())->toBeEmpty()
+        ->and(Post::doesntHave('author', $other)->get()->pluck('slug')->all())->toBe(['draft-post', 'hello-world', 'second-post']);
+});

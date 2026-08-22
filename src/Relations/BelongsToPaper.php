@@ -60,8 +60,9 @@ final readonly class BelongsToPaper extends PaperRelation
 
     /**
      * @param  Collection<int, Model>  $parents
+     * @param  ?Closure(PaperQueryBuilder<TRelated>): mixed  $constraint
      */
-    public function eagerLoad(Collection $parents, string $relationName): void
+    public function eagerLoad(Collection $parents, string $relationName, ?Closure $constraint): void
     {
         $keys = $this->collectKeys($parents, $this->foreignKey);
 
@@ -75,9 +76,13 @@ final readonly class BelongsToPaper extends PaperRelation
 
         $relatedKey = $this->relatedKeyName();
 
-        $related = PaperQueryBuilder::forModel($this->relatedClass)
-            ->whereIn($relatedKey, $keys)
-            ->get();
+        $query = PaperQueryBuilder::forModel($this->relatedClass)->whereIn($relatedKey, $keys);
+
+        if ($constraint !== null) {
+            $constraint($query);
+        }
+
+        $related = $query->get();
 
         $map = $this->indexBy($related, $relatedKey);
 

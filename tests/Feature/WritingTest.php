@@ -332,3 +332,17 @@ it('reports failure and leaves the record in place when the moved file cannot be
         ->and($adapter->exists($path.'/unstuck.md'))->toBeFalse()
         ->and($adapter->exists($path.'/stuck.md'))->toBeTrue();
 });
+
+it('refuses a move onto a slug a file with another extension already holds', function (): void {
+    $path = PaperQueryBuilder::contentPathFor(Post::class);
+    $adapter = new CountingAdapter;
+    $adapter->seed($path.'/old.markdown', "---\ntitle: Old\n---\n", 1_000);
+    $adapter->seed($path.'/taken.md', "---\ntitle: Taken\n---\n", 2_000);
+    PaperQueryBuilder::fake(Post::class, $adapter);
+
+    $post = Post::findOrFail('old');
+    $post->slug = 'taken';
+
+    expect(fn (): bool => $post->save())->toThrow(DuplicateSlugException::class)
+        ->and($adapter->exists($path.'/taken.markdown'))->toBeFalse();
+});
