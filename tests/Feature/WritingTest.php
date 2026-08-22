@@ -168,6 +168,36 @@ it('marks the model as not existing after a successful delete', function (): voi
     expect($post->exists)->toBeFalse();
 });
 
+it('moves the file when the slug changes', function (): void {
+    $dir = __DIR__.'/../content/posts';
+    file_put_contents($dir.'/__save_test__from.md', "---\ntitle: Moved\n---\n\nBody\n");
+
+    Post::resetPaperState();
+
+    $post = Post::find('__save_test__from');
+    $post->slug = '__save_test__to';
+
+    expect($post->save())->toBeTrue()
+        ->and(file_exists($dir.'/__save_test__to.md'))->toBeTrue()
+        ->and(file_exists($dir.'/__save_test__from.md'))->toBeFalse()
+        ->and(Post::find('__save_test__from'))->toBeNull();
+});
+
+it('refuses to rename a record onto a slug another record holds', function (): void {
+    $dir = __DIR__.'/../content/posts';
+    file_put_contents($dir.'/__save_test__source.md', "---\ntitle: Source\n---\n");
+    file_put_contents($dir.'/__save_test__taken.md', "---\ntitle: Taken\n---\n");
+
+    Post::resetPaperState();
+
+    $post = Post::find('__save_test__source');
+    $post->slug = '__save_test__taken';
+
+    expect($post->save())->toBeFalse()
+        ->and(Post::find('__save_test__taken')->title)->toBe('Taken')
+        ->and(file_exists($dir.'/__save_test__source.md'))->toBeTrue();
+});
+
 it('rejects path traversal when saving', function (): void {
     $post = new Post;
     $post->slug = '../../routes/web';

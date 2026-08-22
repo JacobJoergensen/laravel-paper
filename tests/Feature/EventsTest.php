@@ -83,3 +83,35 @@ it('does not fire events when deleted with deleteQuietly', function (): void {
     expect(PostObserver::$events)->toBe([])
         ->and(Post::find('__save_test__quietdelete'))->toBeNull();
 });
+
+it('records the slug a saving listener set, not the one it was handed', function (): void {
+    Post::saving(function (Post $post): void {
+        $post->slug = '__save_test__listener';
+    });
+
+    $post = new Post;
+    $post->slug = '__save_test__given';
+    $post->title = 'Renamed by listener';
+    $post->save();
+
+    expect(Post::find('__save_test__listener')?->title)->toBe('Renamed by listener')
+        ->and(Post::find('__save_test__given'))->toBeNull();
+});
+
+it('deletes the file the record was loaded from, not one a deleting listener names', function (): void {
+    $dir = __DIR__.'/../content/posts';
+    file_put_contents($dir.'/__save_test__target.md', "---\ntitle: Target\n---\n");
+    file_put_contents($dir.'/__save_test__bystander.md', "---\ntitle: Bystander\n---\n");
+
+    Post::resetPaperState();
+
+    Post::deleting(function (Post $post): void {
+        $post->slug = '__save_test__bystander';
+    });
+
+    $post = Post::findOrFail('__save_test__target');
+
+    expect($post->delete())->toBeTrue()
+        ->and(file_exists($dir.'/__save_test__target.md'))->toBeFalse()
+        ->and(file_exists($dir.'/__save_test__bystander.md'))->toBeTrue();
+});

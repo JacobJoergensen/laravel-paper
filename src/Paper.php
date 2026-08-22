@@ -485,13 +485,6 @@ trait Paper
         $class = static::class;
         $driver = static::$paperDrivers[$class];
         $path = static::$paperContentPaths[$class];
-        $slug = static::keyToString($this->getAttribute($this->getKeyName()));
-
-        if ($slug === '') {
-            return false;
-        }
-
-        PaperQueryBuilder::guardSlug($slug);
 
         $isCreating = ! $this->exists;
 
@@ -507,7 +500,24 @@ trait Paper
             return false;
         }
 
+        // Read after the events, because a listener may have set the slug or rewritten it.
+        $slug = static::keyToString($this->getAttribute($this->getKeyName()));
+
+        if ($slug === '') {
+            return false;
+        }
+
+        PaperQueryBuilder::guardSlug($slug);
+
         $filepath = $this->paperFilepath($path, $slug, $driver, $isCreating);
+        $original = static::keyToString($this->getRawOriginal($this->getKeyName()));
+        $isRenaming = $original !== '' && $original !== $slug;
+
+        // A rename would write over the record already stored under the new slug.
+        if ($isRenaming && is_file($filepath)) {
+            return false;
+        }
+
         $attributes = PaperCasts::toStorage($this, $this->getAttributes());
 
         if ($this->usesTimestamps()) {
@@ -539,6 +549,20 @@ trait Paper
         }
 
         if ($success) {
+            if ($isRenaming) {
+                $previous = $this->paperFilepath($path, $original, $driver, false);
+
+                if (is_file($previous)) {
+                    $cache->forget($previous);
+
+                    if (! @unlink($previous)) {
+                        @unlink($filepath);
+
+                        return false;
+                    }
+                }
+            }
+
             $this->exists = true;
             $cache->forget($filepath);
 
@@ -640,6 +664,13 @@ trait Paper
         $driver = static::$paperDrivers[$class];
         $path = static::$paperContentPaths[$class];
         $slug = static::keyToString($this->getAttribute($this->getKeyName()));
+        $stored = static::keyToString($this->getRawOriginal($this->getKeyName()));
+
+        // A record is deleted by the key it was loaded under, like Eloquent, so a slug changed
+        // in a listener or left dirty on the model cannot point to delete at another record.
+        if ($stored !== '' && $stored !== $slug) {
+            $slug = $stored;
+        }
 
         PaperQueryBuilder::guardSlug($slug);
 
