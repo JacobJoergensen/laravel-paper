@@ -22,6 +22,9 @@ use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
 use ReflectionMethod;
 
+/**
+ * @template-covariant TModel of Model
+ */
 final class PaperQueryBuilder
 {
     /** @var list<array{type: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, wheres?: list<array<string, mixed>>, boolean: string}> */
@@ -36,10 +39,11 @@ final class PaperQueryBuilder
 
     private bool $randomOrder = false;
 
+    /** @var ?TModel */
     private ?Model $model = null;
 
     /**
-     * @param  class-string<Model>  $modelClass
+     * @param  class-string<TModel>  $modelClass
      */
     public function __construct(
         private readonly Filesystem $files,
@@ -51,6 +55,8 @@ final class PaperQueryBuilder
 
     /**
      * Records get their own instance in fileToModel().
+     *
+     * @return TModel
      */
     private function model(): Model
     {
@@ -73,6 +79,9 @@ final class PaperQueryBuilder
         }
     }
 
+    /**
+     * @return ?TModel
+     */
     public function find(string $slug): ?Model
     {
         $model = $this->locate($slug);
@@ -84,6 +93,12 @@ final class PaperQueryBuilder
         return $model;
     }
 
+    /**
+     * @template TValue
+     *
+     * @param  Closure(): TValue  $callback
+     * @return TModel|TValue
+     */
     public function findOr(string $slug, Closure $callback): mixed
     {
         return $this->find($slug) ?? $callback();
@@ -91,7 +106,7 @@ final class PaperQueryBuilder
 
     /**
      * @param  array<int, scalar>  $ids
-     * @return Collection<int, Model>
+     * @return Collection<int, TModel>
      */
     public function findMany(array $ids): Collection
     {
@@ -112,6 +127,9 @@ final class PaperQueryBuilder
         return $collection;
     }
 
+    /**
+     * @return ?TModel
+     */
     private function locate(string $slug): ?Model
     {
         self::guardSlug($slug);
@@ -133,7 +151,7 @@ final class PaperQueryBuilder
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      */
-    public function where(callable|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): self
+    public function where(callable|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
         if (! is_string($column)) {
             return $this->whereGroup($column, $boolean);
@@ -169,12 +187,12 @@ final class PaperQueryBuilder
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      */
-    public function orWhere(callable|string $column, mixed $operator = null, mixed $value = null): self
+    public function orWhere(callable|string $column, mixed $operator = null, mixed $value = null): static
     {
         return $this->where($column, $operator, $value, 'or');
     }
 
-    private function whereGroup(callable $callback, string $boolean): self
+    private function whereGroup(callable $callback, string $boolean): static
     {
         $nested = new self($this->files, $this->driver, $this->cache, $this->contentPath, $this->modelClass);
         $callback($nested);
@@ -191,7 +209,7 @@ final class PaperQueryBuilder
     /**
      * @param  array<int, scalar>  $values
      */
-    public function whereIn(string $column, array $values, string $boolean = 'and'): self
+    public function whereIn(string $column, array $values, string $boolean = 'and'): static
     {
         $this->wheres[] = [
             'type' => 'in',
@@ -206,7 +224,7 @@ final class PaperQueryBuilder
     /**
      * @param  array<int, scalar>  $values
      */
-    public function orWhereIn(string $column, array $values): self
+    public function orWhereIn(string $column, array $values): static
     {
         return $this->whereIn($column, $values, 'or');
     }
@@ -214,7 +232,7 @@ final class PaperQueryBuilder
     /**
      * @param  array<int, scalar>  $values
      */
-    public function whereNotIn(string $column, array $values, string $boolean = 'and'): self
+    public function whereNotIn(string $column, array $values, string $boolean = 'and'): static
     {
         $this->wheres[] = [
             'type' => 'notIn',
@@ -229,7 +247,7 @@ final class PaperQueryBuilder
     /**
      * @param  array<int, scalar>  $values
      */
-    public function orWhereNotIn(string $column, array $values): self
+    public function orWhereNotIn(string $column, array $values): static
     {
         return $this->whereNotIn($column, $values, 'or');
     }
@@ -239,7 +257,7 @@ final class PaperQueryBuilder
      *
      * @param  scalar  $value
      */
-    public function whereContains(string $column, mixed $value, string $boolean = 'and'): self
+    public function whereContains(string $column, mixed $value, string $boolean = 'and'): static
     {
         $this->wheres[] = [
             'type' => 'contains',
@@ -254,12 +272,12 @@ final class PaperQueryBuilder
     /**
      * @param  scalar  $value
      */
-    public function orWhereContains(string $column, mixed $value): self
+    public function orWhereContains(string $column, mixed $value): static
     {
         return $this->whereContains($column, $value, 'or');
     }
 
-    public function whereLike(string $column, string $value, bool $caseSensitive = false, string $boolean = 'and'): self
+    public function whereLike(string $column, string $value, bool $caseSensitive = false, string $boolean = 'and'): static
     {
         $this->wheres[] = [
             'type' => 'like',
@@ -272,12 +290,12 @@ final class PaperQueryBuilder
         return $this;
     }
 
-    public function orWhereLike(string $column, string $value, bool $caseSensitive = false): self
+    public function orWhereLike(string $column, string $value, bool $caseSensitive = false): static
     {
         return $this->whereLike($column, $value, $caseSensitive, 'or');
     }
 
-    public function whereNotLike(string $column, string $value, bool $caseSensitive = false, string $boolean = 'and'): self
+    public function whereNotLike(string $column, string $value, bool $caseSensitive = false, string $boolean = 'and'): static
     {
         $this->wheres[] = [
             'type' => 'notLike',
@@ -290,7 +308,7 @@ final class PaperQueryBuilder
         return $this;
     }
 
-    public function orWhereNotLike(string $column, string $value, bool $caseSensitive = false): self
+    public function orWhereNotLike(string $column, string $value, bool $caseSensitive = false): static
     {
         return $this->whereNotLike($column, $value, $caseSensitive, 'or');
     }
@@ -300,7 +318,7 @@ final class PaperQueryBuilder
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      */
-    public function whereAny(array $columns, mixed $operator = null, mixed $value = null, string $boolean = 'and'): self
+    public function whereAny(array $columns, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
         return $this->where(function (self $query) use ($columns, $operator, $value): void {
             foreach ($columns as $column) {
@@ -314,7 +332,7 @@ final class PaperQueryBuilder
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      */
-    public function orWhereAny(array $columns, mixed $operator = null, mixed $value = null): self
+    public function orWhereAny(array $columns, mixed $operator = null, mixed $value = null): static
     {
         return $this->whereAny($columns, $operator, $value, 'or');
     }
@@ -324,7 +342,7 @@ final class PaperQueryBuilder
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      */
-    public function whereAll(array $columns, mixed $operator = null, mixed $value = null, string $boolean = 'and'): self
+    public function whereAll(array $columns, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
         return $this->where(function (self $query) use ($columns, $operator, $value): void {
             foreach ($columns as $column) {
@@ -338,12 +356,12 @@ final class PaperQueryBuilder
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      */
-    public function orWhereAll(array $columns, mixed $operator = null, mixed $value = null): self
+    public function orWhereAll(array $columns, mixed $operator = null, mixed $value = null): static
     {
         return $this->whereAll($columns, $operator, $value, 'or');
     }
 
-    public function whereNull(string $column, string $boolean = 'and'): self
+    public function whereNull(string $column, string $boolean = 'and'): static
     {
         $this->wheres[] = [
             'type' => 'null',
@@ -354,12 +372,12 @@ final class PaperQueryBuilder
         return $this;
     }
 
-    public function orWhereNull(string $column): self
+    public function orWhereNull(string $column): static
     {
         return $this->whereNull($column, 'or');
     }
 
-    public function whereNotNull(string $column, string $boolean = 'and'): self
+    public function whereNotNull(string $column, string $boolean = 'and'): static
     {
         $this->wheres[] = [
             'type' => 'notNull',
@@ -370,7 +388,7 @@ final class PaperQueryBuilder
         return $this;
     }
 
-    public function orWhereNotNull(string $column): self
+    public function orWhereNotNull(string $column): static
     {
         return $this->whereNotNull($column, 'or');
     }
@@ -378,7 +396,7 @@ final class PaperQueryBuilder
     /**
      * @param  array{0: scalar, 1: scalar}  $values
      */
-    public function whereBetween(string $column, array $values, string $boolean = 'and'): self
+    public function whereBetween(string $column, array $values, string $boolean = 'and'): static
     {
         $this->wheres[] = [
             'type' => 'between',
@@ -393,7 +411,7 @@ final class PaperQueryBuilder
     /**
      * @param  array{0: scalar, 1: scalar}  $values
      */
-    public function orWhereBetween(string $column, array $values): self
+    public function orWhereBetween(string $column, array $values): static
     {
         return $this->whereBetween($column, $values, 'or');
     }
@@ -401,7 +419,7 @@ final class PaperQueryBuilder
     /**
      * @param  array{0: scalar, 1: scalar}  $values
      */
-    public function whereNotBetween(string $column, array $values, string $boolean = 'and'): self
+    public function whereNotBetween(string $column, array $values, string $boolean = 'and'): static
     {
         $this->wheres[] = [
             'type' => 'notBetween',
@@ -416,12 +434,12 @@ final class PaperQueryBuilder
     /**
      * @param  array{0: scalar, 1: scalar}  $values
      */
-    public function orWhereNotBetween(string $column, array $values): self
+    public function orWhereNotBetween(string $column, array $values): static
     {
         return $this->whereNotBetween($column, $values, 'or');
     }
 
-    public function orderBy(string $column, string $direction = 'asc'): self
+    public function orderBy(string $column, string $direction = 'asc'): static
     {
         $this->orders[] = [
             'column' => $column,
@@ -431,17 +449,17 @@ final class PaperQueryBuilder
         return $this;
     }
 
-    public function orderByDesc(string $column): self
+    public function orderByDesc(string $column): static
     {
         return $this->orderBy($column, 'desc');
     }
 
-    public function latest(?string $column = null): self
+    public function latest(?string $column = null): static
     {
         return $this->orderBy($column ?? $this->createdAtColumn(), 'desc');
     }
 
-    public function oldest(?string $column = null): self
+    public function oldest(?string $column = null): static
     {
         return $this->orderBy($column ?? $this->createdAtColumn());
     }
@@ -451,37 +469,40 @@ final class PaperQueryBuilder
         return $this->model()->getCreatedAtColumn() ?? 'created_at';
     }
 
-    public function inRandomOrder(): self
+    public function inRandomOrder(): static
     {
         $this->randomOrder = true;
 
         return $this;
     }
 
-    public function limit(int $value): self
+    public function limit(int $value): static
     {
         $this->limitValue = $value;
 
         return $this;
     }
 
-    public function take(int $value): self
+    public function take(int $value): static
     {
         return $this->limit($value);
     }
 
-    public function offset(int $value): self
+    public function offset(int $value): static
     {
         $this->offsetValue = $value;
 
         return $this;
     }
 
-    public function skip(int $value): self
+    public function skip(int $value): static
     {
         return $this->offset($value);
     }
 
+    /**
+     * @return ?TModel
+     */
     public function first(): ?Model
     {
         if ($this->orders === []) {
@@ -494,6 +515,7 @@ final class PaperQueryBuilder
     /**
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
+     * @return ?TModel
      */
     public function firstWhere(callable|string $column, mixed $operator = null, mixed $value = null): ?Model
     {
@@ -505,6 +527,9 @@ final class PaperQueryBuilder
         return $this->first()?->getAttribute($column);
     }
 
+    /**
+     * @return TModel
+     */
     public function firstOrFail(): Model
     {
         $model = $this->first();
@@ -519,11 +544,20 @@ final class PaperQueryBuilder
         return $model;
     }
 
+    /**
+     * @template TValue
+     *
+     * @param  Closure(): TValue  $callback
+     * @return TModel|TValue
+     */
     public function firstOr(Closure $callback): mixed
     {
         return $this->first() ?? $callback();
     }
 
+    /**
+     * @return TModel
+     */
     public function sole(): Model
     {
         $items = $this->lazy()->take(2)->all();
@@ -642,7 +676,7 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @return LengthAwarePaginator<int, Model>
+     * @return LengthAwarePaginator<int, TModel>
      */
     public function paginate(int $perPage = 15, ?int $page = null): LengthAwarePaginator
     {
@@ -687,7 +721,7 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @return Paginator<int, Model>
+     * @return Paginator<int, TModel>
      */
     public function simplePaginate(int $perPage = 15, ?int $page = null): Paginator
     {
@@ -731,7 +765,7 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @return Collection<int, Model>
+     * @return Collection<int, TModel>
      */
     public function get(): Collection
     {
@@ -743,7 +777,7 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @return Collection<int, Model>
+     * @return Collection<int, TModel>
      */
     private function getModels(): Collection
     {
@@ -779,7 +813,7 @@ final class PaperQueryBuilder
     /**
      * Parses files lazily, but lists them all up front.
      *
-     * @return LazyCollection<int, Model>
+     * @return LazyCollection<int, TModel>
      */
     public function lazy(): LazyCollection
     {
@@ -793,7 +827,7 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @param  callable(Collection<int, Model>, int): mixed  $callback
+     * @param  callable(Collection<int, TModel>, int): mixed  $callback
      */
     public function chunk(int $count, callable $callback): bool
     {
@@ -813,7 +847,7 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @param  callable(Model, array-key): mixed  $callback
+     * @param  callable(TModel, array-key): mixed  $callback
      */
     public function each(callable $callback, int $count = 1000): bool
     {
@@ -829,7 +863,7 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @return LazyCollection<int, Model>
+     * @return LazyCollection<int, TModel>
      */
     private function lazyModels(): LazyCollection
     {
@@ -837,10 +871,10 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @param  (callable(self, mixed): mixed)|null  $callback
-     * @param  (callable(self, mixed): mixed)|null  $default
+     * @param  (callable(static, mixed): mixed)|null  $callback
+     * @param  (callable(static, mixed): mixed)|null  $default
      */
-    public function when(mixed $value, ?callable $callback = null, ?callable $default = null): self
+    public function when(mixed $value, ?callable $callback = null, ?callable $default = null): static
     {
         $active = $value ? $callback : $default;
 
@@ -852,10 +886,10 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @param  (callable(self, mixed): mixed)|null  $callback
-     * @param  (callable(self, mixed): mixed)|null  $default
+     * @param  (callable(static, mixed): mixed)|null  $callback
+     * @param  (callable(static, mixed): mixed)|null  $default
      */
-    public function unless(mixed $value, ?callable $callback = null, ?callable $default = null): self
+    public function unless(mixed $value, ?callable $callback = null, ?callable $default = null): static
     {
         $active = $value ? $default : $callback;
 
@@ -869,7 +903,7 @@ final class PaperQueryBuilder
     /**
      * @param  array<int, mixed>  $parameters
      */
-    public function __call(string $method, array $parameters): self
+    public function __call(string $method, array $parameters): static
     {
         $scope = $this->resolveScope($method);
 
@@ -906,7 +940,7 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @return Generator<int, Model, mixed, void>
+     * @return Generator<int, TModel, mixed, void>
      */
     private function yieldModels(): Generator
     {
@@ -923,7 +957,7 @@ final class PaperQueryBuilder
 
     /**
      * @param  Collection<int, string>  $files
-     * @return Generator<int, Model>
+     * @return Generator<int, TModel>
      */
     private function yieldOrdered(Collection $files): Generator
     {
@@ -937,8 +971,8 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @param  Collection<int, Model>  $models
-     * @return Collection<int, Model>
+     * @param  Collection<int, TModel>  $models
+     * @return Collection<int, TModel>
      */
     private function applyOrdersAndLimits(Collection $models): Collection
     {
@@ -1008,7 +1042,7 @@ final class PaperQueryBuilder
 
     /**
      * @param  Collection<int, string>  $files
-     * @return Generator<int, Model>
+     * @return Generator<int, TModel>
      */
     private function yieldUnordered(Collection $files): Generator
     {
@@ -1083,6 +1117,9 @@ final class PaperQueryBuilder
         })->call($model);
     }
 
+    /**
+     * @return TModel
+     */
     private function fileToModel(string $filepath): Model
     {
         // Stats every file, because a directory's mtime does not move when its files are edited.
