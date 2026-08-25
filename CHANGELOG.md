@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## Version 1.16.0 (2026-08-25)
 * Changed `save` to read the slug after the saving and creating events, so a listener can set or rewrite it
 * Changed `save` to return false when a record is renamed onto a slug another record holds, instead of overwriting it
 * Improved `where` and `get` to keep the model type, so `Post::where('draft', true)->get()` is a collection of `Post`
