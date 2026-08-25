@@ -436,14 +436,19 @@ final class PaperQueryBuilder
         return $this->orderBy($column, 'desc');
     }
 
-    public function latest(string $column = 'created_at'): self
+    public function latest(?string $column = null): self
     {
-        return $this->orderBy($column, 'desc');
+        return $this->orderBy($column ?? $this->createdAtColumn(), 'desc');
     }
 
-    public function oldest(string $column = 'created_at'): self
+    public function oldest(?string $column = null): self
     {
-        return $this->orderBy($column);
+        return $this->orderBy($column ?? $this->createdAtColumn());
+    }
+
+    private function createdAtColumn(): string
+    {
+        return $this->model()->getCreatedAtColumn() ?? 'created_at';
     }
 
     public function inRandomOrder(): self

@@ -5,6 +5,7 @@
 * Changed `save` to return false when a record is renamed onto a slug another record holds, instead of overwriting it
 * Fixed `save` to move the file when a record's slug changes; it wrote a second file and left the first behind
 * Fixed `delete` to remove the file the record was loaded from, so a slug changed on the model no longer deletes another record
+* Fixed `latest` and `oldest` to order by the model's `CREATED_AT` column instead of always `created_at`
 
 ## Version 1.15.0 (2026-07-30)
 * Added `whereNotLike` and `orWhereNotLike`, the negated form of `whereLike`

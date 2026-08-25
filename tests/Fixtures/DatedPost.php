@@ -17,7 +17,9 @@ final class DatedPost extends Model
 {
     use Paper;
 
-    const UPDATED_AT = 'date';
+    const string CREATED_AT = 'date';
+
+    const string UPDATED_AT = 'date';
 
     /** @var list<string> */
     protected $guarded = [];
