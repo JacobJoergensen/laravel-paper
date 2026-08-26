@@ -120,7 +120,7 @@ final readonly class LocalAdapter implements StorageAdapterContract
                 continue;
             }
 
-            if ($nested && is_dir($path)) {
+            if ($nested && ! is_link($path) && is_dir($path)) {
                 $this->collect($path, $allowed, $nested, $matches, $visited);
             }
         }
