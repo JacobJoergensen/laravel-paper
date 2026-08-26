@@ -39,23 +39,27 @@
 * Changed `StorageAdapterContract::listing` to take a `$nested` flag, so custom adapters must add the third argument
 * Changed `whereContains` to only accept a scalar value; passing an array silently matched nothing
 * Changed `where` and the date family to reject a value that is not scalar or null; passing an array silently matched nothing
-* Changed `save` to throw `DuplicateSlugException` instead of writing over a file that belongs to another record
-* Changed `save` to read the slug after the saving and creating events, so a listener can set or rewrite it
+* Changed `save` to throw `DuplicateSlugException` for a taken slug instead of returning false
 * Changed `save` and `delete` to resolve the file through `getFilePath` instead of probing every driver extension on disk; a record that was never loaded uses the driver's first extension
 * Changed `find` to match slugs case-sensitively, like `where`; a case-mismatched slug now returns null
 * Changed `find` to throw `ContentPathNotFoundException` for a missing content directory, like `where`, instead of returning null
 * Changed `DriverContract` to require `bodyColumn()`, naming the column that holds the file's body, or null for a format without one
 * Changed `DriverContract::parse` signature to `parse(string $contents)`; drivers no longer perform I/O, the adapter reads files. `PaperQueryBuilder` wraps format errors with the filepath via `FileParseException::inFile`
 * Changed `PaperQueryBuilder::resolveFor` to no longer return the content path; it resolves per call via `getContentPath` so it can vary at runtime
-* Improved `where`, `get`, and the relation descriptors to keep the model type, so `Post::where('draft', true)->get()` is a collection of `Post`
 * Improved the manifest so concurrent requests on a cold cache rebuild it once, instead of each reading every file
 * Optimized `where` to filter on the raw record and build only the matching models when the filtered columns have no cast, accessor, or relation
 * Optimized queries to reconcile a per content-path manifest against one directory listing, so a query reads one listing instead of a metadata call per file and warm reads scale flat with file count
 * Moved driver and content path resolution to PaperQueryBuilder as a single shared cache
-* Fixed `save` to move the file when a record's slug changes, like Eloquent updating a row by its original key; it wrote a second file and left the first behind
-* Fixed `delete` to remove the file the record was loaded from, so a slug changed on the model no longer deletes another record
 * Fixed `delete` to drop the manifest entry only after the file is gone, so a failed delete no longer hides a record that is still on disk
 * Removed `UnsupportedRouteBindingException` now that `resolveChildRouteBinding` resolves the child instead of throwing
+
+## Version 1.16.0 (2026-08-25)
+* Changed `save` to read the slug after the saving and creating events, so a listener can set or rewrite it
+* Changed `save` to return false when a record is renamed onto a slug another record holds, instead of overwriting it
+* Improved `where` and `get` to keep the model type, so `Post::where('draft', true)->get()` is a collection of `Post`
+* Fixed `save` to move the file when a record's slug changes; it wrote a second file and left the first behind
+* Fixed `delete` to remove the file the record was loaded from, so a slug changed on the model no longer deletes another record
+* Fixed `latest` and `oldest` to order by the model's `CREATED_AT` column instead of always `created_at`
 
 ## Version 1.15.0 (2026-07-30)
 * Added `whereNotLike` and `orWhereNotLike`, the negated form of `whereLike`

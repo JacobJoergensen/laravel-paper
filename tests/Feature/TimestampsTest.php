@@ -47,6 +47,10 @@ it('does not strip a frontmatter timestamp column from the file on save', functi
     expect(DatedPost::find('__ts_test__dated')->date->toDateString())->toBe('2024-03-01');
 });
 
+it('orders by the model CREATED_AT column when latest is given no column', function (): void {
+    expect(DatedPost::latest()->pluck('slug')->all())->toBe(['draft-post', 'second-post', 'hello-world']);
+});
+
 it('orders an authored timestamp column by its frontmatter value when paginating', function (): void {
     $dir = base_path('tests/content/posts');
 

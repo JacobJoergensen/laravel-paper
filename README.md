@@ -1,6 +1,7 @@
 # Laravel Paper
 
 [![Latest Version](https://img.shields.io/packagist/v/jacobjoergensen/laravel-paper.svg)](https://packagist.org/packages/jacobjoergensen/laravel-paper)
+[![Documentation](https://img.shields.io/badge/docs-laravel--paper.com-blue)](https://laravel-paper.com/docs/getting-started/)
 [![Tests](https://github.com/JacobJoergensen/laravel-paper/actions/workflows/tests.yml/badge.svg)](https://github.com/JacobJoergensen/laravel-paper/actions)
 [![License](https://img.shields.io/github/license/JacobJoergensen/laravel-paper)](LICENSE)
 
@@ -8,7 +9,7 @@ Laravel Paper is a Laravel package that adds flat-file driver support for Eloque
 
 ## Why Laravel Paper?
 
-Two PHP 8 attributes and a trait. No custom database connection, no schema, your flat files use Eloquent's familiar query API. Test with `Storage::fake()` and factories like any other model.
+Two PHP 8 attributes and a base class. No custom database connection, no schema, your flat files use Eloquent's familiar query API.
 
 ## Get Started
 
@@ -16,387 +17,45 @@ Two PHP 8 attributes and a trait. No custom database connection, no schema, your
 composer require jacobjoergensen/laravel-paper
 ```
 
-## Defining a Model
-
-Put files in a content directory and point a model at it:
-
-```php
-use Illuminate\Database\Eloquent\Model;
-use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
-use JacobJoergensen\LaravelPaper\Attributes\Driver;
-use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
-use JacobJoergensen\LaravelPaper\Paper;
-
-#[Driver('markdown')]
-#[ContentPath('content/posts')]
-class Post extends Model implements PaperModel
-{
-    use Paper;
-}
-```
-
-The filename without extension becomes the slug, which is the primary key.
-
-`PaperModel` is what the trait provides, named as a type. Implement it so static analysis can tell a Paper model from any other Eloquent model.
-
-## Markdown Example
-
-A post:
+Write a file in a content directory:
 
 ```markdown
 ---
 title: Building a Blog with Flat Files
 published: true
-date: 2024-03-15
-tags: [laravel, markdown]
+date: "2024-03-15"
 ---
 
 Your Markdown content goes here...
 ```
 
-> YAML reads an unquoted `date: 2024-03-15` as a Unix timestamp. Quote it or cast it with `'date' => 'date'` so comparisons like `where('date', '>', '2024-01-01')` work.
-
-Query it like any other Eloquent model:
+Point a model at that directory:
 
 ```php
-// Get all published posts
+use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
+use JacobJoergensen\LaravelPaper\Attributes\Driver;
+use JacobJoergensen\LaravelPaper\PaperModel;
+
+#[Driver('markdown')]
+#[ContentPath('content/posts')]
+class Post extends PaperModel
+{
+}
+```
+
+The filename without extension becomes the slug, which is the primary key. From there it is Eloquent:
+
+```php
 $posts = Post::where('published', true)
     ->orderBy('date', 'desc')
     ->get();
 
-// Find by slug
-$post = Post::where('slug', 'flat-file-blog')->first();
-
-// Filter by tag (whereContains checks membership of an array field)
-$laravelPosts = Post::whereContains('tags', 'laravel')->get();
-
-// Match a substring in a string field
-$intro = Post::whereLike('title', '%hello%')->get();
-
-// Search a value across multiple columns
-$results = Post::whereAny(['title', 'content'], 'like', '%flat-file%')->get();
-```
-
-Use it in your views:
-
-```blade
-@foreach($posts as $post)
-    <article>
-        <h2>{{ $post->title }}</h2>
-        <time>{{ $post->date }}</time>
-        <div>{!! Str::markdown($post->content) !!}</div>
-    </article>
-@endforeach
-```
-
-## JSON Files
-
-Works the same way with JSON:
-
-```json
-{
-    "name": "Jacob Jørgensen",
-    "role": "Developer",
-    "github": "jacobjoergensen"
-}
-```
-
-```php
-#[Driver('json')]
-#[ContentPath('content/team')]
-class TeamMember extends Model implements PaperModel
-{
-    use Paper;
-}
-```
-
-```php
-$team = TeamMember::all();
-$devs = TeamMember::where('role', 'Developer')->get();
-```
-
-## File Naming and Slugs
-
-The filename (without extension) is the slug:
-
-```
-content/posts/
-├── hello-world.md        → slug: "hello-world"
-├── my-second-post.md     → slug: "my-second-post"
-└── draft-post.md         → slug: "draft-post"
-```
-
-```php
 $post = Post::find('hello-world');
-$posts = Post::findMany(['hello-world', 'my-second-post']);
 ```
 
-To change a slug, rename the file. For a URL that differs from the filename, add a frontmatter field and route on that instead:
+## Documentation
 
-```yaml
----
-title: Hello World
-permalink: /blog/2024/hello-world
----
-```
-
-## Writing
-
-Paper models save and delete files using the standard Eloquent API:
-
-```php
-$post = new Post();
-$post->slug = 'hello-world';
-$post->title = 'Hello World';
-$post->content = 'My first post.';
-$post->save();
-
-$post->title = 'Updated title';
-$post->save();
-
-$post->delete();
-```
-
-Save and delete fire the usual model events, and loading a record fires `retrieved`.
-
-For attribute-array creation:
-
-```php
-Post::create([
-    'slug' => 'hello-world',
-    'title' => 'Hello World',
-]);
-
-Post::firstOrCreate(
-    ['slug' => 'hello-world'],
-    ['title' => 'Hello World'],
-);
-
-Post::updateOrCreate(
-    ['slug' => 'hello-world'],
-    ['title' => 'Updated title'],
-);
-```
-
-`create` requires a `slug` and does not derive one from other fields. If your source data has no slug, generate one yourself with `Str::slug($title)`.
-
-For bulk edits, `update` sets values across every matching record:
-
-```php
-Post::where('draft', true)->update(['published' => true]);
-```
-
-It writes each matching file in a loop, so model events fire per record and `$fillable` does not apply. It is not a single atomic operation.
-
-To save or delete without firing events:
-
-```php
-$post->saveQuietly();
-$post->deleteQuietly();
-```
-
-To reload from disk, `fresh()` returns a new instance and `refresh()` updates the current one in place:
-
-```php
-$fresh = $post->fresh();
-$post->refresh();
-```
-
-## Timestamps
-
-Paper models have no timestamps by default. Add `#[Timestamps]` to expose the file's modification time as `updated_at`:
-
-```php
-use JacobJoergensen\LaravelPaper\Attributes\Timestamps;
-
-#[Driver('markdown')]
-#[ContentPath('content/posts')]
-#[Timestamps]
-class Post extends Model implements PaperModel
-{
-    use Paper;
-}
-```
-
-```php
-$post = Post::find('hello-world');
-$post->updated_at;                          // Carbon instance from the file's mtime
-
-$recent = Post::latest()->get();
-```
-
-`latest()` and `oldest()` order by `updated_at` by default. Without `#[Timestamps]` there is no `updated_at` to sort on, so they throw. Pass an explicit column to order without timestamps, e.g. `Post::latest('date')`.
-
-`updated_at` comes from the file's mtime and is never written to frontmatter. `created_at` isn't derived; set it in frontmatter if you need it. A Git checkout resets mtimes to the deploy time, so use this for content edited in place and keep a frontmatter `date` for Git-deployed content.
-
-## Pagination
-
-```php
-$posts = Post::paginate(15);
-$posts = Post::simplePaginate(15);
-```
-
-Use `simplePaginate` for large directories where the count is expensive, and you don't need a total.
-
-## Large Result Sets
-
-`get` builds every matching model up front, so a few thousand files means a few thousand models held at once. Use `lazy` to walk them one at a time:
-
-```php
-foreach (Post::query()->lazy() as $post) {
-    // ...
-}
-```
-
-`chunk` and `each` cover the same ground when you want to work in batches.
-
-## Aggregates
-
-Alongside `count`, Paper has `min`, `max`, `sum`, `avg`, and its alias `average`:
-
-```php
-$next = Post::max('order') + 1;
-$views = Post::where('published', true)->sum('views');
-```
-
-On an empty result `sum` returns `0` and the rest return `null`. `sum` and `avg` ignore null, missing, and non-numeric values, the same way SQL aggregates skip `NULL`. `min` and `max` ignore null but compare everything else with PHP's rules, so a column mixing numbers and text can return the text.
-
-## Relationships
-
-For relationships, use `belongsToPaper` and `hasManyPaper`:
-
-```php
-class Post extends Model implements PaperModel
-{
-    use Paper;
-
-    /**
-     * @return BelongsToPaper<Author>
-     */
-    public function author(): BelongsToPaper
-    {
-        return $this->belongsToPaper(Author::class);
-    }
-}
-
-class Author extends Model implements PaperModel
-{
-    use Paper;
-
-    /**
-     * @return HasManyPaper<Post>
-     */
-    public function posts(): HasManyPaper
-    {
-        return $this->hasManyPaper(Post::class);
-    }
-}
-```
-
-```php
-$post = Post::find('hello-world');
-$author = $post->author()->getResults();
-
-$author = Author::find('jane-doe');
-$posts = $author->posts()->getResults();
-```
-
-Call `getResults()` to resolve a relation, or `with()` to eager load it. Foreign keys default to `{model}_slug` (e.g. `author_slug`). Pass a second argument to override.
-
-## Validation
-
-Use `PaperRule` with Laravel's validator:
-
-```php
-use JacobJoergensen\LaravelPaper\Rules\PaperRule;
-
-$request->validate([
-    'slug' => ['required', PaperRule::unique(Post::class)],
-    'author_slug' => ['required', PaperRule::exists(Author::class)],
-]);
-```
-
-To skip the current record on update:
-
-```php
-PaperRule::unique(Post::class)->ignore($post->slug);
-```
-
-## Caching
-
-Paper doesn't read every file on each query. It keeps one cache entry per content path: a manifest holding each record's parsed data and its modification time. A query lists the directory once and reads only the files that are new or changed since the manifest was built. On S3 that listing is a single `ListObjects` call, which already returns each object's mtime. So a warm query is one listing plus one cache read, no matter how many records you have. The listing is reconciled every time, so edits and deletions made outside the app still show up.
-
-Warm the manifest at deploy time so the first request doesn't pay for the cold read, and clear it when you need to:
-
-```
-php artisan paper:warm
-php artisan paper:clear
-php artisan paper:refresh
-```
-
-Each covers every Paper model in `app/Models`. Name classes to narrow it:
-
-```
-php artisan paper:warm "App\Models\Article"
-```
-
-`paper:refresh` clears before it builds, so it ignores a cached entry whose mtime still matches. Run it on deploy.
-
-`paper:validate` parses and hydrates every file so bad frontmatter fails CI instead of a request. It exits `1` for a failing file and `2` when it has no model to check, and `--json` prints the failures as a document.
-
-**Remote disks can't write atomically.** The local adapter writes to a temp file and renames it into place, so a crash mid-write leaves the old file untouched. Remote disks like S3 only offer a single `put()`, so a failed write can leave a partial object behind. That's how object stores work, not a bug in Paper.
-
-## Custom Drivers
-
-Markdown and JSON ship by default. To support another format, implement `DriverContract` and register it in a service provider:
-
-```php
-use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
-use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
-
-final class YamlDriver implements DriverContract
-{
-    public function extensions(): array
-    {
-        return ['yaml', 'yml'];
-    }
-
-    public function parse(string $filepath): array
-    {
-        // return the file's data as an array
-    }
-
-    public function serialize(array $data): string
-    {
-        // return the file contents to write
-    }
-}
-```
-
-```php
-public function boot(): void
-{
-    app(DriverRegistry::class)->register('yaml', YamlDriver::class);
-}
-```
-
-Then point a model at it with `#[Driver('yaml')]`.
-
-## Storage Disks
-
-By default, Paper stores files on the local filesystem under your project's `base_path()`. To use any disk configured in `config/filesystems.php` instead, add the `#[Disk]` attribute:
-
-```php
-#[Driver('markdown')]
-#[ContentPath('articles')]
-#[Disk('s3')]
-class Article extends Model implements PaperModel
-{
-    use Paper;
-}
-```
-
-With `#[Disk]` set, the content path is resolved relative to the disk root (no `base_path()` prefix). All reads, writes, and listings go through `Storage::disk(...)`.
+Find the full documentation at [laravel-paper.com](https://laravel-paper.com/docs/getting-started/).
 
 ## AI-Assisted Development
 
