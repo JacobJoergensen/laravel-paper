@@ -6,3 +6,8 @@ parameters:
         - tests/Fixtures
         - tests/TestCase.php
     tmpDir: build/phpstan
+    ignoreErrors:
+        # #[Fillable] and #[Hidden] are Laravel 13 only.
+        - identifier: attribute.notFound
+          path: tests/Fixtures/Post.php
+          reportUnmatched: false
