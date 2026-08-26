@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Database\Eloquent\Attributes\CollectedBy;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Model;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidCollectionException;
 use JacobJoergensen\LaravelPaper\Exceptions\UnsupportedCollectionMethodException;
 use JacobJoergensen\LaravelPaper\PaperModel;
@@ -45,6 +46,29 @@ it('drops a record that is no longer in storage when refreshing', function (): v
 
     expect($posts->fresh()->pluck('slug')->all())->not->toContain('gone');
 });
+
+it('passes every relation named as a separate argument to fresh, not just the first', function (): void {
+    $posts = Post::all();
+
+    expect(fn (): Collection => $posts->fresh('author', 'missing'))
+        ->toThrow(BadMethodCallException::class, 'missing');
+});
+
+it('autoloads a relation across the whole collection when the app opts in', function (): void {
+    Model::automaticallyEagerLoadRelationships();
+
+    try {
+        $posts = Post::all()->sortBy('slug')->values();
+        $posts->first()->author;
+
+        expect($posts->last()->relationLoaded('author'))->toBeTrue();
+    } finally {
+        Model::automaticallyEagerLoadRelationships(false);
+    }
+})->skip(
+    ! method_exists(Model::class, 'isAutomaticallyEagerLoadingRelationships'),
+    'Automatic relationship loading requires a newer Laravel 12.',
+);
 
 it('rejects a collection named by #[CollectedBy] that does not extend PaperCollection', function (): void {
     $model = new #[CollectedBy(Collection::class)] class extends PaperModel {};

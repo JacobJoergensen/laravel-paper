@@ -32,8 +32,6 @@ use ReflectionClass;
  */
 trait Paper
 {
-    protected static string $collectionClass = PaperCollection::class;
-
     private ?string $paperExtension = null;
 
     public static function resetPaperState(): void
@@ -651,15 +649,23 @@ trait Paper
     }
 
     /**
-     * @param  array<int, Model>  $models
+     * @param  array<int, static>  $models
      * @return PaperCollection<static>
      */
     public function newCollection(array $models = []): PaperCollection
     {
-        $collection = parent::newCollection($models);
+        $class = $this->resolveCollectionFromAttribute() ?? PaperCollection::class;
+        $collection = new $class($models);
 
         if (! $collection instanceof PaperCollection) {
             throw InvalidCollectionException::forCollection($collection::class, static::class);
+        }
+
+        $autoloads = method_exists(Model::class, 'isAutomaticallyEagerLoadingRelationships')
+            && Model::isAutomaticallyEagerLoadingRelationships();
+
+        if ($autoloads) {
+            $collection->withRelationshipAutoloading();
         }
 
         return $collection;
@@ -1038,13 +1044,13 @@ trait Paper
     /**
      * @param  array<int|string, string|Closure>|string  $with
      */
-    public function fresh($with = []): ?static
+    public function fresh($with = [], string ...$more): ?static
     {
         if (! $this->exists) {
             return null;
         }
 
-        $names = is_string($with) ? [$with] : $with;
+        $names = is_string($with) ? [$with, ...$more] : $with;
         $key = self::keyToString($this->getAttribute($this->getKeyName()));
 
         return static::with($names)->find($key);

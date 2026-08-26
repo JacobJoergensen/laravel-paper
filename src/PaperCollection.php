@@ -90,7 +90,7 @@ class PaperCollection extends Collection
     /**
      * @param  array<int|string, string|Closure>|string  $with
      */
-    public function fresh($with = []): static
+    public function fresh($with = [], string ...$more): static
     {
         $first = $this->first();
 
@@ -98,7 +98,7 @@ class PaperCollection extends Collection
             return $this;
         }
 
-        $names = is_string($with) ? [$with] : $with;
+        $names = is_string($with) ? [$with, ...$more] : $with;
         $keyName = $first->getKeyName();
 
         $refreshed = PaperQueryBuilder::forModel($first::class)
