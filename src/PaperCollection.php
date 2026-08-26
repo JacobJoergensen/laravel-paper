@@ -22,7 +22,7 @@ class PaperCollection extends Collection
     /**
      * @param  array<int|string, string|Closure>|string  $relations
      */
-    public function load($relations, string ...$more): static
+    public function load(mixed $relations, string ...$more): static
     {
         $first = $this->first();
 
@@ -42,7 +42,7 @@ class PaperCollection extends Collection
      *
      * @param  array<int|string, string|Closure>|string  $relations
      */
-    public function loadMissing($relations, string ...$more): static
+    public function loadMissing(mixed $relations, string ...$more): static
     {
         $names = is_string($relations) ? [$relations, ...$more] : $relations;
 
@@ -66,7 +66,7 @@ class PaperCollection extends Collection
     /**
      * @param  array<array-key, mixed>|string  $relations
      */
-    public function loadAggregate($relations, $column, $function = null): never
+    public function loadAggregate(mixed $relations, mixed $column, mixed $function = null): never
     {
         throw UnsupportedCollectionMethodException::forMethod('loadAggregate');
     }
@@ -74,7 +74,7 @@ class PaperCollection extends Collection
     /**
      * @param  array<array-key, mixed>|string  $relations
      */
-    public function loadMorph($relation, $relations): never
+    public function loadMorph(mixed $relation, mixed $relations): never
     {
         throw UnsupportedCollectionMethodException::forMethod('loadMorph');
     }
@@ -82,7 +82,7 @@ class PaperCollection extends Collection
     /**
      * @param  array<array-key, mixed>|string  $relations
      */
-    public function loadMorphCount($relation, $relations): never
+    public function loadMorphCount(mixed $relation, mixed $relations): never
     {
         throw UnsupportedCollectionMethodException::forMethod('loadMorphCount');
     }
@@ -90,7 +90,7 @@ class PaperCollection extends Collection
     /**
      * @param  array<int|string, string|Closure>|string  $with
      */
-    public function fresh($with = [], string ...$more): static
+    public function fresh(mixed $with = [], string ...$more): static
     {
         $first = $this->first();
 
