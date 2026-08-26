@@ -68,7 +68,7 @@ it('lists each file once when a subdirectory links back into the tree', function
 
     $paths = array_keys($this->adapter->listing($this->dir, ['md'], nested: true));
 
-    expect(array_map(basename(...), $paths))->toEqualCanonicalizing(['root.md', 'child.md']);
+    expect($paths)->toEqualCanonicalizing([$this->dir.'/root.md', $this->dir.'/sub/child.md']);
 });
 
 it('throws when listing a directory that does not exist', function (): void {
