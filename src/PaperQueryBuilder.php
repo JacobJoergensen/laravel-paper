@@ -477,12 +477,11 @@ final class PaperQueryBuilder
                     continue;
                 }
 
-                $column = is_array($value) ? ($value[0] ?? null) : null;
-
-                if (! is_string($column)) {
+                if (! is_array($value) || ! is_string($value[0] ?? null)) {
                     throw new InvalidArgumentException('Each array condition must be [column, value] or [column, operator, value].');
                 }
 
+                $column = $value[0];
                 $operator = $value[1] ?? null;
                 $bound = $value[2] ?? null;
                 $query->where($column, $this->scalarOrNull($operator), $this->scalarOrNull($bound));
@@ -1126,6 +1125,7 @@ final class PaperQueryBuilder
      */
     public function sole(): Model
     {
+        /** @var list<TModel> $items */
         $items = $this->lazy()->take(2)->all();
 
         if ($items === []) {

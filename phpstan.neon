@@ -9,9 +9,8 @@ parameters:
     ignoreErrors:
         # #[Fillable] and #[Hidden] are Laravel 13 only.
         - identifier: attribute.notFound
-          path: tests/Fixtures/Post.php
+          path: */tests/Fixtures/Post.php
           reportUnmatched: false
         # Automatic relationship loading only exists on newer Laravel 12.
-        - message: '#method_exists\(\) with .+isAutomaticallyEage.+ will always evaluate to (true|false)#'
-          path: src/Paper.php
+        - identifier: function.alreadyNarrowedType
           reportUnmatched: false

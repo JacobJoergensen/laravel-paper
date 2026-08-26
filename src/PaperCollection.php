@@ -107,6 +107,7 @@ class PaperCollection extends Collection
             ->get()
             ->keyBy($keyName);
 
+        /** @var list<TModel> $surviving */
         $surviving = [];
 
         foreach ($this as $model) {
