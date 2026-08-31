@@ -13,5 +13,6 @@ parameters:
           reportUnmatched: false
         # Automatic relationship loading only exists on newer Laravel 12.
         - identifier: function.alreadyNarrowedType
+          message: '#method_exists\(\) with .*Model. and .isAutomaticallyEage#'
           path: */src/Paper.php
           reportUnmatched: false
