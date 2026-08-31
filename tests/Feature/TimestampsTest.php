@@ -47,6 +47,19 @@ it('does not strip a frontmatter timestamp column from the file on save', functi
     expect(DatedPost::find('__ts_test__dated')->date->toDateString())->toBe('2024-03-01');
 });
 
+it('keeps a frontmatter timestamp column in the file when the slug changes', function (): void {
+    $dir = base_path('tests/content/posts');
+    file_put_contents("$dir/__ts_test__from.md", "---\ntitle: Dated\ndate: 2024-03-01\n---\n\nx\n");
+
+    $post = DatedPost::find('__ts_test__from');
+    $post->slug = '__ts_test__to';
+    $post->save();
+
+    DatedPost::resetPaperState();
+
+    expect(DatedPost::find('__ts_test__to')->date->toDateString())->toBe('2024-03-01');
+});
+
 it('orders by the model CREATED_AT column when latest is given no column', function (): void {
     expect(DatedPost::latest()->pluck('slug')->all())->toBe(['draft-post', 'second-post', 'hello-world']);
 });

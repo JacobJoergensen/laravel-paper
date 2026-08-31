@@ -15,6 +15,7 @@ use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\CountingAdapter;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\CountingStore;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
+use JacobJoergensen\LaravelPaper\Tests\Fixtures\RacingStore;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\RawModel;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\TimestampedPost;
 
@@ -219,6 +220,114 @@ it('keeps a record another process added while it writes its own', function (): 
         ->toBe(['post-1', 'post-2', 'post-3']);
 });
 
+it('reparses an entry the listing missed when its file changed', function (): void {
+    $cache = new Repository(new ArrayStore);
+    $adapter = new CountingAdapter;
+    $adapter->seed('blog/post-1.md', "---\ntitle: One\n---\n", 1_000);
+    $adapter->seed('blog/post-2.md', "---\ntitle: Two\n---\n", 2_000);
+
+    $manifest = new PaperManifest($cache, 60, 10, false);
+    $manifest->records($adapter, new MarkdownDriver, 'blog');
+
+    $adapter->seed('blog/post-2.md', "---\ntitle: Rewritten\n---\n", 2_500);
+    $adapter->hideFromListing('blog/post-2.md');
+
+    $records = $manifest->reconcile($adapter, new MarkdownDriver, 'blog');
+
+    expect($records['post-2']['data']['title'])->toBe('Rewritten')
+        ->and($records['post-2']['mtime'])->toBe(2_500);
+});
+
+it('keeps an entry another process stored while the rebuild was parsing', function (): void {
+    $cache = new Repository(new ArrayStore);
+    $adapter = new CountingAdapter;
+    $adapter->seed('blog/post-1.md', "---\ntitle: One\n---\n", 1_000);
+
+    $rebuilding = new PaperManifest($cache, 60, 10, false);
+    $rebuilding->records($adapter, new MarkdownDriver, 'blog');
+
+    $adapter->seed('blog/post-2.md', "---\ntitle: Two\n---\n", 2_000);
+    $adapter->hideFromListing('blog/post-2.md');
+
+    $saving = new PaperManifest($cache, 60, 10, false);
+    $saving->put($adapter, new MarkdownDriver, 'blog', 'post-2', 'blog/post-2.md', ['title' => 'Two']);
+
+    $adapter->seed('blog/post-1.md', "---\ntitle: Edited\n---\n", 1_500);
+    $rebuilding->reconcile($adapter, new MarkdownDriver, 'blog');
+
+    $reader = new PaperManifest($cache, 60, 10, false);
+
+    expect(array_keys($reader->records($adapter, new MarkdownDriver, 'blog')))->toBe(['post-1', 'post-2']);
+});
+
+it('keeps a record another process saved while it caches a single file', function (): void {
+    $cache = new Repository(new ArrayStore);
+    $adapter = new CountingAdapter;
+    $adapter->seed('blog/post-1.md', "---\ntitle: One\n---\n", 1_000);
+    $adapter->seed('blog/post-2.md', "---\ntitle: Two\n---\n", 2_000);
+
+    $reading = new PaperManifest($cache, 60, 10, true);
+    $reading->records($adapter, new MarkdownDriver, 'blog');
+
+    $adapter->seed('blog/post-3.md', "---\ntitle: Three\n---\n", 3_000);
+
+    $saving = new PaperManifest($cache, 60, 10, true);
+    $saving->put($adapter, new MarkdownDriver, 'blog', 'post-3', 'blog/post-3.md', ['title' => 'Three']);
+
+    $adapter->seed('blog/post-1.md', "---\ntitle: Edited\n---\n", 1_500);
+    $reading->record($adapter, new MarkdownDriver, 'blog', 'post-1');
+
+    $reader = new PaperManifest($cache, 60, 10, false);
+
+    expect(array_keys($reader->records($adapter, new MarkdownDriver, 'blog')))
+        ->toBe(['post-1', 'post-2', 'post-3']);
+});
+
+it('drops the manifest rather than merge a save into it without the lock', function (): void {
+    $store = new RacingStore;
+    $cache = new Repository($store);
+    $adapter = new CountingAdapter;
+    $adapter->seed('blog/post-1.md', "---\ntitle: One\n---\n", 1_000);
+
+    $saving = new PaperManifest($cache, 60, 0, false);
+    $saving->records($adapter, new MarkdownDriver, 'blog');
+
+    $adapter->seed('blog/post-2.md', "---\ntitle: Two\n---\n", 2_000);
+    $store->contended = true;
+
+    $saving->put($adapter, new MarkdownDriver, 'blog', 'post-2', 'blog/post-2.md', ['title' => 'Two']);
+
+    $store->contended = false;
+    $adapter->reset();
+
+    $reader = new PaperManifest($cache, 60, 0, false);
+
+    expect(array_keys($reader->records($adapter, new MarkdownDriver, 'blog')))->toBe(['post-1', 'post-2'])
+        ->and($adapter->counts['listing'])->toBe(1);
+});
+
+it('serves a rebuild it could not lock without storing it', function (): void {
+    $store = new RacingStore;
+    $cache = new Repository($store);
+    $adapter = new CountingAdapter;
+    $adapter->seed('blog/post-1.md', "---\ntitle: One\n---\n", 1_000);
+
+    $rebuilding = new PaperManifest($cache, 60, 0, false);
+    $rebuilding->records($adapter, new MarkdownDriver, 'blog');
+
+    $adapter->seed('blog/post-1.md', "---\ntitle: Edited\n---\n", 1_500);
+    $store->contended = true;
+
+    $records = $rebuilding->reconcile($adapter, new MarkdownDriver, 'blog');
+
+    $store->contended = false;
+
+    $reader = new PaperManifest($cache, 60, 0, false);
+
+    expect($records['post-1']['data']['title'])->toBe('Edited')
+        ->and($reader->records($adapter, new MarkdownDriver, 'blog')['post-1']['data']['title'])->toBe('One');
+});
+
 it('keeps a record another process deleted while it writes its own', function (): void {
     $cache = new Repository(new ArrayStore);
     $adapter = new CountingAdapter;
@@ -238,4 +347,53 @@ it('keeps a record another process deleted while it writes its own', function ()
 
     expect(array_keys($reader->records($adapter, new MarkdownDriver, 'blog')))
         ->toBe(['post-2', 'post-3']);
+});
+
+it('does not publish a rebuild over a save that could not wait for it', function (): void {
+    $cache = new Repository(new ArrayStore);
+    $adapter = new CountingAdapter;
+    $adapter->seed('blog/post-1.md', "---\ntitle: One\n---\n", 1_000);
+
+    $rebuilding = new PaperManifest($cache, 60, 0, false);
+    $rebuilding->records($adapter, new MarkdownDriver, 'blog');
+
+    $adapter->seed('blog/post-1.md', "---\ntitle: Edited\n---\n", 1_500);
+
+    $saving = new PaperManifest($cache, 60, 0, false);
+
+    $adapter->duringNextRead(function () use ($adapter, $saving): void {
+        $adapter->seed('blog/post-2.md', "---\ntitle: Two\n---\n", 2_000);
+        $saving->put($adapter, new MarkdownDriver, 'blog', 'post-2', 'blog/post-2.md', ['title' => 'Two']);
+    });
+
+    $rebuilding->reconcile($adapter, new MarkdownDriver, 'blog');
+
+    $reader = new PaperManifest($cache, 60, 0, false);
+
+    expect(array_keys($reader->records($adapter, new MarkdownDriver, 'blog')))->toBe(['post-1', 'post-2']);
+});
+
+it('takes back a manifest invalidated between the revision check and the write', function (): void {
+    $store = new RacingStore;
+    $cache = new Repository($store);
+    $adapter = new CountingAdapter;
+    $adapter->seed('blog/post-1.md', "---\ntitle: One\n---\n", 1_000);
+
+    $rebuilding = new PaperManifest($cache, 60, 0, false);
+    $rebuilding->records($adapter, new MarkdownDriver, 'blog');
+
+    $adapter->seed('blog/post-1.md', "---\ntitle: Edited\n---\n", 1_500);
+
+    $saving = new PaperManifest($cache, 60, 0, false);
+
+    $store->duringNextWrite(function () use ($adapter, $saving): void {
+        $adapter->seed('blog/post-2.md', "---\ntitle: Two\n---\n", 2_000);
+        $saving->put($adapter, new MarkdownDriver, 'blog', 'post-2', 'blog/post-2.md', ['title' => 'Two']);
+    });
+
+    $rebuilding->reconcile($adapter, new MarkdownDriver, 'blog');
+
+    $reader = new PaperManifest($cache, 60, 0, false);
+
+    expect(array_keys($reader->records($adapter, new MarkdownDriver, 'blog')))->toBe(['post-1', 'post-2']);
 });

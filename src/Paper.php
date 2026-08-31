@@ -811,10 +811,9 @@ trait Paper
 
         if ($this->paperExtension === null) {
             $manifest = app(PaperManifest::class);
-            $stored = self::keyToString($this->getRawOriginal($this->getKeyName())) ?: $slug;
 
             $record = $this->exists
-                ? $manifest->record($resolved['adapter'], $driver, $directory, $stored, $resolved['nested'])
+                ? $manifest->record($resolved['adapter'], $driver, $directory, $this->storedSlug(), $resolved['nested'])
                 : null;
 
             // Held on the model so a renamed record keeps its format and a deleted one can still name its file.
@@ -978,7 +977,7 @@ trait Paper
 
         if ($this->usesTimestamps()) {
             $updatedAt = $this->getUpdatedAtColumn();
-            $stored = $manifest->record($adapter, $driver, $path, $slug, $resolved['nested']);
+            $stored = $manifest->record($adapter, $driver, $path, $this->storedSlug(), $resolved['nested']);
 
             if ($updatedAt !== null && ($stored === null || ! array_key_exists($updatedAt, $stored['data']))) {
                 unset($attributes[$updatedAt]);
@@ -1170,13 +1169,24 @@ trait Paper
         }
 
         $path = PaperQueryBuilder::contentPathFor(static::class);
-        $slug = self::keyToString($this->attributes[$this->getKeyName()] ?? null);
+        $slug = $this->storedSlug();
 
         $body = app(PaperManifest::class)->body($resolved['adapter'], $resolved['driver'], $path, $slug, $resolved['nested']);
         $attributes = PaperCasts::fromStorage($this, [$column => $body]);
 
         $this->attributes[$column] = $attributes[$column];
         $this->original[$column] = $attributes[$column];
+    }
+
+    private function storedSlug(): string
+    {
+        $original = self::keyToString($this->getRawOriginal($this->getKeyName()));
+
+        if ($original !== '') {
+            return $original;
+        }
+
+        return self::keyToString($this->getAttribute($this->getKeyName()));
     }
 
     private static function keyToString(mixed $key): string

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper\Tests\Fixtures;
 
+use Closure;
 use JacobJoergensen\LaravelPaper\Contracts\StorageAdapterContract;
 
 final class CountingAdapter implements StorageAdapterContract
@@ -20,9 +21,27 @@ final class CountingAdapter implements StorageAdapterContract
     /** @var array<string, array{contents: string, mtime: int}> */
     private array $files = [];
 
+    /** @var array<string, true> */
+    private array $unlisted = [];
+
+    private ?Closure $duringRead = null;
+
     public function seed(string $path, string $contents, int $mtime): void
     {
         $this->files[$path] = ['contents' => $contents, 'mtime' => $mtime];
+    }
+
+    public function hideFromListing(string $path): void
+    {
+        $this->unlisted[$path] = true;
+    }
+
+    /**
+     * @param  Closure(): void  $work
+     */
+    public function duringNextRead(Closure $work): void
+    {
+        $this->duringRead = $work;
     }
 
     public function reset(): void
@@ -38,6 +57,13 @@ final class CountingAdapter implements StorageAdapterContract
     public function read(string $path): ?string
     {
         $this->counts['read']++;
+
+        if ($this->duringRead !== null) {
+            $work = $this->duringRead;
+            $this->duringRead = null;
+
+            $work();
+        }
 
         if ($this->failRead) {
             return null;
@@ -100,6 +126,12 @@ final class CountingAdapter implements StorageAdapterContract
         $matches = [];
 
         foreach ($this->files as $path => $file) {
+            if (isset($this->unlisted[$path])) {
+                unset($this->unlisted[$path]);
+
+                continue;
+            }
+
             $matchesDir = $nested
                 ? str_starts_with($path, $directory.'/')
                 : pathinfo($path, PATHINFO_DIRNAME) === $directory;

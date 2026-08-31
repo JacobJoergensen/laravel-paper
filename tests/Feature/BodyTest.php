@@ -47,6 +47,14 @@ it('keeps an untouched body in the file when the model is saved', function (): v
         ->and($saved->title)->toBe('Renamed');
 });
 
+it('keeps an untouched body in the file when the slug changes', function (): void {
+    $post = Post::find('a');
+    $post->slug = 'c';
+    $post->save();
+
+    expect(Post::find('c')->content)->toBe('Alpha body');
+});
+
 it('filters on the body', function (): void {
     $matched = Post::whereLike('content', '%Alpha%')->get();
 
