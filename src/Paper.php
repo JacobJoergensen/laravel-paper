@@ -24,6 +24,8 @@ use JacobJoergensen\LaravelPaper\Relations\BelongsToPaper;
 use JacobJoergensen\LaravelPaper\Relations\HasManyPaper;
 use JacobJoergensen\LaravelPaper\Relations\PaperRelation;
 use ReflectionClass;
+use ReflectionMethod;
+use ReflectionNamedType;
 
 /**
  * @mixin Model
@@ -1065,6 +1067,39 @@ trait Paper
         $this->setRawAttributes($fresh->getAttributes(), true);
 
         return $this;
+    }
+
+    /**
+     * @return array<string, PaperRelation<Model&PaperModel>>
+     */
+    public function paperRelations(): array
+    {
+        $relations = [];
+
+        foreach (new ReflectionClass(static::class)->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
+            $returnType = $method->getReturnType();
+
+            if (! $returnType instanceof ReflectionNamedType || $returnType->isBuiltin()) {
+                continue;
+            }
+
+            if ($method->getNumberOfRequiredParameters() > 0) {
+                continue;
+            }
+
+            if (! is_a($returnType->getName(), PaperRelation::class, true)) {
+                continue;
+            }
+
+            $name = $method->getName();
+            $relation = $this->{$name}();
+
+            if ($relation instanceof PaperRelation) {
+                $relations[$name] = $relation;
+            }
+        }
+
+        return $relations;
     }
 
     /**

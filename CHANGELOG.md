@@ -23,6 +23,7 @@
 * Added `PaperCollection` as the default collection, giving `load`, `loadMissing`, and `fresh` on a result set; a class named by `#[CollectedBy]` must extend it
 * Added `with` for eager loading relations, batching reads to avoid N+1, and taking a closure per relation to constrain it
 * Added `PaperRelation` abstract base for relation descriptors, with `BelongsToPaper` and `HasManyPaper` as concrete types exposing `getResults()` for lazy resolution and property access after eager loading
+* Added `paperRelations` to enumerate the relations a model defines, keyed by name, so tooling does not have to reflect the model itself
 * Added `nested` to `#[ContentPath]` so a model reads subdirectories, turning `docs/guides/installation.md` into the slug `guides/installation`
 * Added scoped route model binding so `/authors/{author}/posts/{post}` resolves the child through the parent's `hasManyPaper` relation and 404s when it belongs to another parent
 * Added `HasManyPaper::query` returning the parent-scoped query, so a relation can be filtered before it runs

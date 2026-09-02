@@ -21,7 +21,7 @@ use JacobJoergensen\LaravelPaper\Relations\BelongsToPaper;
 #[Fillable(['slug', 'title'])]
 #[Hidden(['order'])]
 #[ObservedBy(PostObserver::class)]
-final class Post extends PaperModel
+class Post extends PaperModel
 {
     /** @var list<string> */
     protected $guarded = [];
