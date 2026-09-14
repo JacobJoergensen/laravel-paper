@@ -199,7 +199,7 @@ final class PaperQueryBuilder
             return ['=', $operator];
         }
 
-        return [is_string($operator) ? $operator : '=', $value];
+        return [is_string($operator) ? strtolower($operator) : '=', $value];
     }
 
     /**

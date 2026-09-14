@@ -3,6 +3,7 @@
 ## Unreleased
 * Fixed `save` to throw `FileSerializeException` for a value the driver cannot write instead of saving an empty file or null
 * Fixed `where` and the methods built on it to read a two-argument call as a value, so `where('status', '!=')` no longer matches every record that has a status
+* Fixed `where` ignoring an uppercase operator like `LIKE` instead of matching nothing
 * Fixed `PaperRule::exists` passing when the input is an operator like `!=`
 
 ## Version 1.16.0 (2026-08-25)

@@ -68,6 +68,10 @@ it('reads the second argument as a value, even when it looks like an operator', 
     }
 });
 
+it('reads an operator in any case', function (): void {
+    expect(Post::where('title', 'LIKE', '%Post%')->count())->toBe(2);
+});
+
 it('excludes null fields from comparison operators', function (): void {
     expect(Post::where('author_slug', 0)->count())->toBe(0)
         ->and(Post::where('author_slug', '!=', 0)->count())->toBe(1)
