@@ -55,8 +55,9 @@ $post = Post::find('hello-world');
 $posts = Post::findMany(['hello-world', 'my-second-post']);
 ```
 
-To change a slug, rename the file. For a public URL that differs from the filename, add a
-frontmatter field (e.g. `permalink`) and route on that instead of the slug.
+Setting `slug` and saving moves the record, so the file is renamed for you. For a public URL
+that differs from the filename, add a frontmatter field (e.g. `permalink`) and route on that
+instead of the slug.
 
 Subdirectories are ignored unless the model asks for them with `#[ContentPath('content/docs',
 nested: true)]`. The slug is then the path below the content directory, so
@@ -94,7 +95,7 @@ protected function published(PaperQueryBuilder $query): PaperQueryBuilder
     return $query->where('published', true);
 }
 
-// Call scopes through query(): Post::query()->published()->get();
+// Post::published()->get();
 ```
 
 Global scopes work through `addGlobalScope` and `#[ScopedBy]`, and cover `find` and route
@@ -108,8 +109,9 @@ Eloquent's `Scope`, which Paper's builder cannot accept. Drop one with
 
 A query lists the directory once and serves the rest from the manifest, reading only files
 that are new or changed, so what costs on a large set is building a model per record rather
-than touching the disk. Prefer `lazy` or `chunk` over `get` there. `count` and the aggregates
-run on the manifest without building models at all.
+than touching the disk. Prefer `lazy` or `chunk` over `get` there. `count` and `exists` can
+answer from the manifest alone, while `min`, `max`, `sum`, `avg`, and `countBy` build a model
+per matching record, because they read the column through its cast.
 
 ```php
 foreach (Post::query()->lazy() as $post) {
@@ -126,7 +128,7 @@ $posts = Post::simplePaginate(15);
 ## Route model binding
 
 `{post}` binds on the slug, `{post:title}` on any frontmatter field. Scoped child bindings
-resolve through the parent's `hasManyPaper` relation, named after the plural of the parameter.
+resolve through the parent's relation, named after the plural of the parameter.
 
 ```php
 Route::get('/posts/{post}', fn (Post $post) => $post);
@@ -200,6 +202,19 @@ Post::where('draft', true)->update(['published' => true]);
 
 Use `saveQuietly` and `deleteQuietly` to persist without firing events. Use `fresh` for a
 new instance reloaded from disk, or `refresh` to reload the current one in place.
+
+A save or delete checks that the file still holds what the record was loaded with, and throws
+`StaleRecordException` when it does not. `paper.concurrency` picks the policy: `strict` refuses
+storage that cannot apply the check and the write in one step, `best_effort` (the default)
+checks such storage anyway, and `off` writes blind.
+
+```php
+try {
+    $post->save();
+} catch (StaleRecordException) {
+    $post->refresh();
+}
+```
 
 `firstOrNew` returns an unsaved instance when nothing matches. `findOr` and `firstOr` run a
 callback instead:
@@ -276,8 +291,9 @@ A lazy load reads the manifest rather than the file, so a loop without `with()` 
 less than an N+1 in SQL, but `with()` still saves the repeated lookup.
 
 Foreign keys default to `{model}_slug` (e.g. `author_slug`); pass a second argument to
-override. `HasManyPaper::query()` returns the parent-scoped query when a relation needs
-filtering before it runs.
+override. Every relation answers `query()` with the records it covers, so `$author->posts()->query()`
+or `$post->author()->query()` can be filtered before it runs. A custom relation extends
+`PaperRelation` and implements `query`, `getResults`, `eagerLoad` and `counter`.
 
 ## Validation
 
@@ -298,7 +314,7 @@ PaperRule::unique(Post::class)->ignore($post->slug);
 ## Custom drivers
 
 `markdown`, `json`, and `yaml` are registered by default. To support another format, implement
-`DriverContract` (`extensions`, `bodyColumn`, `parse`, `serialize`) and register it in a
+`DriverContract` (`extensions`, `bodyColumn`, `bodySyntax`, `parse`, `serialize`) and register it in a
 service provider's `boot` method, then point a model at it with `#[Driver('toml')]`.
 
 ```php
@@ -309,6 +325,15 @@ app(DriverRegistry::class)->register('toml', TomlDriver::class);
 
 `parse` takes the file contents, not a path. `bodyColumn` names the attribute the body is
 exposed as, `content` for Markdown, and returns `null` for a format that is data only.
+
+`bodySyntax` names the markup the body is written in, lowercase, `markdown` for Markdown.
+Paper never reads it; editors and other tooling do. Return `null` to say nothing.
+
+Tooling gets a model's driver from the query builder:
+
+```php
+PaperQueryBuilder::driverFor(Post::class)->bodySyntax();
+```
 
 Order `extensions()` deliberately. New records are written with the first one, and when a slug
 exists under several, the first one wins.

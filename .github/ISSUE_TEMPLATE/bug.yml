@@ -25,7 +25,7 @@ body:
     id: paper-version
     attributes:
       label: Laravel Paper version
-      placeholder: "1.10.0"
+      placeholder: "2.0.0"
     validations:
       required: true
   - type: input

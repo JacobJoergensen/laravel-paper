@@ -198,6 +198,16 @@ it('marks the model as not existing after a successful delete', function (): voi
     expect($post->exists)->toBeFalse();
 });
 
+it('deletes every named record with destroy and counts the ones it removed', function (): void {
+    foreach (['__save_test__one', '__save_test__two'] as $slug) {
+        Post::create(['slug' => $slug, 'title' => 'Doomed']);
+    }
+
+    expect(Post::destroy(['__save_test__one', '__save_test__two', 'does-not-exist']))->toBe(2)
+        ->and(Post::find('__save_test__one'))->toBeNull()
+        ->and(Post::find('__save_test__two'))->toBeNull();
+});
+
 it('still reports the file it removed after a delete', function (): void {
     $dir = __DIR__.'/../content/posts';
     file_put_contents($dir.'/__save_test__.markdown', "---\ntitle: Gone\n---\n\nBody\n");
@@ -316,6 +326,17 @@ it('refuses to create a record on a slug a file already holds', function (): voi
     expect(fn (): Post => Post::create(['slug' => 'taken', 'title' => 'Nope']))
         ->toThrow(DuplicateSlugException::class)
         ->and($adapter->read($path.'/taken.md'))->toContain('Taken');
+});
+
+it('refuses to create a record on a slug another extension already holds', function (): void {
+    $path = PaperQueryBuilder::contentPathFor(Post::class);
+    $adapter = new CountingAdapter;
+    $adapter->seed($path.'/taken.markdown', "---\ntitle: Taken\n---\n", 1_000);
+    PaperQueryBuilder::fake(Post::class, $adapter);
+
+    expect(fn (): Post => Post::create(['slug' => 'taken', 'title' => 'Nope']))
+        ->toThrow(DuplicateSlugException::class)
+        ->and($adapter->exists($path.'/taken.md'))->toBeFalse();
 });
 
 it('reports failure and leaves the record in place when the moved file cannot be deleted', function (): void {

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Author;
@@ -54,6 +55,40 @@ it('eager loads relations when taking only the first result', function (): void 
     $post = Post::with('author')->first();
 
     expect($post->relationLoaded('author'))->toBeTrue();
+});
+
+it('eager loads relations across every chunk of a lazy result', function (): void {
+    $posts = Post::with('author')->lazy(2)->all();
+
+    expect($posts)->toHaveCount(3)
+        ->and(collect($posts)->every(fn (Post $post): bool => $post->relationLoaded('author')))->toBeTrue();
+});
+
+it('eager loads relations for the models handed to chunk', function (): void {
+    $loaded = [];
+
+    Post::with('author')->chunk(2, function (Collection $posts) use (&$loaded): void {
+        $loaded[] = $posts->every(fn (Post $post): bool => $post->relationLoaded('author'));
+    });
+
+    expect($loaded)->toBe([true, true]);
+});
+
+it('eager loads relations for the models handed to each', function (): void {
+    $loaded = [];
+
+    Post::with('author')->each(function (Post $post) use (&$loaded): void {
+        $loaded[] = $post->relationLoaded('author');
+    });
+
+    expect($loaded)->toBe([true, true, true]);
+});
+
+it('eager loads relations for the record returned by sole', function (): void {
+    $post = Post::with('author')->where('slug', 'hello-world')->sole();
+
+    expect($post->relationLoaded('author'))->toBeTrue()
+        ->and($post->getRelation('author')->slug)->toBe('john-doe');
 });
 
 it('attaches relations for a numeric slug, which PHP stores as an integer array key', function (): void {
@@ -148,6 +183,27 @@ it('lazy eager loads across a collection without touching a model that already h
 
     expect($john->getRelation('posts'))->toBeEmpty()
         ->and($authors->firstWhere('slug', 'jane-doe')->relationLoaded('posts'))->toBeTrue();
+});
+
+it('reloads the relations it already had when refreshing', function (): void {
+    $path = __DIR__.'/../content/posts/refreshed.md';
+    File::put($path, "---\ntitle: Refreshed\nauthor_slug: john-doe\n---\n");
+
+    try {
+        $post = Post::find('refreshed');
+
+        expect($post->author->slug)->toBe('john-doe');
+
+        $rewritten = Post::find('refreshed');
+        $rewritten->author_slug = 'jane-doe';
+        $rewritten->save();
+
+        $post->refresh();
+
+        expect($post->getRelation('author')->slug)->toBe('jane-doe');
+    } finally {
+        File::delete($path);
+    }
 });
 
 it('eager loads the relations given to fresh', function (): void {

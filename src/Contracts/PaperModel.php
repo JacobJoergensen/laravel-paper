@@ -19,6 +19,13 @@ interface PaperModel
     public static function query(): PaperQueryBuilder;
 
     /**
+     * @internal
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public static function fromRecord(array $attributes, string $version): static;
+
+    /**
      * @return array<string, PaperRelation<Model&PaperModel>>
      */
     public function paperRelations(): array;

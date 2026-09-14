@@ -13,6 +13,8 @@ interface DriverContract
 
     public function bodyColumn(): ?string;
 
+    public function bodySyntax(): ?string;
+
     /**
      * @return array<string, mixed>
      */

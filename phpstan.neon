@@ -14,3 +14,6 @@ parameters:
         # Automatic relationship loading only exists on newer Laravel 12.
         - identifier: function.alreadyNarrowedType
           reportUnmatched: false
+        # ExtendedPost::writer() is untyped on purpose: paperRelations skips it.
+        - identifier: missingType.return
+          path: */tests/Fixtures/ExtendedPost.php

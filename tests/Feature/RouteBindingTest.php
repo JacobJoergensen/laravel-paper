@@ -3,13 +3,16 @@
 declare(strict_types=1);
 
 use Illuminate\Routing\Middleware\SubstituteBindings;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Route;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Author;
+use JacobJoergensen\LaravelPaper\Tests\Fixtures\Editor;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 
 beforeEach(function (): void {
     Post::resetPaperState();
     Author::resetPaperState();
+    Editor::resetPaperState();
 });
 
 it('resolves a model from its route key', function (): void {
@@ -60,11 +63,25 @@ it('throws when the child relation does not exist on the parent', function (): v
     $post->resolveChildRouteBinding('comment', 'first-comment', null);
 })->throws(BadMethodCallException::class, 'Post::comments does not exist.');
 
-it('throws when the child relation does not return a hasMany relation', function (): void {
+it('throws when the child relation does not return a Paper relation', function (): void {
     $post = new Post;
 
     $post->resolveChildRouteBinding('getAttribute', 'hello-world', null);
-})->throws(BadMethodCallException::class, 'Post::getAttributes must return');
+})->throws(BadMethodCallException::class, 'Post::getAttributes must return JacobJoergensen\LaravelPaper\Relations\PaperRelation');
+
+it('resolves a child through any relation, including a custom one', function (): void {
+    $unpublished = __DIR__.'/../content/posts/__editor_test__.md';
+    File::put($unpublished, "---\ntitle: Hidden\npublished: false\nauthor_slug: john-doe\n---\n");
+
+    try {
+        $editor = Editor::find('john-doe');
+
+        expect($editor->resolveChildRouteBinding('post', 'hello-world', null)?->slug)->toBe('hello-world')
+            ->and($editor->resolveChildRouteBinding('post', '__editor_test__', null))->toBeNull();
+    } finally {
+        File::delete($unpublished);
+    }
+});
 
 it('substitutes scoped bindings through the router', function (): void {
     Route::middleware(SubstituteBindings::class)

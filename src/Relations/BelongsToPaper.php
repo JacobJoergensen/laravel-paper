@@ -18,6 +18,17 @@ use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 final readonly class BelongsToPaper extends PaperRelation
 {
     /**
+     * @return PaperQueryBuilder<TRelated>
+     */
+    public function query(): PaperQueryBuilder
+    {
+        $key = $this->keyOf($this->parent, $this->foreignKey);
+        $keys = $key === null ? [] : [$key];
+
+        return PaperQueryBuilder::forModel($this->relatedClass)->whereIn($this->relatedKeyName(), $keys);
+    }
+
+    /**
      * @return ?TRelated
      */
     public function getResults(): ?Model
@@ -28,7 +39,8 @@ final readonly class BelongsToPaper extends PaperRelation
             return null;
         }
 
-        return PaperQueryBuilder::forModel($this->relatedClass)->find((string) $key);
+        // Resolved by key rather than scanned, which the query's own constraint then agrees with.
+        return $this->query()->find((string) $key);
     }
 
     /**

@@ -8,8 +8,11 @@ use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\File;
 use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
+use JacobJoergensen\LaravelPaper\Exceptions\UnsupportedDatabaseQueryException;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
+use JacobJoergensen\LaravelPaper\Tests\Fixtures\Author;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Draft;
+use JacobJoergensen\LaravelPaper\Tests\Fixtures\Page;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 
 beforeEach(function (): void {
@@ -145,6 +148,33 @@ it('can limit results', function (): void {
     expect($posts)->toHaveCount(2);
 });
 
+it('orders and pages records when the query starts from a static call', function (): void {
+    expect(Post::orderByDesc('order')->limit(2)->get()->pluck('slug')->all())->toBe(['draft-post', 'second-post'])
+        ->and(Post::orderBy('order')->offset(2)->get()->pluck('slug')->all())->toBe(['draft-post'])
+        ->and(Post::take(1)->get())->toHaveCount(1)
+        ->and(Post::skip(1)->get())->toHaveCount(2);
+});
+
+it('reads records for a static get, lazy and sole', function (): void {
+    expect(Post::get()->pluck('slug')->all())->toBe(['draft-post', 'hello-world', 'second-post'])
+        ->and(Post::lazy()->count())->toBe(3)
+        ->and(Page::sole()->slug)->toBe('about');
+});
+
+it('rejects an Eloquent query method Paper has no equivalent for', function (): void {
+    Post::select('title');
+})->throws(BadMethodCallException::class);
+
+it('refuses to hand out a database query builder', function (): void {
+    $post = Post::find('hello-world');
+
+    expect(fn () => $post->newQuery())->toThrow(UnsupportedDatabaseQueryException::class)
+        ->and(fn () => $post->newModelQuery())->toThrow(UnsupportedDatabaseQueryException::class)
+        ->and(fn () => $post->newQueryWithoutRelationships())->toThrow(UnsupportedDatabaseQueryException::class)
+        ->and(fn () => $post->newQueryForRestoration(['hello-world']))->toThrow(UnsupportedDatabaseQueryException::class)
+        ->and(fn () => Post::on('mysql'))->toThrow(UnsupportedDatabaseQueryException::class);
+});
+
 it('uses slug as primary key', function (): void {
     $post = Post::find('hello-world');
 
@@ -177,7 +207,8 @@ it('can use local scopes', function (): void {
     $posts = Post::query()->published()->get();
 
     expect($posts)->toHaveCount(2)
-        ->and($posts->pluck('published')->unique()->toArray())->toBe([true]);
+        ->and($posts->pluck('published')->unique()->toArray())->toBe([true])
+        ->and(Post::published()->get()->pluck('slug')->all())->toBe($posts->pluck('slug')->all());
 });
 
 it('resolves protected scopes declared with the #[Scope] attribute', function (): void {
@@ -459,6 +490,41 @@ it('treats a null value as a null check on the column', function (): void {
 
     expect($missing)->toBe(['draft-post', 'second-post'])
         ->and($present)->toBe(['hello-world']);
+});
+
+it('reads the second argument as a value, even when it looks like an operator', function (): void {
+    $path = __DIR__.'/../content/posts/operator-value.md';
+    File::put($path, "---\ntitle: Operator Value\nstatus: '>='\nauthor_slug: john-doe\n---\n");
+
+    try {
+        expect(Post::where('status', '>=')->pluck('slug')->all())->toBe(['operator-value'])
+            ->and(Post::firstWhere('status', '>=')?->slug)->toBe('operator-value')
+            ->and(Post::whereAny(['status', 'title'], '>=')->count())->toBe(1)
+            ->and(Post::where([['status', '>=']])->count())->toBe(1)
+            ->and(Author::whereRelation('posts', 'status', '>=')->pluck('slug')->all())->toBe(['john-doe']);
+    } finally {
+        File::delete($path);
+    }
+});
+
+it('reads an operator in any case', function (): void {
+    expect(Post::where('title', 'LIKE', '%Post%')->count())->toBe(2);
+});
+
+it('rejects query input it cannot apply', function (): void {
+    expect(fn () => Post::query()->orderBy('order', 'sideways'))->toThrow(InvalidArgumentException::class)
+        ->and(fn () => Post::limit(-1))->toThrow(InvalidArgumentException::class)
+        ->and(fn () => Post::offset(-1))->toThrow(InvalidArgumentException::class)
+        ->and(fn () => Post::query()->chunk(0, fn (): null => null))->toThrow(InvalidArgumentException::class)
+        ->and(fn () => Post::lazy(0))->toThrow(InvalidArgumentException::class)
+        ->and(fn () => Post::paginate(0))->toThrow(InvalidArgumentException::class)
+        ->and(fn () => Post::paginate(15, 0))->toThrow(InvalidArgumentException::class)
+        ->and(fn () => Post::whereBetween('order', [1]))->toThrow(InvalidArgumentException::class);
+});
+
+it('rejects an unknown operator and an operator that cannot compare against null', function (): void {
+    expect(fn () => Post::where('order', '~=', 1))->toThrow(InvalidArgumentException::class)
+        ->and(fn () => Post::where('order', '>', null))->toThrow(InvalidArgumentException::class);
 });
 
 it('applies pending where constraints to find', function (): void {

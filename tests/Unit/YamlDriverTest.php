@@ -4,11 +4,31 @@ declare(strict_types=1);
 
 use JacobJoergensen\LaravelPaper\Drivers\YamlDriver;
 use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
+use JacobJoergensen\LaravelPaper\Exceptions\FileSerializeException;
 
 it('returns correct extensions', function (): void {
     $driver = new YamlDriver;
 
     expect($driver->extensions())->toBe(['yaml', 'yml']);
+});
+
+it('throws for a value it cannot represent, instead of writing null', function (): void {
+    $driver = new YamlDriver;
+    $handle = fopen('php://memory', 'r');
+
+    try {
+        expect(fn (): string => $driver->serialize(['handle' => $handle]))
+            ->toThrow(FileSerializeException::class, 'Unable to dump PHP resources');
+    } finally {
+        fclose($handle);
+    }
+});
+
+it('reports no body column and no syntax for a data-only format', function (): void {
+    $driver = new YamlDriver;
+
+    expect($driver->bodyColumn())->toBeNull()
+        ->and($driver->bodySyntax())->toBeNull();
 });
 
 it('parses yaml contents', function (): void {

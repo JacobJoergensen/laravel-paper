@@ -45,6 +45,10 @@ use Throwable;
  */
 final class PaperQueryBuilder
 {
+    private const array OPERATORS = ['=', '==', '===', '!=', '<>', '!==', '>', '>=', '<', '<=', 'like'];
+
+    private const array EQUALITY_OPERATORS = ['=', '==', '===', '!=', '<>', '!=='];
+
     /** @var list<array{type: string, column?: string, second?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, wheres?: list<array<string, mixed>>, relation?: string, count?: int, constraint?: ?Closure, boolean: string}> */
     private array $wheres = [];
 
@@ -92,6 +96,9 @@ final class PaperQueryBuilder
 
     /** @var array<class-string<PaperModel>, bool> */
     private static array $nestedCache = [];
+
+    /** @var array<class-string<PaperModel>, string> */
+    private static array $contentPathCache = [];
 
     /** @var array<string, array{driver: DriverContract, adapter: StorageAdapterContract, usesDisk: bool, nested: bool}> */
     private static array $fakes = [];
@@ -200,18 +207,14 @@ final class PaperQueryBuilder
         }
 
         if (! isset(self::$driverCache[$modelClass])) {
-            $reflection = new ReflectionClass($modelClass);
+            $driver = self::attributeFor($modelClass, Driver::class) ?? new Driver('markdown');
+            $contentPath = self::attributeFor($modelClass, ContentPath::class) ?? new ContentPath('content');
+            $diskName = self::attributeFor($modelClass, Disk::class)?->name;
 
-            $driverAttribute = $reflection->getAttributes(Driver::class)[0] ?? null;
-            $diskAttribute = $reflection->getAttributes(Disk::class)[0] ?? null;
-            $contentPathAttribute = $reflection->getAttributes(ContentPath::class)[0] ?? null;
-
-            $driverName = $driverAttribute?->newInstance()->name ?? 'markdown';
-            $diskName = $diskAttribute?->newInstance()->name;
-
-            self::$driverCache[$modelClass] = app(DriverRegistry::class)->resolve($driverName);
-            self::$timestampsCache[$modelClass] = $reflection->getAttributes(Timestamps::class) !== [];
-            self::$nestedCache[$modelClass] = $contentPathAttribute?->newInstance()->nested ?? false;
+            self::$driverCache[$modelClass] = app(DriverRegistry::class)->resolve($driver->name);
+            self::$timestampsCache[$modelClass] = self::attributeFor($modelClass, Timestamps::class) !== null;
+            self::$nestedCache[$modelClass] = $contentPath->nested;
+            self::$contentPathCache[$modelClass] = $contentPath->path;
 
             if ($diskName === null) {
                 self::$adapterCache[$modelClass] = new LocalAdapter(app(Filesystem::class));
@@ -254,6 +257,46 @@ final class PaperQueryBuilder
     }
 
     /**
+     * @param  class-string<PaperModel>  $modelClass
+     */
+    public static function driverFor(string $modelClass): DriverContract
+    {
+        return self::resolveFor($modelClass)['driver'];
+    }
+
+    /**
+     * @param  class-string<PaperModel>  $modelClass
+     */
+    public static function declaredContentPath(string $modelClass): string
+    {
+        self::resolveFor($modelClass);
+
+        return self::$contentPathCache[$modelClass];
+    }
+
+    /**
+     * @template TAttribute of object
+     *
+     * @param  class-string<PaperModel>  $modelClass
+     * @param  class-string<TAttribute>  $attribute
+     * @return ?TAttribute
+     */
+    private static function attributeFor(string $modelClass, string $attribute): ?object
+    {
+        $reflection = new ReflectionClass($modelClass);
+
+        do {
+            $declared = $reflection->getAttributes($attribute)[0] ?? null;
+
+            if ($declared !== null) {
+                return $declared->newInstance();
+            }
+        } while ($reflection = $reflection->getParentClass());
+
+        return null;
+    }
+
+    /**
      * @param  ?class-string<PaperModel>  $modelClass
      */
     public static function forgetCache(?string $modelClass = null): void
@@ -264,6 +307,7 @@ final class PaperQueryBuilder
             self::$adapterCache = [];
             self::$timestampsCache = [];
             self::$nestedCache = [];
+            self::$contentPathCache = [];
             self::$fakes = [];
 
             return;
@@ -275,6 +319,7 @@ final class PaperQueryBuilder
             self::$adapterCache[$modelClass],
             self::$timestampsCache[$modelClass],
             self::$nestedCache[$modelClass],
+            self::$contentPathCache[$modelClass],
             self::$fakes[$modelClass],
         );
     }
@@ -415,7 +460,7 @@ final class PaperQueryBuilder
             return null;
         }
 
-        $model = $this->hydrate($entry['slug'], $entry['mtime'], $entry['data']);
+        $model = $this->hydrate($entry['slug'], $entry['mtime'], $entry['data'], $entry['version']);
 
         if ($this->allWheres() === []) {
             return $model;
@@ -437,16 +482,12 @@ final class PaperQueryBuilder
             return $this->whereGroup($column, $boolean);
         }
 
-        [$operator, $value] = $this->resolveOperator($operator, $value);
+        [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 2);
 
         if ($value === null) {
-            if (in_array($operator, ['=', '==', '==='], true)) {
-                return $this->whereNull($column, $boolean);
-            }
-
-            if (in_array($operator, ['!=', '<>', '!=='], true)) {
-                return $this->whereNotNull($column, $boolean);
-            }
+            return in_array($operator, ['!=', '<>', '!=='], true)
+                ? $this->whereNotNull($column, $boolean)
+                : $this->whereNull($column, $boolean);
         }
 
         $this->wheres[] = [
@@ -477,14 +518,24 @@ final class PaperQueryBuilder
                     continue;
                 }
 
-                if (! is_array($value) || ! is_string($value[0] ?? null)) {
+                $malformed = ! is_array($value)
+                    || ! is_string($value[0] ?? null)
+                    || count($value) < 2
+                    || count($value) > 3;
+
+                if ($malformed) {
                     throw new InvalidArgumentException('Each array condition must be [column, value] or [column, operator, value].');
                 }
 
                 $column = $value[0];
-                $operator = $value[1] ?? null;
-                $bound = $value[2] ?? null;
-                $query->where($column, $this->scalarOrNull($operator), $this->scalarOrNull($bound));
+
+                if (count($value) === 2) {
+                    $query->where($column, '=', $this->scalarOrNull($value[1]));
+
+                    continue;
+                }
+
+                $query->where($column, $this->scalarOrNull($value[1]), $this->scalarOrNull($value[2]));
             }
         }, $boolean);
     }
@@ -507,14 +558,33 @@ final class PaperQueryBuilder
      * @param  TValue  $value
      * @return array{string, TValue}
      */
-    private function resolveOperator(mixed $operator, mixed $value): array
+    private function resolveOperator(mixed $operator, mixed $value, bool $valueOnly): array
     {
-        if ($value === null && ! in_array($operator, ['=', '==', '===', '!=', '<>', '!==', '>', '>=', '<', '<=', 'like'], true)) {
-            $value = $operator;
-            $operator = '=';
+        if ($valueOnly) {
+            return ['=', $operator];
         }
 
-        return [is_string($operator) ? $operator : '=', $value];
+        if ($operator === null && $value === null) {
+            return ['=', $value];
+        }
+
+        if (! is_string($operator)) {
+            throw new InvalidArgumentException(
+                sprintf('A where operator must be a string, %s given.', get_debug_type($operator))
+            );
+        }
+
+        $operator = strtolower($operator);
+
+        if (! in_array($operator, self::OPERATORS, true)) {
+            throw new InvalidArgumentException(sprintf('Unsupported where operator: %s.', $operator));
+        }
+
+        if ($value === null && ! in_array($operator, self::EQUALITY_OPERATORS, true)) {
+            throw new InvalidArgumentException(sprintf('Operator %s cannot be used with a null value.', $operator));
+        }
+
+        return [$operator, $value];
     }
 
     /**
@@ -522,6 +592,8 @@ final class PaperQueryBuilder
      */
     public function orWhere(array|Closure|string $column, null|bool|float|int|string $operator = null, null|bool|float|int|string $value = null): static
     {
+        [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 2);
+
         return $this->where($column, $operator, $value, 'or');
     }
 
@@ -541,48 +613,62 @@ final class PaperQueryBuilder
 
     public function whereDate(string $column, mixed $operator, mixed $value = null, string $boolean = 'and'): static
     {
+        [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 2);
+
         return $this->addDateWhere('date', $column, $operator, $value, $boolean);
     }
 
     public function orWhereDate(string $column, mixed $operator, mixed $value = null): static
     {
+        [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 2);
+
         return $this->addDateWhere('date', $column, $operator, $value, 'or');
     }
 
     public function whereYear(string $column, mixed $operator, mixed $value = null, string $boolean = 'and'): static
     {
+        [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 2);
+
         return $this->addDateWhere('year', $column, $operator, $value, $boolean);
     }
 
     public function orWhereYear(string $column, mixed $operator, mixed $value = null): static
     {
+        [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 2);
+
         return $this->addDateWhere('year', $column, $operator, $value, 'or');
     }
 
     public function whereMonth(string $column, mixed $operator, mixed $value = null, string $boolean = 'and'): static
     {
+        [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 2);
+
         return $this->addDateWhere('month', $column, $operator, $value, $boolean);
     }
 
     public function orWhereMonth(string $column, mixed $operator, mixed $value = null): static
     {
+        [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 2);
+
         return $this->addDateWhere('month', $column, $operator, $value, 'or');
     }
 
     public function whereDay(string $column, mixed $operator, mixed $value = null, string $boolean = 'and'): static
     {
+        [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 2);
+
         return $this->addDateWhere('day', $column, $operator, $value, $boolean);
     }
 
     public function orWhereDay(string $column, mixed $operator, mixed $value = null): static
     {
+        [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 2);
+
         return $this->addDateWhere('day', $column, $operator, $value, 'or');
     }
 
-    private function addDateWhere(string $type, string $column, mixed $operator, mixed $value, string $boolean): static
+    private function addDateWhere(string $type, string $column, string $operator, mixed $value, string $boolean): static
     {
-        [$operator, $value] = $this->resolveOperator($operator, $value);
-
         if ($value instanceof DateTimeInterface) {
             $carbon = Carbon::instance($value);
             $value = match ($type) {
@@ -650,6 +736,8 @@ final class PaperQueryBuilder
      */
     public function whereRelation(string $relation, string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
+        [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 3);
+
         return $this->addHasWhere($relation, fn (self $query): mixed => $query->where($column, $operator, $value), '>=', 1, $boolean);
     }
 
@@ -659,6 +747,8 @@ final class PaperQueryBuilder
      */
     public function orWhereRelation(string $relation, string $column, mixed $operator = null, mixed $value = null): static
     {
+        [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 3);
+
         return $this->whereRelation($relation, $column, $operator, $value, 'or');
     }
 
@@ -858,6 +948,8 @@ final class PaperQueryBuilder
      */
     public function whereAny(array $columns, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
+        [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 2);
+
         return $this->where(function (self $query) use ($columns, $operator, $value): void {
             foreach ($columns as $column) {
                 $query->orWhere($column, $operator, $value);
@@ -872,6 +964,8 @@ final class PaperQueryBuilder
      */
     public function orWhereAny(array $columns, mixed $operator = null, mixed $value = null): static
     {
+        [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 2);
+
         return $this->whereAny($columns, $operator, $value, 'or');
     }
 
@@ -882,6 +976,8 @@ final class PaperQueryBuilder
      */
     public function whereAll(array $columns, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
+        [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 2);
+
         return $this->where(function (self $query) use ($columns, $operator, $value): void {
             foreach ($columns as $column) {
                 $query->where($column, $operator, $value);
@@ -896,6 +992,8 @@ final class PaperQueryBuilder
      */
     public function orWhereAll(array $columns, mixed $operator = null, mixed $value = null): static
     {
+        [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 2);
+
         return $this->whereAll($columns, $operator, $value, 'or');
     }
 
@@ -932,10 +1030,24 @@ final class PaperQueryBuilder
     }
 
     /**
+     * @param  array<array-key, scalar>  $values
+     */
+    private function guardBounds(array $values): void
+    {
+        if (count($values) !== 2) {
+            throw new InvalidArgumentException(
+                sprintf('A between range must have exactly two values, %d given.', count($values))
+            );
+        }
+    }
+
+    /**
      * @param  array{0: scalar, 1: scalar}  $values
      */
     public function whereBetween(string $column, array $values, string $boolean = 'and'): static
     {
+        $this->guardBounds($values);
+
         $this->wheres[] = [
             'type' => 'between',
             'column' => $column,
@@ -959,6 +1071,8 @@ final class PaperQueryBuilder
      */
     public function whereNotBetween(string $column, array $values, string $boolean = 'and'): static
     {
+        $this->guardBounds($values);
+
         $this->wheres[] = [
             'type' => 'notBetween',
             'column' => $column,
@@ -979,9 +1093,15 @@ final class PaperQueryBuilder
 
     public function orderBy(string $column, string $direction = 'asc'): static
     {
+        $direction = strtolower($direction);
+
+        if ($direction !== 'asc' && $direction !== 'desc') {
+            throw new InvalidArgumentException('Order direction must be "asc" or "desc".');
+        }
+
         $this->orders[] = [
             'column' => $column,
-            'direction' => strtolower($direction),
+            'direction' => $direction,
         ];
 
         return $this;
@@ -1016,6 +1136,10 @@ final class PaperQueryBuilder
 
     public function limit(int $value): static
     {
+        if ($value < 0) {
+            throw new InvalidArgumentException('A limit cannot be negative.');
+        }
+
         $this->limitValue = $value;
 
         return $this;
@@ -1028,6 +1152,10 @@ final class PaperQueryBuilder
 
     public function offset(int $value): static
     {
+        if ($value < 0) {
+            throw new InvalidArgumentException('An offset cannot be negative.');
+        }
+
         $this->offsetValue = $value;
 
         return $this;
@@ -1070,8 +1198,8 @@ final class PaperQueryBuilder
     public function first(): ?Model
     {
 
-        if ($this->allOrders() === [] && $this->with === []) {
-            return $this->lazy()->first();
+        if ($this->allOrders() === []) {
+            return $this->lazy(1)->first();
         }
 
         return $this->limit(1)->get()->first();
@@ -1085,6 +1213,8 @@ final class PaperQueryBuilder
      */
     public function firstWhere(array|Closure|string $column, mixed $operator = null, mixed $value = null): ?Model
     {
+        [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 2);
+
         return $this->where($column, $operator, $value)->first();
     }
 
@@ -1126,7 +1256,7 @@ final class PaperQueryBuilder
     public function sole(): Model
     {
         /** @var list<TModel> $items */
-        $items = $this->lazy()->take(2)->all();
+        $items = $this->lazy(2)->take(2)->all();
 
         if ($items === []) {
             throw (new ModelNotFoundException)->setModel($this->modelClass);
@@ -1242,7 +1372,7 @@ final class PaperQueryBuilder
                 }
 
                 $data = $this->driver->parse($contents);
-                $model = $this->hydrate($slug, $info['mtime'], $data);
+                $model = $this->hydrate($slug, $info['mtime'], $data, PaperVersion::of($contents));
                 $model->toArray();
             } catch (Throwable $e) {
                 $failures[] = ['path' => $info['path'], 'error' => $e->getMessage()];
@@ -1373,6 +1503,17 @@ final class PaperQueryBuilder
         return array_merge($this->orders, ...array_values($this->scopeOrders));
     }
 
+    private function guardPage(int $perPage, int $page): void
+    {
+        if ($perPage < 1) {
+            throw new InvalidArgumentException('The page size should be at least 1.');
+        }
+
+        if ($page < 1) {
+            throw new InvalidArgumentException('The page number should be at least 1.');
+        }
+    }
+
     /**
      * @return LengthAwarePaginator<int, TModel>
      */
@@ -1380,6 +1521,8 @@ final class PaperQueryBuilder
     {
 
         $page ??= Paginator::resolveCurrentPage();
+
+        $this->guardPage($perPage, $page);
 
         $originalLimit = $this->limitValue;
         $originalOffset = $this->offsetValue;
@@ -1394,7 +1537,7 @@ final class PaperQueryBuilder
                 $total = $records->count();
                 $items = $records->slice(($page - 1) * $perPage)
                     ->take($perPage)
-                    ->map(fn (array $record) => $this->hydrate($record['slug'], $record['mtime'], $record['data']))
+                    ->map(fn (array $record) => $this->hydrate($record['slug'], $record['mtime'], $record['data'], $record['version']))
                     ->values();
             } else {
                 $all = $this->getModels();
@@ -1422,6 +1565,8 @@ final class PaperQueryBuilder
 
         $page ??= Paginator::resolveCurrentPage();
 
+        $this->guardPage($perPage, $page);
+
         $originalLimit = $this->limitValue;
         $originalOffset = $this->offsetValue;
 
@@ -1435,7 +1580,7 @@ final class PaperQueryBuilder
             $items = $records !== null
                 ? $records->slice($offset)
                     ->take($perPage + 1)
-                    ->map(fn (array $record) => $this->hydrate($record['slug'], $record['mtime'], $record['data']))
+                    ->map(fn (array $record) => $this->hydrate($record['slug'], $record['mtime'], $record['data'], $record['version']))
                     ->values()
                 : $this->lazyModels()->skip($offset)->take($perPage + 1)->collect();
 
@@ -1487,13 +1632,13 @@ final class PaperQueryBuilder
         foreach ($this->records() as $record) {
             if ($pushDown) {
                 if ($this->recordMatches($record)) {
-                    yield $this->hydrate($record['slug'], $record['mtime'], $record['data']);
+                    yield $this->hydrate($record['slug'], $record['mtime'], $record['data'], $record['version']);
                 }
 
                 continue;
             }
 
-            $model = $this->hydrate($record['slug'], $record['mtime'], $record['data']);
+            $model = $this->hydrate($record['slug'], $record['mtime'], $record['data'], $record['version']);
 
             if ($this->matchesWheres($model)) {
                 yield $model;
@@ -1618,15 +1763,56 @@ final class PaperQueryBuilder
     /**
      * @return LazyCollection<int, TModel>
      */
-    public function lazy(): LazyCollection
+    public function lazy(int $chunkSize = 1000): LazyCollection
     {
-        return new LazyCollection(function (): Generator {
-            foreach ($this->yieldModels() as $model) {
-                $this->fireRetrieved($model);
+        if ($chunkSize < 1) {
+            throw new InvalidArgumentException('The chunk size should be at least 1.');
+        }
 
-                yield $model;
+        return new LazyCollection(function () use ($chunkSize): Generator {
+            // Without relations there is nothing to batch, so models are released as they come.
+            if ($this->with === []) {
+                foreach ($this->yieldModels() as $model) {
+                    $this->fireRetrieved($model);
+
+                    yield $model;
+                }
+
+                return;
+            }
+
+            foreach ($this->chunkModels($chunkSize) as $models) {
+                $this->eagerLoadRelations($models);
+
+                foreach ($models as $model) {
+                    $this->fireRetrieved($model);
+
+                    yield $model;
+                }
             }
         });
+    }
+
+    /**
+     * @return Generator<int, list<TModel>>
+     */
+    private function chunkModels(int $size): Generator
+    {
+        $buffer = [];
+
+        foreach ($this->yieldModels() as $model) {
+            $buffer[] = $model;
+
+            if (count($buffer) === $size) {
+                yield $buffer;
+
+                $buffer = [];
+            }
+        }
+
+        if ($buffer !== []) {
+            yield $buffer;
+        }
     }
 
     /**
@@ -1634,9 +1820,13 @@ final class PaperQueryBuilder
      */
     public function chunk(int $count, callable $callback): bool
     {
+        if ($count < 1) {
+            throw new InvalidArgumentException('The chunk size should be at least 1.');
+        }
+
         $page = 1;
 
-        foreach ($this->lazy()->chunk($count) as $chunk) {
+        foreach ($this->lazy($count)->chunk($count) as $chunk) {
             $models = $this->model()->newCollection($chunk->all());
 
             if ($callback($models, $page) === false) {
@@ -1810,7 +2000,7 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @return ?Collection<int, array{slug: string, mtime: int, data: array<string, mixed>}>
+     * @return ?Collection<int, array{slug: string, mtime: int, data: array<string, mixed>, version: string}>
      */
     private function parseFreeRecords(): ?Collection
     {
@@ -1882,7 +2072,7 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @return Collection<int, array{slug: string, mtime: int, data: array<string, mixed>}>
+     * @return Collection<int, array{slug: string, mtime: int, data: array<string, mixed>, version: string}>
      */
     private function records(): Collection
     {
@@ -1895,7 +2085,12 @@ final class PaperQueryBuilder
         $records = [];
 
         foreach ($entries as $slug => $entry) {
-            $records[] = ['slug' => (string) $slug, 'mtime' => $entry['mtime'], 'data' => $entry['data']];
+            $records[] = [
+                'slug' => (string) $slug,
+                'mtime' => $entry['mtime'],
+                'data' => $entry['data'],
+                'version' => $entry['version'],
+            ];
         }
 
         return collect($records);
@@ -1927,7 +2122,7 @@ final class PaperQueryBuilder
      * @param  array<string, mixed>  $data
      * @return TModel
      */
-    private function hydrate(string $slug, int $mtime, array $data): Model
+    private function hydrate(string $slug, int $mtime, array $data, string $version): Model
     {
         $data['slug'] = $slug;
 
@@ -1937,12 +2132,7 @@ final class PaperQueryBuilder
             $data[$column] = $mtime;
         }
 
-        $model = new $this->modelClass;
-        $attributes = PaperCasts::fromStorage($model, $data);
-        $model->setRawAttributes($attributes, true);
-        $model->exists = true;
-
-        return $model;
+        return $this->modelClass::fromRecord($data, $version);
     }
 
     /**
@@ -1996,7 +2186,7 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @param  array{slug: string, mtime: int, data: array<string, mixed>}  $record
+     * @param  array{slug: string, mtime: int, data: array<string, mixed>, version: string}  $record
      */
     private function recordMatches(array $record): bool
     {

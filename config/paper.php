@@ -34,6 +34,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Concurrency
+    |--------------------------------------------------------------------------
+    |
+    | How a write reacts when the record changed on disk after it was loaded.
+    | "strict" refuses to write through storage that cannot apply the check and
+    | the write as one step, "best_effort" checks anyway and accepts the gap on
+    | such storage, and "off" writes without checking, so the last write wins.
+    |
+    */
+
+    'concurrency' => env('PAPER_CONCURRENCY', 'best_effort'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Rebuild Lock
     |--------------------------------------------------------------------------
     |

@@ -34,6 +34,27 @@ it('can resolve hasMany relationship', function (): void {
         ->and($posts->first()->slug)->toBe('hello-world');
 });
 
+it('queries a belongsTo relation, constrained to the record it points at', function (): void {
+    $post = Post::find('hello-world');
+
+    expect($post->author()->query()->first()?->slug)->toBe('john-doe')
+        ->and($post->author()->query()->where('name', 'Jane Doe')->first())->toBeNull();
+});
+
+it('queries a belongsTo relation whose foreign key is missing as an empty set', function (): void {
+    $post = Post::find('draft-post');
+
+    expect($post->author()->query()->get())->toBeEmpty()
+        ->and($post->author()->query()->count())->toBe(0);
+});
+
+it('queries a hasMany relation, scoped to its parent', function (): void {
+    $author = Author::find('john-doe');
+
+    expect($author->posts()->query()->pluck('slug')->all())->toBe(['hello-world'])
+        ->and($author->posts()->query()->where('published', false)->get())->toBeEmpty();
+});
+
 it('resolves a belongsTo on property access and holds on to the result', function (): void {
     $post = Post::find('hello-world');
 

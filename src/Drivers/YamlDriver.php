@@ -6,6 +6,8 @@ namespace JacobJoergensen\LaravelPaper\Drivers;
 
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
+use JacobJoergensen\LaravelPaper\Exceptions\FileSerializeException;
+use Symfony\Component\Yaml\Exception\DumpException;
 use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
 
@@ -20,6 +22,11 @@ final readonly class YamlDriver implements DriverContract
     }
 
     public function bodyColumn(): ?string
+    {
+        return null;
+    }
+
+    public function bodySyntax(): ?string
     {
         return null;
     }
@@ -58,7 +65,11 @@ final readonly class YamlDriver implements DriverContract
             return "\n";
         }
 
-        $yaml = Yaml::dump($data, PHP_INT_MAX, 4, Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK);
+        try {
+            $yaml = Yaml::dump($data, PHP_INT_MAX, 4, Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK | Yaml::DUMP_EXCEPTION_ON_INVALID_TYPE);
+        } catch (DumpException $e) {
+            throw FileSerializeException::invalidYaml($e->getMessage());
+        }
 
         // Symfony omits the final newline when the last value is a stripped literal block.
         return str_ends_with($yaml, "\n") ? $yaml : $yaml."\n";

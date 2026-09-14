@@ -26,8 +26,29 @@ final class ExtendedPost extends Post
     /**
      * @return BelongsToPaper<Author>
      */
+    public static function defaultAuthor(): BelongsToPaper
+    {
+        throw new RuntimeException('Relation discovery invoked a static method.');
+    }
+
+    /**
+     * @return BelongsToPaper<Author>
+     */
     public function authorNamed(string $foreignKey): BelongsToPaper
     {
         return $this->belongsToPaper(Author::class, $foreignKey);
+    }
+
+    public function writer()
+    {
+        return $this->belongsToPaper(Author::class, 'author_slug');
+    }
+
+    /**
+     * @return HasManyPaper<Post>
+     */
+    public function authorPosts(): HasManyPaper
+    {
+        return new Author()->posts();
     }
 }

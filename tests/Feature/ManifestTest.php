@@ -211,8 +211,8 @@ it('keeps a record another process added while it writes its own', function (): 
     $first->records($adapter, new MarkdownDriver, 'blog');
     $second->records($adapter, new MarkdownDriver, 'blog');
 
-    $first->put($adapter, new MarkdownDriver, 'blog', 'post-2', 'blog/post-2.md', ['title' => 'Two']);
-    $second->put($adapter, new MarkdownDriver, 'blog', 'post-3', 'blog/post-3.md', ['title' => 'Three']);
+    $first->put($adapter, new MarkdownDriver, 'blog', 'post-2', 'blog/post-2.md', ['title' => 'Two'], 'v2');
+    $second->put($adapter, new MarkdownDriver, 'blog', 'post-3', 'blog/post-3.md', ['title' => 'Three'], 'v3');
 
     $reader = new PaperManifest($cache, 60, 10, false);
 
@@ -250,7 +250,7 @@ it('keeps an entry another process stored while the rebuild was parsing', functi
     $adapter->hideFromListing('blog/post-2.md');
 
     $saving = new PaperManifest($cache, 60, 10, false);
-    $saving->put($adapter, new MarkdownDriver, 'blog', 'post-2', 'blog/post-2.md', ['title' => 'Two']);
+    $saving->put($adapter, new MarkdownDriver, 'blog', 'post-2', 'blog/post-2.md', ['title' => 'Two'], 'v2');
 
     $adapter->seed('blog/post-1.md', "---\ntitle: Edited\n---\n", 1_500);
     $rebuilding->reconcile($adapter, new MarkdownDriver, 'blog');
@@ -272,7 +272,7 @@ it('keeps a record another process saved while it caches a single file', functio
     $adapter->seed('blog/post-3.md', "---\ntitle: Three\n---\n", 3_000);
 
     $saving = new PaperManifest($cache, 60, 10, true);
-    $saving->put($adapter, new MarkdownDriver, 'blog', 'post-3', 'blog/post-3.md', ['title' => 'Three']);
+    $saving->put($adapter, new MarkdownDriver, 'blog', 'post-3', 'blog/post-3.md', ['title' => 'Three'], 'v3');
 
     $adapter->seed('blog/post-1.md', "---\ntitle: Edited\n---\n", 1_500);
     $reading->record($adapter, new MarkdownDriver, 'blog', 'post-1');
@@ -295,7 +295,7 @@ it('drops the manifest rather than merge a save into it without the lock', funct
     $adapter->seed('blog/post-2.md', "---\ntitle: Two\n---\n", 2_000);
     $store->contended = true;
 
-    $saving->put($adapter, new MarkdownDriver, 'blog', 'post-2', 'blog/post-2.md', ['title' => 'Two']);
+    $saving->put($adapter, new MarkdownDriver, 'blog', 'post-2', 'blog/post-2.md', ['title' => 'Two'], 'v2');
 
     $store->contended = false;
     $adapter->reset();
@@ -341,7 +341,7 @@ it('keeps a record another process deleted while it writes its own', function ()
     $second->records($adapter, new MarkdownDriver, 'blog');
 
     $first->forget($adapter, new MarkdownDriver, 'blog', 'post-1');
-    $second->put($adapter, new MarkdownDriver, 'blog', 'post-3', 'blog/post-3.md', ['title' => 'Three']);
+    $second->put($adapter, new MarkdownDriver, 'blog', 'post-3', 'blog/post-3.md', ['title' => 'Three'], 'v3');
 
     $reader = new PaperManifest($cache, 60, 10, false);
 
@@ -363,7 +363,7 @@ it('does not publish a rebuild over a save that could not wait for it', function
 
     $adapter->duringNextRead(function () use ($adapter, $saving): void {
         $adapter->seed('blog/post-2.md', "---\ntitle: Two\n---\n", 2_000);
-        $saving->put($adapter, new MarkdownDriver, 'blog', 'post-2', 'blog/post-2.md', ['title' => 'Two']);
+        $saving->put($adapter, new MarkdownDriver, 'blog', 'post-2', 'blog/post-2.md', ['title' => 'Two'], 'v2');
     });
 
     $rebuilding->reconcile($adapter, new MarkdownDriver, 'blog');
@@ -388,7 +388,7 @@ it('takes back a manifest invalidated between the revision check and the write',
 
     $store->duringNextWrite(function () use ($adapter, $saving): void {
         $adapter->seed('blog/post-2.md', "---\ntitle: Two\n---\n", 2_000);
-        $saving->put($adapter, new MarkdownDriver, 'blog', 'post-2', 'blog/post-2.md', ['title' => 'Two']);
+        $saving->put($adapter, new MarkdownDriver, 'blog', 'post-2', 'blog/post-2.md', ['title' => 'Two'], 'v2');
     });
 
     $rebuilding->reconcile($adapter, new MarkdownDriver, 'blog');

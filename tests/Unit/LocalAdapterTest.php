@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use Illuminate\Filesystem\Filesystem;
 use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
+use JacobJoergensen\LaravelPaper\PaperVersion;
+use JacobJoergensen\LaravelPaper\StorageAdapters\ConditionalWriteStatus;
 use JacobJoergensen\LaravelPaper\StorageAdapters\LocalAdapter;
 
 beforeEach(function (): void {
@@ -27,6 +29,90 @@ it('writes atomically via temp file and rename', function (): void {
     expect($this->adapter->write($path, 'body'))->toBeTrue()
         ->and(file_get_contents($path))->toBe('body')
         ->and(glob($this->dir.'/.paper-*'))->toBe([]);
+});
+
+it('creates only when nothing holds the path', function (): void {
+    $path = $this->dir.'/post.md';
+
+    $created = $this->adapter->createIfMissing($path, 'first');
+    $again = $this->adapter->createIfMissing($path, 'second');
+
+    expect($created->status)->toBe(ConditionalWriteStatus::Written)
+        ->and($created->version)->toBe(PaperVersion::of('first'))
+        ->and($again->status)->toBe(ConditionalWriteStatus::Taken)
+        ->and(file_get_contents($path))->toBe('first');
+});
+
+it('replaces only the version it was given', function (): void {
+    $path = $this->dir.'/post.md';
+    $this->adapter->write($path, 'first');
+
+    $stale = $this->adapter->replaceIf($path, 'stale', PaperVersion::of('other'));
+    $fresh = $this->adapter->replaceIf($path, 'second', PaperVersion::of('first'));
+    $gone = $this->adapter->replaceIf($this->dir.'/missing.md', 'x', PaperVersion::of('first'));
+
+    expect($stale->status)->toBe(ConditionalWriteStatus::Mismatch)
+        ->and($fresh->status)->toBe(ConditionalWriteStatus::Written)
+        ->and($gone->status)->toBe(ConditionalWriteStatus::Missing)
+        ->and(file_get_contents($path))->toBe('second');
+});
+
+it('deletes only the version it was given', function (): void {
+    $path = $this->dir.'/post.md';
+    $this->adapter->write($path, 'first');
+
+    $stale = $this->adapter->deleteIf($path, PaperVersion::of('other'));
+
+    expect($stale->status)->toBe(ConditionalWriteStatus::Mismatch)
+        ->and(file_exists($path))->toBeTrue()
+        ->and($this->adapter->deleteIf($path, PaperVersion::of('first'))->status)->toBe(ConditionalWriteStatus::Removed)
+        ->and(file_exists($path))->toBeFalse();
+});
+
+it('moves a record only when the source matches and the destination is free', function (): void {
+    $from = $this->dir.'/from.md';
+    $to = $this->dir.'/to.md';
+    $this->adapter->write($from, 'body');
+
+    $stale = $this->adapter->moveIf($from, $to, 'body', PaperVersion::of('other'));
+
+    expect($stale->status)->toBe(ConditionalWriteStatus::Mismatch)
+        ->and(file_exists($to))->toBeFalse();
+
+    $this->adapter->write($to, 'taken');
+
+    expect($this->adapter->moveIf($from, $to, 'body', PaperVersion::of('body'))->status)->toBe(ConditionalWriteStatus::Taken)
+        ->and(file_get_contents($to))->toBe('taken');
+
+    unlink($to);
+
+    expect($this->adapter->moveIf($from, $to, 'body', PaperVersion::of('body'))->status)->toBe(ConditionalWriteStatus::Written)
+        ->and(file_exists($from))->toBeFalse()
+        ->and(file_get_contents($to))->toBe('body');
+});
+
+it('refuses a create when a conflicting path is already held', function (): void {
+    $md = $this->dir.'/post.md';
+    $markdown = $this->dir.'/post.markdown';
+
+    $this->adapter->createIfMissing($md, 'one');
+    $result = $this->adapter->createIfMissing($markdown, 'two', [$md]);
+
+    expect($result->status)->toBe(ConditionalWriteStatus::Taken)
+        ->and($result->path)->toBe($md)
+        ->and(file_exists($markdown))->toBeFalse();
+});
+
+it('takes one lock per record, whichever extension the file has', function (): void {
+    $before = glob(sys_get_temp_dir().'/paper-*.lock') ?: [];
+
+    $this->adapter->createIfMissing($this->dir.'/post.md', 'one');
+    $this->adapter->createIfMissing($this->dir.'/post.markdown', 'two', [$this->dir.'/post.md']);
+    $this->adapter->createIfMissing($this->dir.'/other.md', 'three');
+
+    $created = array_diff(glob(sys_get_temp_dir().'/paper-*.lock') ?: [], $before);
+
+    expect($created)->toHaveCount(2);
 });
 
 it('lists matching files with their modification times', function (): void {

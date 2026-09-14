@@ -6,7 +6,9 @@ namespace JacobJoergensen\LaravelPaper\Drivers;
 
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
+use JacobJoergensen\LaravelPaper\Exceptions\FileSerializeException;
 use Spatie\YamlFrontMatter\YamlFrontMatter;
+use Symfony\Component\Yaml\Exception\DumpException;
 use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
 
@@ -23,6 +25,11 @@ final readonly class MarkdownDriver implements DriverContract
     public function bodyColumn(): string
     {
         return 'content';
+    }
+
+    public function bodySyntax(): string
+    {
+        return 'markdown';
     }
 
     /**
@@ -55,7 +62,11 @@ final readonly class MarkdownDriver implements DriverContract
             return "$content\n";
         }
 
-        $yaml = Yaml::dump($data, PHP_INT_MAX);
+        try {
+            $yaml = Yaml::dump($data, PHP_INT_MAX, 4, Yaml::DUMP_EXCEPTION_ON_INVALID_TYPE);
+        } catch (DumpException $e) {
+            throw FileSerializeException::invalidYaml($e->getMessage());
+        }
 
         return "---\n$yaml---\n\n$content\n";
     }

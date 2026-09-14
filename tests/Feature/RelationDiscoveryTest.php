@@ -33,3 +33,21 @@ it('binds each relation to the model it came from', function (): void {
     expect($first->paperRelations()['author']->parent)->toBe($first)
         ->and($second->paperRelations()['author']->parent)->toBe($second);
 });
+
+it('ignores a relation method that declares no return type', function (): void {
+    $post = new ExtendedPost;
+
+    expect($post->writer())->toBeInstanceOf(BelongsToPaper::class)
+        ->and($post->paperRelations())->not->toHaveKey('writer');
+});
+
+it('ignores a static relation method', function (): void {
+    expect(new ExtendedPost()->paperRelations())->not->toHaveKey('defaultAuthor');
+});
+
+it('ignores a relation built on another model', function (): void {
+    $post = new ExtendedPost;
+
+    expect($post->authorPosts()->parent)->not->toBe($post)
+        ->and($post->paperRelations())->not->toHaveKey('authorPosts');
+});

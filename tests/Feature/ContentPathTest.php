@@ -2,11 +2,13 @@
 
 declare(strict_types=1);
 
+use JacobJoergensen\LaravelPaper\Tests\Fixtures\ExtendedPost;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\TenantPost;
 
 beforeEach(function (): void {
     Post::resetPaperState();
+    ExtendedPost::resetPaperState();
     TenantPost::resetPaperState();
     TenantPost::$tenant = 'a';
 });
