@@ -55,6 +55,19 @@ it('checks the column for null when the value is null', function (): void {
         ->and(Post::where('author_slug', '!=', null)->pluck('slug')->toArray())->toBe(['hello-world']);
 });
 
+it('reads the second argument as a value, even when it looks like an operator', function (): void {
+    $path = __DIR__.'/../content/posts/operator-value.md';
+    File::put($path, "---\ntitle: Operator Value\nstatus: '>='\n---\n");
+
+    try {
+        expect(Post::where('status', '>=')->pluck('slug')->all())->toBe(['operator-value'])
+            ->and(Post::firstWhere('status', '>=')?->slug)->toBe('operator-value')
+            ->and(Post::whereAny(['status', 'title'], '>=')->count())->toBe(1);
+    } finally {
+        File::delete($path);
+    }
+});
+
 it('excludes null fields from comparison operators', function (): void {
     expect(Post::where('author_slug', 0)->count())->toBe(0)
         ->and(Post::where('author_slug', '!=', 0)->count())->toBe(1)

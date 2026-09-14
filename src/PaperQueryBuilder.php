@@ -27,6 +27,8 @@ use ReflectionMethod;
  */
 final class PaperQueryBuilder
 {
+    private const array OPERATORS = ['=', '==', '===', '!=', '<>', '!==', '>', '>=', '<', '<=', 'like'];
+
     /** @var list<array{type: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, wheres?: list<array<string, mixed>>, boolean: string}> */
     private array $wheres = [];
 
@@ -157,10 +159,7 @@ final class PaperQueryBuilder
             return $this->whereGroup($column, $boolean);
         }
 
-        if ($value === null && ! in_array($operator, ['=', '==', '===', '!=', '<>', '!==', '>', '>=', '<', '<=', 'like'], true)) {
-            $value = $operator;
-            $operator = '=';
-        }
+        [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 2);
 
         if ($value === null) {
             if (in_array($operator, ['=', '==', '==='], true)) {
@@ -175,7 +174,7 @@ final class PaperQueryBuilder
         $this->wheres[] = [
             'type' => 'basic',
             'column' => $column,
-            'operator' => is_string($operator) ? $operator : '=',
+            'operator' => $operator,
             'value' => $value,
             'boolean' => $boolean,
         ];
@@ -184,11 +183,33 @@ final class PaperQueryBuilder
     }
 
     /**
+     * @template TValue
+     *
+     * @param  TValue  $operator
+     * @param  TValue  $value
+     * @return array{string, TValue}
+     */
+    private function resolveOperator(mixed $operator, mixed $value, bool $valueOnly): array
+    {
+        if ($valueOnly) {
+            return ['=', $operator];
+        }
+
+        if ($value === null && ! in_array($operator, self::OPERATORS, true)) {
+            return ['=', $operator];
+        }
+
+        return [is_string($operator) ? $operator : '=', $value];
+    }
+
+    /**
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      */
     public function orWhere(callable|string $column, mixed $operator = null, mixed $value = null): static
     {
+        [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 2);
+
         return $this->where($column, $operator, $value, 'or');
     }
 
@@ -320,6 +341,8 @@ final class PaperQueryBuilder
      */
     public function whereAny(array $columns, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
+        [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 2);
+
         return $this->where(function (self $query) use ($columns, $operator, $value): void {
             foreach ($columns as $column) {
                 $query->orWhere($column, $operator, $value);
@@ -334,6 +357,8 @@ final class PaperQueryBuilder
      */
     public function orWhereAny(array $columns, mixed $operator = null, mixed $value = null): static
     {
+        [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 2);
+
         return $this->whereAny($columns, $operator, $value, 'or');
     }
 
@@ -344,6 +369,8 @@ final class PaperQueryBuilder
      */
     public function whereAll(array $columns, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
+        [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 2);
+
         return $this->where(function (self $query) use ($columns, $operator, $value): void {
             foreach ($columns as $column) {
                 $query->where($column, $operator, $value);
@@ -358,6 +385,8 @@ final class PaperQueryBuilder
      */
     public function orWhereAll(array $columns, mixed $operator = null, mixed $value = null): static
     {
+        [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 2);
+
         return $this->whereAll($columns, $operator, $value, 'or');
     }
 
@@ -519,6 +548,8 @@ final class PaperQueryBuilder
      */
     public function firstWhere(callable|string $column, mixed $operator = null, mixed $value = null): ?Model
     {
+        [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 2);
+
         return $this->where($column, $operator, $value)->first();
     }
 

@@ -120,6 +120,8 @@ trait Paper
      */
     public static function where(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
     {
+        [$operator, $value] = func_num_args() === 2 ? ['=', $operator] : [$operator, $value];
+
         return static::query()->where($column, $operator, $value);
     }
 
@@ -130,6 +132,8 @@ trait Paper
      */
     public static function orWhere(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
     {
+        [$operator, $value] = func_num_args() === 2 ? ['=', $operator] : [$operator, $value];
+
         return static::query()->orWhere($column, $operator, $value);
     }
 
@@ -220,6 +224,8 @@ trait Paper
      */
     public static function whereAny(array $columns, mixed $operator = null, mixed $value = null): PaperQueryBuilder
     {
+        [$operator, $value] = func_num_args() === 2 ? ['=', $operator] : [$operator, $value];
+
         return static::query()->whereAny($columns, $operator, $value);
     }
 
@@ -231,6 +237,8 @@ trait Paper
      */
     public static function whereAll(array $columns, mixed $operator = null, mixed $value = null): PaperQueryBuilder
     {
+        [$operator, $value] = func_num_args() === 2 ? ['=', $operator] : [$operator, $value];
+
         return static::query()->whereAll($columns, $operator, $value);
     }
 
@@ -303,6 +311,8 @@ trait Paper
      */
     public static function firstWhere(string $column, mixed $operator = null, mixed $value = null): ?static
     {
+        [$operator, $value] = func_num_args() === 2 ? ['=', $operator] : [$operator, $value];
+
         return static::query()->firstWhere($column, $operator, $value);
     }
 

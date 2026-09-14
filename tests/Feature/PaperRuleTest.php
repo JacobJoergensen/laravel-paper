@@ -29,6 +29,15 @@ it('validates exists rule fails for non-existing model', function (): void {
         ->and($validator->errors()->first('slug'))->toBe('The selected slug is invalid.');
 });
 
+it('fails the exists rule for input that looks like an operator', function (): void {
+    $validator = Validator::make(
+        ['slug' => '!='],
+        ['slug' => PaperRule::exists(Post::class)]
+    );
+
+    expect($validator->fails())->toBeTrue();
+});
+
 it('validates unique rule passes for new value', function (): void {
     $validator = Validator::make(
         ['slug' => 'brand-new-slug'],
