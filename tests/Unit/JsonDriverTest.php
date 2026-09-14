@@ -4,12 +4,19 @@ declare(strict_types=1);
 
 use JacobJoergensen\LaravelPaper\Drivers\JsonDriver;
 use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
+use JacobJoergensen\LaravelPaper\Exceptions\FileSerializeException;
 
 it('returns correct extensions', function (): void {
     $driver = new JsonDriver;
 
     expect($driver->extensions())->toBe(['json']);
 });
+
+it('throws when a value cannot be encoded, instead of writing an empty file', function (): void {
+    $driver = new JsonDriver;
+
+    $driver->serialize(['title' => "\xB1\x31"]);
+})->throws(FileSerializeException::class, 'Malformed UTF-8');
 
 it('parses json file', function (): void {
     $filepath = __DIR__.'/../content/pages/about.json';

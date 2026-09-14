@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+* Fixed `save` to throw `FileSerializeException` for a value the driver cannot write instead of saving an empty file or null
 
 ## Version 1.16.0 (2026-08-25)
 * Changed `save` to read the slug after the saving and creating events, so a listener can set or rewrite it

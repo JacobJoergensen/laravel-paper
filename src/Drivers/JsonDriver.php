@@ -6,6 +6,7 @@ namespace JacobJoergensen\LaravelPaper\Drivers;
 
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
+use JacobJoergensen\LaravelPaper\Exceptions\FileSerializeException;
 
 final readonly class JsonDriver implements DriverContract
 {
@@ -49,6 +50,12 @@ final readonly class JsonDriver implements DriverContract
     {
         unset($data['slug']);
 
-        return json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)."\n";
+        $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        if ($json === false) {
+            throw FileSerializeException::invalidJson(json_last_error_msg());
+        }
+
+        return $json."\n";
     }
 }

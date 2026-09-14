@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use JacobJoergensen\LaravelPaper\Drivers\MarkdownDriver;
 use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
+use JacobJoergensen\LaravelPaper\Exceptions\FileSerializeException;
 
 it('returns correct extensions', function (): void {
     $driver = new MarkdownDriver;
@@ -70,6 +71,18 @@ it('serializes nested frontmatter as block yaml that round-trips', function (): 
 
     expect($serialized)->not->toContain('{')
         ->and($parsed['seo'])->toBe(['og' => ['title' => 'T', 'tags' => ['a', 'b']]]);
+});
+
+it('throws for a frontmatter value it cannot represent, instead of writing null', function (): void {
+    $driver = new MarkdownDriver;
+    $handle = fopen('php://memory', 'r');
+
+    try {
+        expect(fn (): string => $driver->serialize(['handle' => $handle]))
+            ->toThrow(FileSerializeException::class, 'Unable to dump PHP resources');
+    } finally {
+        fclose($handle);
+    }
 });
 
 it('serializes a content-only model without an empty frontmatter block', function (): void {
