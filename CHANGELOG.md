@@ -8,6 +8,8 @@
 * Fixed `limit` to ignore a negative value instead of returning the last record
 * Fixed `paginate` and `simplePaginate` returning records from the end for a page number below one
 * Fixed `paginate` and `simplePaginate` to use the model's page size for a page size of zero instead of failing
+* Fixed static query calls like `Post::orderBy()`, `Post::get()`, and local scopes querying a database table instead of the content files
+* Fixed `newQuery` and `on` to throw `UnsupportedDatabaseQueryException` instead of querying a database table
 
 ## Version 1.16.0 (2026-08-25)
 * Changed `save` to read the slug after the saving and creating events, so a listener can set or rewrite it

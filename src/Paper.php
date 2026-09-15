@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace JacobJoergensen\LaravelPaper;
 
 use Closure;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Collection;
+use Illuminate\Support\LazyCollection;
 use Illuminate\Support\Str;
 use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
 use JacobJoergensen\LaravelPaper\Attributes\Driver;
@@ -19,6 +21,7 @@ use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
+use JacobJoergensen\LaravelPaper\Exceptions\UnsupportedDatabaseQueryException;
 use JacobJoergensen\LaravelPaper\Exceptions\UnsupportedRouteBindingException;
 use ReflectionClass;
 
@@ -279,6 +282,22 @@ trait Paper
     /**
      * @return PaperQueryBuilder<static>
      */
+    public static function orderBy(string $column, string $direction = 'asc'): PaperQueryBuilder
+    {
+        return static::query()->orderBy($column, $direction);
+    }
+
+    /**
+     * @return PaperQueryBuilder<static>
+     */
+    public static function orderByDesc(string $column): PaperQueryBuilder
+    {
+        return static::query()->orderByDesc($column);
+    }
+
+    /**
+     * @return PaperQueryBuilder<static>
+     */
     public static function latest(?string $column = null): PaperQueryBuilder
     {
         return static::query()->latest($column);
@@ -298,6 +317,46 @@ trait Paper
     public static function inRandomOrder(): PaperQueryBuilder
     {
         return static::query()->inRandomOrder();
+    }
+
+    /**
+     * @return PaperQueryBuilder<static>
+     */
+    public static function limit(int $value): PaperQueryBuilder
+    {
+        return static::query()->limit($value);
+    }
+
+    /**
+     * @return PaperQueryBuilder<static>
+     */
+    public static function take(int $value): PaperQueryBuilder
+    {
+        return static::query()->take($value);
+    }
+
+    /**
+     * @return PaperQueryBuilder<static>
+     */
+    public static function offset(int $value): PaperQueryBuilder
+    {
+        return static::query()->offset($value);
+    }
+
+    /**
+     * @return PaperQueryBuilder<static>
+     */
+    public static function skip(int $value): PaperQueryBuilder
+    {
+        return static::query()->skip($value);
+    }
+
+    /**
+     * @return Collection<int, static>
+     */
+    public static function get(): Collection
+    {
+        return static::query()->get();
     }
 
     public static function first(): ?static
@@ -330,6 +389,11 @@ trait Paper
     public static function firstOr(Closure $callback): mixed
     {
         return static::query()->firstOr($callback);
+    }
+
+    public static function sole(): static
+    {
+        return static::query()->sole();
     }
 
     public static function count(): int
@@ -378,6 +442,14 @@ trait Paper
     public static function pluck(string $column, ?string $key = null): Collection
     {
         return static::query()->pluck($column, $key);
+    }
+
+    /**
+     * @return LazyCollection<int, static>
+     */
+    public static function lazy(): LazyCollection
+    {
+        return static::query()->lazy();
     }
 
     /**
@@ -748,6 +820,44 @@ trait Paper
     public function deleteQuietly(): bool
     {
         return $this->quietly(fn (): bool => $this->delete());
+    }
+
+    public function newQuery(): never
+    {
+        throw UnsupportedDatabaseQueryException::forModel(static::class);
+    }
+
+    public function newModelQuery(): never
+    {
+        throw UnsupportedDatabaseQueryException::forModel(static::class);
+    }
+
+    /**
+     * @param  array<int, scalar>|scalar  $ids
+     */
+    public function newQueryForRestoration(mixed $ids): never
+    {
+        throw UnsupportedDatabaseQueryException::forModel(static::class);
+    }
+
+    /**
+     * The one Eloquent builder Paper still hands out: a factory reads the connection name off it.
+     *
+     * @return Builder<static>
+     */
+    public function newQueryWithoutScopes(): Builder
+    {
+        return parent::newModelQuery();
+    }
+
+    /**
+     * @param  string  $method
+     * @param  array<int, mixed>  $parameters
+     */
+    public function __call($method, $parameters): mixed
+    {
+        // Eloquent would forward this to a database builder, and a Paper record has no table.
+        return static::query()->{$method}(...$parameters);
     }
 
     /**

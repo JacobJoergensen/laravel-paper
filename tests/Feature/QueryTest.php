@@ -8,7 +8,9 @@ use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\File;
 use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
+use JacobJoergensen\LaravelPaper\Exceptions\UnsupportedDatabaseQueryException;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
+use JacobJoergensen\LaravelPaper\Tests\Fixtures\Author;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Draft;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 
@@ -173,6 +175,33 @@ it('ignores a negative limit', function (): void {
         ->and(Post::query()->limit(-1)->lazy()->collect())->toHaveCount(3);
 });
 
+it('orders and pages records when the query starts from a static call', function (): void {
+    expect(Post::orderByDesc('order')->limit(2)->get()->pluck('slug')->all())->toBe(['draft-post', 'second-post'])
+        ->and(Post::orderBy('order')->offset(2)->get()->pluck('slug')->all())->toBe(['draft-post'])
+        ->and(Post::take(1)->get())->toHaveCount(1)
+        ->and(Post::skip(1)->get())->toHaveCount(2);
+});
+
+it('reads records for a static get, lazy and sole', function (): void {
+    expect(Post::get()->pluck('slug')->all())->toBe(['draft-post', 'hello-world', 'second-post'])
+        ->and(Post::lazy()->count())->toBe(3)
+        ->and(Author::sole()->slug)->toBe('john-doe');
+});
+
+it('rejects an Eloquent query method Paper has no equivalent for', function (): void {
+    Post::select('title');
+})->throws(BadMethodCallException::class);
+
+it('refuses to hand out a database query builder', function (): void {
+    $post = Post::find('hello-world');
+
+    expect(fn () => $post->newQuery())->toThrow(UnsupportedDatabaseQueryException::class)
+        ->and(fn () => $post->newModelQuery())->toThrow(UnsupportedDatabaseQueryException::class)
+        ->and(fn () => $post->newQueryWithoutRelationships())->toThrow(UnsupportedDatabaseQueryException::class)
+        ->and(fn () => $post->newQueryForRestoration(['hello-world']))->toThrow(UnsupportedDatabaseQueryException::class)
+        ->and(fn () => Post::on('mysql'))->toThrow(UnsupportedDatabaseQueryException::class);
+});
+
 it('uses slug as primary key', function (): void {
     $post = Post::find('hello-world');
 
@@ -205,7 +234,8 @@ it('can use local scopes', function (): void {
     $posts = Post::query()->published()->get();
 
     expect($posts)->toHaveCount(2)
-        ->and($posts->pluck('published')->unique()->toArray())->toBe([true]);
+        ->and($posts->pluck('published')->unique()->toArray())->toBe([true])
+        ->and(Post::published()->get()->pluck('slug')->all())->toBe($posts->pluck('slug')->all());
 });
 
 it('resolves protected scopes declared with the #[Scope] attribute', function (): void {

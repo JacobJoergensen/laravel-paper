@@ -90,7 +90,7 @@ protected function published(PaperQueryBuilder $query): PaperQueryBuilder
     return $query->where('published', true);
 }
 
-// Call scopes through query(): Post::query()->published()->get();
+// Post::published()->get();
 ```
 
 `#[CollectedBy]` is also respected, so queries return your model's custom collection.
