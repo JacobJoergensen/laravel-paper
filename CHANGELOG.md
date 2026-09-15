@@ -1,18 +1,20 @@
 # Changelog
 
 ## Unreleased
+
+## Version 1.17.0 (2026-09-15)
 * Added a `yaml` driver for `.yaml` and `.yml` files, so data files can carry comments and multi-line strings
 * Added `countBy` to count a column's distinct values, flattening array fields like `tags` and skipping null so a missing field adds no bucket
 * Improved `#[ContentPath]`, `#[Driver]`, and `#[Timestamps]` to be read from a parent model instead of falling back to the defaults
-* Fixed `save` to throw `FileSerializeException` for a value the driver cannot write instead of saving an empty file or null
 * Fixed `where` and the methods built on it to read a two-argument call as a value, so `where('status', '!=')` no longer matches every record that has a status
-* Fixed `where` ignoring an uppercase operator like `LIKE` instead of matching nothing
+* Fixed `where` matching nothing for an uppercase operator like `LIKE`
 * Fixed `PaperRule::exists` passing when the input is an operator like `!=`
 * Fixed `limit` to ignore a negative value instead of returning the last record
 * Fixed `paginate` and `simplePaginate` returning records from the end for a page number below one
 * Fixed `paginate` and `simplePaginate` to use the model's page size for a page size of zero instead of failing
 * Fixed static query calls like `Post::orderBy()`, `Post::get()`, and local scopes querying a database table instead of the content files
 * Fixed `newQuery` and `on` to throw `UnsupportedDatabaseQueryException` instead of querying a database table
+* Fixed `save` to throw `FileSerializeException` for a value the driver cannot write instead of saving an empty file or null
 * Fixed `save` to keep a record's file extension when its slug changes instead of switching to the driver's first extension
 * Fixed `save` to keep the `UPDATED_AT` frontmatter field when the slug changes instead of stripping it
 * Fixed `create` and `save` to throw `DuplicateSlugException` for a taken slug instead of overwriting the existing record
