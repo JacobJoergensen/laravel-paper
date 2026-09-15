@@ -905,17 +905,33 @@ trait Paper
             return;
         }
 
-        $reflection = new ReflectionClass($class);
-
-        $driverAttribute = $reflection->getAttributes(Driver::class)[0] ?? null;
-        $pathAttribute = $reflection->getAttributes(ContentPath::class)[0] ?? null;
-
-        $driverName = $driverAttribute?->newInstance()->name ?? 'markdown';
-        $contentPath = $pathAttribute?->newInstance()->path ?? 'content';
+        $driverName = static::paperAttribute(Driver::class)->name ?? 'markdown';
+        $contentPath = static::paperAttribute(ContentPath::class)->path ?? 'content';
 
         static::$paperDrivers[$class] = static::resolveDriver($driverName);
         static::$paperContentPaths[$class] = base_path($contentPath);
-        static::$paperTimestamps[$class] = $reflection->getAttributes(Timestamps::class) !== [];
+        static::$paperTimestamps[$class] = static::paperAttribute(Timestamps::class) !== null;
+    }
+
+    /**
+     * @template TAttribute of object
+     *
+     * @param  class-string<TAttribute>  $attribute
+     * @return ?TAttribute
+     */
+    private static function paperAttribute(string $attribute): ?object
+    {
+        $reflection = new ReflectionClass(static::class);
+
+        do {
+            $declared = $reflection->getAttributes($attribute)[0] ?? null;
+
+            if ($declared !== null) {
+                return $declared->newInstance();
+            }
+        } while ($reflection = $reflection->getParentClass());
+
+        return null;
     }
 
     private static function resolveDriver(string $name): DriverContract

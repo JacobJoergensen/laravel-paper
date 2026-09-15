@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+* Improved `#[ContentPath]`, `#[Driver]`, and `#[Timestamps]` to be read from a parent model instead of falling back to the defaults
 * Fixed `save` to throw `FileSerializeException` for a value the driver cannot write instead of saving an empty file or null
 * Fixed `where` and the methods built on it to read a two-argument call as a value, so `where('status', '!=')` no longer matches every record that has a status
 * Fixed `where` ignoring an uppercase operator like `LIKE` instead of matching nothing
