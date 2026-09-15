@@ -507,7 +507,9 @@ final class PaperQueryBuilder
 
     public function limit(int $value): static
     {
-        $this->limitValue = $value;
+        if ($value >= 0) {
+            $this->limitValue = $value;
+        }
 
         return $this;
     }
@@ -711,13 +713,15 @@ final class PaperQueryBuilder
      */
     public function paginate(int $perPage = 15, ?int $page = null): LengthAwarePaginator
     {
-        $page ??= Paginator::resolveCurrentPage();
+        $page = $page ?: Paginator::resolveCurrentPage();
+        $perPage = $perPage ?: $this->model()->getPerPage();
+        $offset = max(0, ($page - 1) * $perPage);
 
         if ($this->wheres === [] && $this->ordersAreParseFree()) {
             $files = $this->orderedFiles();
             $total = $files->count();
 
-            $items = $files->slice(($page - 1) * $perPage)
+            $items = $files->slice($offset)
                 ->take($perPage)
                 ->map(fn (string $filepath): Model => $this->fileToModel($filepath))
                 ->values();
@@ -738,7 +742,7 @@ final class PaperQueryBuilder
 
             $all = $this->getModels();
             $total = $all->count();
-            $items = $all->slice(($page - 1) * $perPage)->take($perPage)->values();
+            $items = $all->slice($offset)->take($perPage)->values();
 
             $items->each($this->fireRetrieved(...));
 
@@ -756,11 +760,11 @@ final class PaperQueryBuilder
      */
     public function simplePaginate(int $perPage = 15, ?int $page = null): Paginator
     {
-        $page ??= Paginator::resolveCurrentPage();
+        $page = $page ?: Paginator::resolveCurrentPage();
+        $perPage = $perPage ?: $this->model()->getPerPage();
+        $offset = max(0, ($page - 1) * $perPage);
 
         if ($this->wheres === [] && $this->ordersAreParseFree()) {
-            $offset = ($page - 1) * $perPage;
-
             $items = $this->orderedFiles()
                 ->slice($offset)
                 ->take($perPage + 1)
@@ -781,7 +785,6 @@ final class PaperQueryBuilder
             $this->limitValue = null;
             $this->offsetValue = 0;
 
-            $offset = ($page - 1) * $perPage;
             $items = $this->lazyModels()->skip($offset)->take($perPage + 1)->collect();
 
             $items->each($this->fireRetrieved(...));

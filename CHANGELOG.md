@@ -5,6 +5,9 @@
 * Fixed `where` and the methods built on it to read a two-argument call as a value, so `where('status', '!=')` no longer matches every record that has a status
 * Fixed `where` ignoring an uppercase operator like `LIKE` instead of matching nothing
 * Fixed `PaperRule::exists` passing when the input is an operator like `!=`
+* Fixed `limit` to ignore a negative value instead of returning the last record
+* Fixed `paginate` and `simplePaginate` returning records from the end for a page number below one
+* Fixed `paginate` and `simplePaginate` to use the model's page size for a page size of zero instead of failing
 
 ## Version 1.16.0 (2026-08-25)
 * Changed `save` to read the slug after the saving and creating events, so a listener can set or rewrite it

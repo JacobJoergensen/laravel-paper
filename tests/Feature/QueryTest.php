@@ -168,6 +168,11 @@ it('can limit results', function (): void {
     expect($posts)->toHaveCount(2);
 });
 
+it('ignores a negative limit', function (): void {
+    expect(Post::query()->limit(-1)->get())->toHaveCount(3)
+        ->and(Post::query()->limit(-1)->lazy()->collect())->toHaveCount(3);
+});
+
 it('uses slug as primary key', function (): void {
     $post = Post::find('hello-world');
 
@@ -454,6 +459,16 @@ it('reports more pages without counting every record', function (): void {
         ->and($first->hasMorePages())->toBeTrue()
         ->and($second)->toHaveCount(1)
         ->and($second->hasMorePages())->toBeFalse();
+});
+
+it('returns the first page when the page number is below one', function (): void {
+    expect(Post::paginate(perPage: 1, page: 0)->first()->slug)->toBe('draft-post')
+        ->and(Post::simplePaginate(perPage: 1, page: -1)->first()->slug)->toBe('draft-post');
+});
+
+it('uses the model page size when the page size is zero', function (): void {
+    expect(Post::paginate(0))->toHaveCount(3)
+        ->and(Post::simplePaginate(0))->toHaveCount(3);
 });
 
 it('throws when querying a model whose content directory is missing', function (): void {
