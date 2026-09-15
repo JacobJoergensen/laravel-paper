@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\File;
+use JacobJoergensen\LaravelPaper\Exceptions\DuplicateSlugException;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Draft;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Page;
@@ -210,6 +211,24 @@ it('refuses to rename a record onto a slug another record holds', function (): v
     expect($post->save())->toBeFalse()
         ->and(Post::find('__save_test__taken')->title)->toBe('Taken')
         ->and(file_exists($dir.'/__save_test__source.md'))->toBeTrue();
+});
+
+it('refuses to create a record on a slug a file already holds', function (): void {
+    $path = __DIR__.'/../content/posts/__save_test__taken.md';
+    file_put_contents($path, "---\ntitle: Taken\n---\n");
+
+    expect(fn (): Post => Post::create(['slug' => '__save_test__taken', 'title' => 'Nope']))
+        ->toThrow(DuplicateSlugException::class)
+        ->and(file_get_contents($path))->toContain('Taken');
+});
+
+it('refuses to create a record on a slug another extension already holds', function (): void {
+    $dir = __DIR__.'/../content/posts';
+    file_put_contents($dir.'/__save_test__taken.markdown', "---\ntitle: Taken\n---\n");
+
+    expect(fn (): Post => Post::create(['slug' => '__save_test__taken', 'title' => 'Nope']))
+        ->toThrow(DuplicateSlugException::class)
+        ->and(file_exists($dir.'/__save_test__taken.md'))->toBeFalse();
 });
 
 it('rejects path traversal when saving', function (): void {

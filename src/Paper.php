@@ -20,6 +20,7 @@ use JacobJoergensen\LaravelPaper\Attributes\Timestamps;
 use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
+use JacobJoergensen\LaravelPaper\Exceptions\DuplicateSlugException;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
 use JacobJoergensen\LaravelPaper\Exceptions\UnsupportedDatabaseQueryException;
 use JacobJoergensen\LaravelPaper\Exceptions\UnsupportedRouteBindingException;
@@ -635,13 +636,18 @@ trait Paper
 
         $original = static::keyToString($this->getRawOriginal($this->getKeyName()));
         $isRenaming = $original !== '' && $original !== $slug;
+        $existing = $this->paperFilepath($path, $slug, $driver);
+
+        if ($isCreating && is_file($existing)) {
+            throw DuplicateSlugException::forSlug($slug, $existing);
+        }
 
         // A rename would write over the record already stored under the new slug.
-        if ($isRenaming && is_file($this->paperFilepath($path, $slug, $driver, false))) {
+        if ($isRenaming && is_file($existing)) {
             return false;
         }
 
-        $source = $this->paperFilepath($path, $isRenaming ? $original : $slug, $driver, $isCreating);
+        $source = $isRenaming ? $this->paperFilepath($path, $original, $driver) : $existing;
         $filepath = $path.'/'.$slug.'.'.pathinfo($source, PATHINFO_EXTENSION);
 
         $attributes = PaperCasts::toStorage($this, $this->getAttributes());
@@ -878,17 +884,15 @@ trait Paper
         }
     }
 
-    private function paperFilepath(string $directory, string $slug, DriverContract $driver, bool $isCreating): string
+    private function paperFilepath(string $directory, string $slug, DriverContract $driver): string
     {
         $extensions = $driver->extensions();
 
-        if (! $isCreating) {
-            foreach ($extensions as $extension) {
-                $existing = $directory.'/'.$slug.'.'.$extension;
+        foreach ($extensions as $extension) {
+            $existing = $directory.'/'.$slug.'.'.$extension;
 
-                if (is_file($existing)) {
-                    return $existing;
-                }
+            if (is_file($existing)) {
+                return $existing;
             }
         }
 
