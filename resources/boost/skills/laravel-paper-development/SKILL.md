@@ -134,6 +134,8 @@ $views = Post::where('published', true)->sum('views');
 
 On an empty result `sum` returns `0` and the others return `null`. Null, missing, and non-numeric values are skipped.
 
+`countBy` counts a column's distinct values into a collection, flattening array fields like `tags`.
+
 ## Casts
 
 Eloquent casts work as usual. `array`, `json`, `object`, and `collection` read and write
