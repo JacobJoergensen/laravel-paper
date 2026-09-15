@@ -633,20 +633,22 @@ trait Paper
 
         PaperQueryBuilder::guardSlug($slug);
 
-        $filepath = $this->paperFilepath($path, $slug, $driver, $isCreating);
         $original = static::keyToString($this->getRawOriginal($this->getKeyName()));
         $isRenaming = $original !== '' && $original !== $slug;
 
         // A rename would write over the record already stored under the new slug.
-        if ($isRenaming && is_file($filepath)) {
+        if ($isRenaming && is_file($this->paperFilepath($path, $slug, $driver, false))) {
             return false;
         }
+
+        $source = $this->paperFilepath($path, $isRenaming ? $original : $slug, $driver, $isCreating);
+        $filepath = $path.'/'.$slug.'.'.pathinfo($source, PATHINFO_EXTENSION);
 
         $attributes = PaperCasts::toStorage($this, $this->getAttributes());
 
         if ($this->usesTimestamps()) {
             $updatedAt = $this->getUpdatedAtColumn();
-            $stored = is_file($filepath) ? $driver->parse($filepath) : [];
+            $stored = is_file($source) ? $driver->parse($source) : [];
 
             if ($updatedAt !== null && ! array_key_exists($updatedAt, $stored)) {
                 unset($attributes[$updatedAt]);
@@ -673,17 +675,13 @@ trait Paper
         }
 
         if ($success) {
-            if ($isRenaming) {
-                $previous = $this->paperFilepath($path, $original, $driver, false);
+            if ($isRenaming && is_file($source)) {
+                $cache->forget($source);
 
-                if (is_file($previous)) {
-                    $cache->forget($previous);
+                if (! @unlink($source)) {
+                    @unlink($filepath);
 
-                    if (! @unlink($previous)) {
-                        @unlink($filepath);
-
-                        return false;
-                    }
+                    return false;
                 }
             }
 

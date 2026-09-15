@@ -183,6 +183,20 @@ it('moves the file when the slug changes', function (): void {
         ->and(Post::find('__save_test__from'))->toBeNull();
 });
 
+it('keeps the file extension when the slug changes', function (): void {
+    $dir = __DIR__.'/../content/posts';
+    file_put_contents($dir.'/__save_test__from.markdown', "---\ntitle: Moved\n---\n\nBody\n");
+
+    Post::resetPaperState();
+
+    $post = Post::find('__save_test__from');
+    $post->slug = '__save_test__to';
+
+    expect($post->save())->toBeTrue()
+        ->and(file_exists($dir.'/__save_test__to.markdown'))->toBeTrue()
+        ->and(file_exists($dir.'/__save_test__to.md'))->toBeFalse();
+});
+
 it('refuses to rename a record onto a slug another record holds', function (): void {
     $dir = __DIR__.'/../content/posts';
     file_put_contents($dir.'/__save_test__source.md', "---\ntitle: Source\n---\n");
