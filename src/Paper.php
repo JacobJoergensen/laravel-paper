@@ -223,6 +223,22 @@ trait Paper
     }
 
     /**
+     * @return PaperQueryBuilder<static>
+     */
+    public static function whereColumn(string $first, string $operator, ?string $second = null): PaperQueryBuilder
+    {
+        return static::query()->whereColumn($first, $operator, $second);
+    }
+
+    /**
+     * @return PaperQueryBuilder<static>
+     */
+    public static function orWhereColumn(string $first, string $operator, ?string $second = null): PaperQueryBuilder
+    {
+        return static::query()->orWhereColumn($first, $operator, $second);
+    }
+
+    /**
      * @param  array<int, string>  $columns
      * @param  ?scalar  $operator
      * @param  ?scalar  $value

@@ -421,6 +421,45 @@ it('filters with whereContains on an array field', function (): void {
         ->and(Post::whereContains('tags', 'php')->count())->toBe(0);
 });
 
+it('compares two fields, with a default operator and an or variant', function (): void {
+    $files = [
+        __DIR__.'/../content/posts/range-under.md' => "---\nlow: 1\nhigh: 5\n---\n",
+        __DIR__.'/../content/posts/range-equal.md' => "---\nlow: 5\nhigh: 5\n---\n",
+        __DIR__.'/../content/posts/range-over.md' => "---\nlow: 8\nhigh: 3\n---\n",
+    ];
+
+    foreach ($files as $path => $contents) {
+        File::put($path, $contents);
+    }
+
+    try {
+        expect(Post::whereColumn('low', '<', 'high')->pluck('slug')->all())->toBe(['range-under'])
+            ->and(Post::whereColumn('low', 'high')->pluck('slug')->all())->toBe(['range-equal'])
+            ->and(Post::whereColumn('low', '>', 'high')->orWhereColumn('low', 'high')->pluck('slug')->all())
+            ->toBe(['range-equal', 'range-over']);
+    } finally {
+        File::delete(array_keys($files));
+    }
+});
+
+it('compares two fields with an operator written in any case', function (): void {
+    $path = __DIR__.'/../content/posts/label-match.md';
+    File::put($path, "---\nlabel: draft\nstatus: Draft\n---\n");
+
+    try {
+        expect(Post::whereColumn('label', 'LIKE', 'status')->pluck('slug')->all())->toBe(['label-match']);
+    } finally {
+        File::delete($path);
+    }
+});
+
+it('rejects a mismatched cast status but leaves a matching one alone', function (): void {
+    expect(fn () => Post::whereColumn('views', '>', 'order'))
+        ->toThrow(InvalidArgumentException::class)
+        ->and(fn () => Post::whereColumn('tags', '=', 'views'))
+        ->not->toThrow(InvalidArgumentException::class);
+});
+
 it('returns every record when ordered randomly', function (): void {
     $random = Post::inRandomOrder()->get();
     $all = Post::all();
