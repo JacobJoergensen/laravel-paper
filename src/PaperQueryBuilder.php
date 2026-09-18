@@ -386,6 +386,42 @@ final class PaperQueryBuilder
         return $this->whereNotLike($column, $value, $caseSensitive, 'or');
     }
 
+    public function whereRegexp(string $column, string $pattern, string $boolean = 'and'): static
+    {
+        return $this->addRegexpWhere('regexp', $column, $pattern, $boolean);
+    }
+
+    public function orWhereRegexp(string $column, string $pattern): static
+    {
+        return $this->whereRegexp($column, $pattern, 'or');
+    }
+
+    public function whereNotRegexp(string $column, string $pattern, string $boolean = 'and'): static
+    {
+        return $this->addRegexpWhere('notRegexp', $column, $pattern, $boolean);
+    }
+
+    public function orWhereNotRegexp(string $column, string $pattern): static
+    {
+        return $this->whereNotRegexp($column, $pattern, 'or');
+    }
+
+    private function addRegexpWhere(string $type, string $column, string $pattern, string $boolean): static
+    {
+        if (@preg_match($pattern, '') === false) {
+            throw new InvalidArgumentException(sprintf('Invalid regular expression: %s', $pattern));
+        }
+
+        $this->wheres[] = [
+            'type' => $type,
+            'column' => $column,
+            'value' => $pattern,
+            'boolean' => $boolean,
+        ];
+
+        return $this;
+    }
+
     public function whereColumn(string $first, string $operator, ?string $second = null, string $boolean = 'and'): static
     {
         if ($second === null) {
@@ -1349,6 +1385,8 @@ final class PaperQueryBuilder
             'contains' => is_array($value) && in_array($where['value'] ?? null, $value, true),
             'like' => is_string($value) && $this->evaluateLike($value, (string) ($where['value'] ?? ''), $where['caseSensitive'] ?? false),
             'notLike' => is_string($value) && ! $this->evaluateLike($value, (string) ($where['value'] ?? ''), $where['caseSensitive'] ?? false),
+            'regexp' => is_string($value) && preg_match((string) ($where['value'] ?? ''), $value) === 1,
+            'notRegexp' => is_string($value) && preg_match((string) ($where['value'] ?? ''), $value) !== 1,
             'null' => $value === null,
             'notNull' => $value !== null,
             'between' => $value !== null && $this->evaluateBetween($value, $where['values'] ?? []),

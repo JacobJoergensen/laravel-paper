@@ -353,6 +353,23 @@ it('excludes matches and records missing the column with whereNotLike', function
         ->and(Post::whereNotLike('author_slug', '%elsewhere%')->pluck('slug')->toArray())->toBe(['hello-world']);
 });
 
+it('filters with whereRegexp and excludes records missing the column with whereNotRegexp', function (): void {
+    expect(Post::whereRegexp('title', '/^Second/')->pluck('slug')->toArray())->toBe(['second-post'])
+        ->and(Post::whereNotRegexp('title', '/^Second/')->pluck('slug')->toArray())->toBe(['draft-post', 'hello-world'])
+        ->and(Post::whereNotRegexp('author_slug', '/^john/')->count())->toBe(0);
+});
+
+it('ors each regexp variant onto an existing filter', function (): void {
+    expect(Post::where('slug', 'draft-post')->orWhereRegexp('title', '/^Second/')->pluck('slug')->toArray())
+        ->toBe(['draft-post', 'second-post'])
+        ->and(Post::where('slug', 'second-post')->orWhereNotRegexp('title', '/Post$/')->pluck('slug')->toArray())
+        ->toBe(['hello-world', 'second-post']);
+});
+
+it('throws on an invalid regex pattern when the query is built', function (): void {
+    expect(fn () => Post::whereRegexp('title', 'no-delimiters'))->toThrow(InvalidArgumentException::class);
+});
+
 it('rejects unsafe slugs when finding', function (string $slug): void {
     Post::find($slug);
 })->throws(InvalidSlugException::class)->with([
