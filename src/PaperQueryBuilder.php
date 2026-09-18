@@ -205,12 +205,7 @@ final class PaperQueryBuilder
                     continue;
                 }
 
-                $malformed = ! is_array($value)
-                    || ! is_string($value[0] ?? null)
-                    || count($value) < 2
-                    || count($value) > 3;
-
-                if ($malformed) {
+                if (! is_array($value) || ! is_string($value[0] ?? null) || count($value) < 2 || count($value) > 3) {
                     throw new InvalidArgumentException('Each array condition must be [column, value] or [column, operator, value].');
                 }
 
@@ -771,10 +766,13 @@ final class PaperQueryBuilder
      */
     public function countBy(string $column): Collection
     {
-        return collect($this->columnValues($column))
-            ->flatten(1)
-            ->reject(fn (mixed $value): bool => ! is_scalar($value))
-            ->countBy();
+        $values = collect($this->columnValues($column))->flatten(1);
+        $scalars = $values->reject(fn (mixed $value): bool => ! is_scalar($value));
+
+        /**
+         * @var Collection<array-key, int>
+         */
+        return $scalars->countBy();
     }
 
     public function delete(): int
