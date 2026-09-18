@@ -117,6 +117,34 @@ it('groups conditions passed as a closure', function (): void {
     expect($posts->pluck('slug')->toArray())->toBe(['hello-world', 'second-post']);
 });
 
+it('applies an array of conditions as and, in triple, pair and assoc form', function (): void {
+    expect(Post::where([['published', '=', true], ['order', '>', 1]])->pluck('slug')->all())->toBe(['second-post'])
+        ->and(Post::where([['published', true]])->pluck('slug')->all())->toBe(['hello-world', 'second-post'])
+        ->and(Post::query()->where(['published' => true, 'order' => 2])->pluck('slug')->all())->toBe(['second-post'])
+        ->and(Post::where([])->count())->toBe(3);
+});
+
+it('groups the array so a following orWhere ors the whole set', function (): void {
+    $posts = Post::where([['published', '=', true], ['order', '=', 1]])->orWhere('published', false)->get();
+
+    expect($posts->pluck('slug')->all())->toBe(['draft-post', 'hello-world']);
+});
+
+it('ors the whole group when the array is passed to orWhere', function (): void {
+    $posts = Post::where('published', false)->orWhere([['published', '=', true], ['order', '=', 1]])->get();
+
+    expect($posts->pluck('slug')->all())->toBe(['draft-post', 'hello-world']);
+});
+
+it('throws on a malformed condition instead of widening the query', function (): void {
+    expect(fn () => Post::where(['published']))->toThrow(InvalidArgumentException::class);
+});
+
+it('throws on a non-scalar condition value instead of matching nothing', function (): void {
+    expect(fn () => Post::where([['tags', ['laravel']]]))
+        ->toThrow(InvalidArgumentException::class, 'must be scalar or null');
+});
+
 it('binds and tighter than or when a chain mixes both', function (): void {
     $posts = Post::where('order', 1)->orWhere('published', false)->where('order', 3)->get();
 

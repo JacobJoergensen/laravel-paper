@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+* Added an array form to `where` and `orWhere` for applying several conditions at once, e.g. `where([['status', '=', 'a'], ['x', '!=', 'b']])`
 
 ## Version 1.17.0 (2026-09-15)
 * Added a `yaml` driver for `.yaml` and `.yml` files, so data files can carry comments and multi-line strings

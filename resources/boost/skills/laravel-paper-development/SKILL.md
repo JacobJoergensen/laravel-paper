@@ -68,6 +68,9 @@ $posts = Post::where('published', true)->orderBy('date', 'desc')->get();
 $post = Post::where('slug', 'hello-world')->first();
 ```
 
+`where` and `orWhere` take an array of conditions, combined with `and`. With `orWhere` the `or`
+applies to the whole array, so `orWhere([['a', 1], ['b', 2]])` needs both to match.
+
 Paper adds `whereContains` for array-field membership. It matches rows where the array
 attribute includes the given value:
 

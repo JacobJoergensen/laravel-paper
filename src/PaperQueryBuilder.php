@@ -16,6 +16,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\LazyCollection;
+use InvalidArgumentException;
 use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
@@ -150,11 +151,16 @@ final class PaperQueryBuilder
     }
 
     /**
+     * @param  array<array-key, mixed>|(callable(static): mixed)|string  $column
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      */
-    public function where(callable|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
+    public function where(array|callable|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
+        if (is_array($column)) {
+            return $this->addArrayOfWheres($column, $boolean);
+        }
+
         if (! is_string($column)) {
             return $this->whereGroup($column, $boolean);
         }
@@ -183,6 +189,56 @@ final class PaperQueryBuilder
     }
 
     /**
+     * @param  array<array-key, mixed>  $conditions
+     */
+    private function addArrayOfWheres(array $conditions, string $boolean): static
+    {
+        if ($conditions === []) {
+            return $this;
+        }
+
+        return $this->whereGroup(function (self $query) use ($conditions): void {
+            foreach ($conditions as $key => $value) {
+                if (is_string($key)) {
+                    $query->where($key, '=', $this->scalarOrNull($value));
+
+                    continue;
+                }
+
+                $malformed = ! is_array($value)
+                    || ! is_string($value[0] ?? null)
+                    || count($value) < 2
+                    || count($value) > 3;
+
+                if ($malformed) {
+                    throw new InvalidArgumentException('Each array condition must be [column, value] or [column, operator, value].');
+                }
+
+                $column = $value[0];
+
+                if (count($value) === 2) {
+                    $query->where($column, '=', $this->scalarOrNull($value[1]));
+
+                    continue;
+                }
+
+                $query->where($column, $this->scalarOrNull($value[1]), $this->scalarOrNull($value[2]));
+            }
+        }, $boolean);
+    }
+
+    private function scalarOrNull(mixed $value): null|bool|float|int|string
+    {
+        if ($value !== null && ! is_scalar($value)) {
+            throw new InvalidArgumentException(
+                sprintf('A where value must be scalar or null, %s given.', get_debug_type($value))
+            );
+        }
+
+        return $value;
+    }
+
+    /**
      * @template TValue
      *
      * @param  TValue  $operator
@@ -203,10 +259,11 @@ final class PaperQueryBuilder
     }
 
     /**
+     * @param  array<array-key, mixed>|(callable(static): mixed)|string  $column
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      */
-    public function orWhere(callable|string $column, mixed $operator = null, mixed $value = null): static
+    public function orWhere(array|callable|string $column, mixed $operator = null, mixed $value = null): static
     {
         [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 2);
 
@@ -544,11 +601,12 @@ final class PaperQueryBuilder
     }
 
     /**
+     * @param  array<array-key, mixed>|(callable(static): mixed)|string  $column
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      * @return ?TModel
      */
-    public function firstWhere(callable|string $column, mixed $operator = null, mixed $value = null): ?Model
+    public function firstWhere(array|callable|string $column, mixed $operator = null, mixed $value = null): ?Model
     {
         [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 2);
 

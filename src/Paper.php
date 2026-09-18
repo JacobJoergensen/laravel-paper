@@ -118,11 +118,12 @@ trait Paper
     }
 
     /**
+     * @param  array<array-key, mixed>|string  $column
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      * @return PaperQueryBuilder<static>
      */
-    public static function where(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
+    public static function where(array|string $column, mixed $operator = null, mixed $value = null): PaperQueryBuilder
     {
         [$operator, $value] = func_num_args() === 2 ? ['=', $operator] : [$operator, $value];
 
@@ -130,11 +131,12 @@ trait Paper
     }
 
     /**
+     * @param  array<array-key, mixed>|string  $column
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      * @return PaperQueryBuilder<static>
      */
-    public static function orWhere(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
+    public static function orWhere(array|string $column, mixed $operator = null, mixed $value = null): PaperQueryBuilder
     {
         [$operator, $value] = func_num_args() === 2 ? ['=', $operator] : [$operator, $value];
 
