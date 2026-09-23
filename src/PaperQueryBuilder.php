@@ -21,6 +21,7 @@ use Illuminate\Support\LazyCollection;
 use InvalidArgumentException;
 use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
+use JacobJoergensen\LaravelPaper\Contracts\ScopeContract;
 use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
 use ReflectionMethod;
@@ -36,8 +37,16 @@ final class PaperQueryBuilder
     /** @var list<array{type: string, column?: string, second?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, wheres?: list<array<string, mixed>>, boolean: string}> */
     private array $wheres = [];
 
+    /**
+     * @var array<string, list<array{type: string, column?: string, second?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, wheres?: list<array<string, mixed>>, boolean: string}>>
+     */
+    private array $scopeWheres = [];
+
     /** @var array<int, array{column: string, direction: string}> */
     private array $orders = [];
+
+    /** @var array<string, array<int, array{column: string, direction: string}>> */
+    private array $scopeOrders = [];
 
     private ?int $limitValue = null;
 
@@ -67,6 +76,70 @@ final class PaperQueryBuilder
     private function model(): Model
     {
         return $this->model ??= new $this->modelClass;
+    }
+
+    /**
+     * @internal
+     */
+    public function applyGlobalScopes(): void
+    {
+        $model = $this->model();
+
+        /** @var array<string, mixed> $scopes */
+        $scopes = $model->getGlobalScopes();
+
+        foreach ($scopes as $identifier => $scope) {
+            if ($scope instanceof Closure) {
+                $scope($this);
+            } elseif ($scope instanceof ScopeContract) {
+                $scope->apply($this, $model);
+            } else {
+                continue;
+            }
+
+            $added = array_splice($this->wheres, 0);
+
+            if ($added !== []) {
+                $this->scopeWheres[$identifier] = $added;
+            }
+
+            $ordered = array_splice($this->orders, 0);
+
+            if ($ordered !== []) {
+                $this->scopeOrders[$identifier] = $ordered;
+            }
+        }
+    }
+
+    /**
+     * @param  ScopeContract<*>|string  $scope
+     */
+    public function withoutGlobalScope(ScopeContract|string $scope): static
+    {
+        $identifier = is_string($scope) ? $scope : $scope::class;
+
+        unset($this->scopeWheres[$identifier], $this->scopeOrders[$identifier]);
+
+        return $this;
+    }
+
+    /**
+     * @param  ?array<int, ScopeContract<*>|string>  $scopes
+     */
+    public function withoutGlobalScopes(?array $scopes = null): static
+    {
+        if ($scopes === null) {
+            $this->scopeWheres = [];
+            $this->scopeOrders = [];
+
+            return $this;
+        }
+
+        foreach ($scopes as $scope) {
+            $this->withoutGlobalScope($scope);
+        }
+
+        return $this;
     }
 
     /**
@@ -747,7 +820,7 @@ final class PaperQueryBuilder
      */
     public function first(): ?Model
     {
-        if ($this->orders === []) {
+        if ($this->allOrders() === []) {
             return $this->lazy()->first();
         }
 
@@ -825,7 +898,7 @@ final class PaperQueryBuilder
 
     public function count(): int
     {
-        if ($this->wheres === []) {
+        if ($this->allWheres() === []) {
             return $this->scanFiles()->count();
         }
 
@@ -834,7 +907,7 @@ final class PaperQueryBuilder
 
     public function exists(): bool
     {
-        if ($this->wheres === []) {
+        if ($this->allWheres() === []) {
             return $this->scanFiles()->isNotEmpty();
         }
 
@@ -937,6 +1010,30 @@ final class PaperQueryBuilder
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    private function allWheres(): array
+    {
+        if ($this->scopeWheres === []) {
+            return $this->wheres;
+        }
+
+        return array_merge($this->wheres, ...array_values($this->scopeWheres));
+    }
+
+    /**
+     * @return array<int, array{column: string, direction: string}>
+     */
+    private function allOrders(): array
+    {
+        if ($this->scopeOrders === []) {
+            return $this->orders;
+        }
+
+        return array_merge($this->orders, ...array_values($this->scopeOrders));
+    }
+
+    /**
      * @return LengthAwarePaginator<int, TModel>
      */
     public function paginate(int $perPage = 15, ?int $page = null): LengthAwarePaginator
@@ -945,7 +1042,7 @@ final class PaperQueryBuilder
         $perPage = $perPage ?: $this->model()->getPerPage();
         $offset = max(0, ($page - 1) * $perPage);
 
-        if ($this->wheres === [] && $this->ordersAreParseFree()) {
+        if ($this->allWheres() === [] && $this->ordersAreParseFree()) {
             $files = $this->orderedFiles();
             $total = $files->count();
 
@@ -992,7 +1089,7 @@ final class PaperQueryBuilder
         $perPage = $perPage ?: $this->model()->getPerPage();
         $offset = max(0, ($page - 1) * $perPage);
 
-        if ($this->wheres === [] && $this->ordersAreParseFree()) {
+        if ($this->allWheres() === [] && $this->ordersAreParseFree()) {
             $items = $this->orderedFiles()
                 ->slice($offset)
                 ->take($perPage + 1)
@@ -1208,7 +1305,7 @@ final class PaperQueryBuilder
     {
         $files = $this->scanFiles();
 
-        if ($this->orders !== [] || $this->randomOrder) {
+        if ($this->allOrders() !== [] || $this->randomOrder) {
             yield from $this->yieldOrdered($files);
 
             return;
@@ -1238,7 +1335,7 @@ final class PaperQueryBuilder
      */
     private function applyOrdersAndLimits(Collection $models): Collection
     {
-        foreach (array_reverse($this->orders) as $order) {
+        foreach (array_reverse($this->allOrders()) as $order) {
             $models = $models->sortBy(
                 fn (Model $model): mixed => $this->attribute($model, $order['column']),
                 SORT_REGULAR,
@@ -1277,7 +1374,7 @@ final class PaperQueryBuilder
             return false;
         }
 
-        return array_all($this->orders, fn (array $order): bool => $order['column'] === 'slug');
+        return array_all($this->allOrders(), fn (array $order): bool => $order['column'] === 'slug');
     }
 
     /**
@@ -1287,11 +1384,11 @@ final class PaperQueryBuilder
     {
         $files = $this->scanFiles();
 
-        if ($this->orders === []) {
+        if ($this->allOrders() === []) {
             return $files;
         }
 
-        foreach (array_reverse($this->orders) as $order) {
+        foreach (array_reverse($this->allOrders()) as $order) {
             $files = $files->sortBy(
                 static fn (string $file): string => pathinfo($file, PATHINFO_FILENAME),
                 SORT_REGULAR,
@@ -1431,13 +1528,27 @@ final class PaperQueryBuilder
         return data_get($model, $column);
     }
 
-    /**
-     * @param  ?array<int, array{type: string, boolean: string, column?: string, second?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool}>  $wheres
-     */
-    private function matchesWheres(Model $model, ?array $wheres = null): bool
+    private function matchesWheres(Model $model): bool
     {
-        $wheres ??= $this->wheres;
+        return $this->matchesScopes($model) && $this->matches($model, $this->wheres);
+    }
 
+    private function matchesScopes(Model $model): bool
+    {
+        foreach ($this->scopeWheres as $wheres) {
+            if (! $this->matches($model, $wheres)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  array<int, array{type: string, boolean: string, column?: string, second?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool}>  $wheres
+     */
+    private function matches(Model $model, array $wheres): bool
+    {
         if ($wheres === []) {
             return true;
         }
@@ -1466,7 +1577,7 @@ final class PaperQueryBuilder
         if ($where['type'] === 'group') {
             $nested = $where['wheres'] ?? [];
 
-            return $this->matchesWheres($model, $nested);
+            return $this->matches($model, $nested);
         }
 
         $column = $where['column'] ?? '';

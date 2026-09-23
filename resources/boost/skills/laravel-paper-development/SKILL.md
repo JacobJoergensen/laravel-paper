@@ -96,6 +96,11 @@ protected function published(PaperQueryBuilder $query): PaperQueryBuilder
 // Post::published()->get();
 ```
 
+Global scopes work through `addGlobalScope` and `#[ScopedBy]`, and cover `find` and route
+model binding too. A scope is a Closure taking `PaperQueryBuilder` or a class implementing
+`ScopeContract`. Eloquent's `Scope` is ignored. An `or` in the query cannot widen past a
+scope, unlike in Eloquent.
+
 `#[CollectedBy]` is also respected, so queries return your model's custom collection.
 
 ## Large result sets

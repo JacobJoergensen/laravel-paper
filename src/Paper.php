@@ -19,6 +19,7 @@ use JacobJoergensen\LaravelPaper\Attributes\Driver;
 use JacobJoergensen\LaravelPaper\Attributes\Timestamps;
 use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
+use JacobJoergensen\LaravelPaper\Contracts\ScopeContract;
 use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
 use JacobJoergensen\LaravelPaper\Exceptions\DuplicateSlugException;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
@@ -48,6 +49,33 @@ trait Paper
     }
 
     /**
+     * @param  mixed  $scope
+     * @param  mixed  $implementation
+     */
+    public static function addGlobalScope($scope, $implementation = null): void
+    {
+        $resolved = $implementation ?? $scope;
+
+        if (is_string($resolved) && is_subclass_of($resolved, ScopeContract::class)) {
+            $resolved = new $resolved;
+        }
+
+        if (! $resolved instanceof ScopeContract) {
+            parent::addGlobalScope($scope, $implementation); // @phpstan-ignore argument.type, argument.type
+
+            return;
+        }
+
+        $identifier = is_string($scope) ? $scope : $resolved::class;
+
+        /** @var array<class-string, array<string, mixed>> $scopes */
+        $scopes = static::getAllGlobalScopes();
+        $scopes[static::class][$identifier] = $resolved;
+
+        static::setAllGlobalScopes($scopes);
+    }
+
+    /**
      * @return PaperQueryBuilder<static>
      */
     public static function query(): PaperQueryBuilder
@@ -57,13 +85,35 @@ trait Paper
         /** @var class-string<static> $class */
         $class = static::class;
 
-        return new PaperQueryBuilder(
+        $builder = new PaperQueryBuilder(
             app(Filesystem::class),
             static::$paperDrivers[$class],
             app(CacheContract::class),
             static::$paperContentPaths[$class],
             $class,
         );
+
+        $builder->applyGlobalScopes();
+
+        return $builder;
+    }
+
+    /**
+     * @param  ScopeContract<static>|string  $scope
+     * @return PaperQueryBuilder<static>
+     */
+    public static function withoutGlobalScope(ScopeContract|string $scope): PaperQueryBuilder
+    {
+        return static::query()->withoutGlobalScope($scope);
+    }
+
+    /**
+     * @param  ?array<int, ScopeContract<static>|string>  $scopes
+     * @return PaperQueryBuilder<static>
+     */
+    public static function withoutGlobalScopes(?array $scopes = null): PaperQueryBuilder
+    {
+        return static::query()->withoutGlobalScopes($scopes);
     }
 
     /**
