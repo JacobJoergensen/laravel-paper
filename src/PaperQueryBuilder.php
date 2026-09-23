@@ -769,7 +769,9 @@ final class PaperQueryBuilder
 
     public function value(string $column): mixed
     {
-        return $this->first()?->getAttribute($column);
+        $model = $this->first();
+
+        return $model === null ? null : $this->attribute($model, $column);
     }
 
     /**
@@ -1063,7 +1065,7 @@ final class PaperQueryBuilder
             $model = $this->fileToModel($filepath);
 
             if ($this->matchesWheres($model)) {
-                $values[] = $model->getAttribute($column);
+                $values[] = $this->attribute($model, $column);
             }
         }
 
@@ -1238,7 +1240,7 @@ final class PaperQueryBuilder
     {
         foreach (array_reverse($this->orders) as $order) {
             $models = $models->sortBy(
-                fn (Model $model): mixed => $model->getAttribute($order['column']),
+                fn (Model $model): mixed => $this->attribute($model, $order['column']),
                 SORT_REGULAR,
                 $order['direction'] === 'desc'
             );
@@ -1420,6 +1422,15 @@ final class PaperQueryBuilder
         return $data;
     }
 
+    private function attribute(Model $model, string $column): mixed
+    {
+        if (! str_contains($column, '.') || array_key_exists($column, $model->getAttributes())) {
+            return $model->getAttribute($column);
+        }
+
+        return data_get($model, $column);
+    }
+
     /**
      * @param  ?array<int, array{type: string, boolean: string, column?: string, second?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool}>  $wheres
      */
@@ -1459,7 +1470,7 @@ final class PaperQueryBuilder
         }
 
         $column = $where['column'] ?? '';
-        $value = $model->getAttribute($column);
+        $value = $this->attribute($model, $column);
 
         return match ($where['type']) {
             'in' => $value !== null && in_array($value, $where['values'] ?? []),
@@ -1473,7 +1484,7 @@ final class PaperQueryBuilder
             'notNull' => $value !== null,
             'between' => $value !== null && $this->evaluateBetween($value, $where['values'] ?? []),
             'notBetween' => $value !== null && ! $this->evaluateBetween($value, $where['values'] ?? []),
-            'column' => $this->evaluateCondition($value, $where['operator'] ?? '=', $model->getAttribute($where['second'] ?? '')),
+            'column' => $this->evaluateCondition($value, $where['operator'] ?? '=', $this->attribute($model, $where['second'] ?? '')),
             'date', 'year', 'month', 'day' => $this->evaluateDate($value, $where['type'], $where['operator'] ?? '=', $where['value'] ?? null),
             default => $this->evaluateCondition($value, $where['operator'] ?? '=', $where['value'] ?? null),
         };

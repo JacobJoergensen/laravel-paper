@@ -3,6 +3,7 @@
 ## Unreleased
 * Added an array form to `where` and `orWhere` for applying several conditions at once, e.g. `where([['status', '=', 'a'], ['x', '!=', 'b']])`
 * Added `whereColumn` and `orWhereColumn` to compare two frontmatter fields; both columns must share the same cast status, validated when the query is built
+* Added dot-notation for `where`, `orderBy`, and aggregates to reach into nested frontmatter, e.g. `where('seo.title', 'x')`
 * Added `whereDate`, `whereMonth`, `whereDay`, and `whereYear`, plus their `or` variants, to query frontmatter dates
 * Added `whereRegexp` and `whereNotRegexp`, plus `or` variants; regex patterns must carry their own delimiters and are validated when the query is built
 
