@@ -9,6 +9,8 @@
 * Added dot-notation for `where`, `orderBy`, and aggregates to reach into nested frontmatter, e.g. `where('seo.title', 'x')`
 * Added `whereDate`, `whereMonth`, `whereDay`, and `whereYear`, plus their `or` variants, to query frontmatter dates
 * Added `whereRegexp` and `whereNotRegexp`, plus `or` variants; regex patterns must carry their own delimiters and are validated when the query is built
+* Added `getContentPath` so a model can resolve its content directory at runtime
+* Added `getFilePath` for the file a record is stored in, kept on the model so a `deleted` listener can still name it
 
 ## Version 1.17.0 (2026-09-15)
 * Added a `yaml` driver for `.yaml` and `.yml` files, so data files can carry comments and multi-line strings

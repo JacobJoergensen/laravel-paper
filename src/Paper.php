@@ -41,6 +41,8 @@ trait Paper
     /** @var array<class-string, bool> */
     protected static array $paperTimestamps = [];
 
+    private ?string $paperExtension = null;
+
     public static function resetPaperState(): void
     {
         unset(self::$paperDrivers[static::class]);
@@ -84,12 +86,13 @@ trait Paper
 
         /** @var class-string<static> $class */
         $class = static::class;
+        $directory = new static()->paperDirectory();
 
         $builder = new PaperQueryBuilder(
             app(Filesystem::class),
             static::$paperDrivers[$class],
             app(CacheContract::class),
-            static::$paperContentPaths[$class],
+            $directory,
             $class,
         );
 
@@ -769,6 +772,28 @@ trait Paper
         return 'slug';
     }
 
+    public function getContentPath(): string
+    {
+        static::resolveAttributes();
+
+        return static::$paperContentPaths[static::class];
+    }
+
+    public function getFilePath(): string
+    {
+        $slug = static::keyToString($this->getAttribute($this->getKeyName()));
+
+        if ($slug === '') {
+            throw InvalidSlugException::missing();
+        }
+
+        PaperQueryBuilder::guardSlug($slug);
+
+        $directory = $this->paperDirectory();
+
+        return $directory.'/'.$slug.'.'.$this->storedExtension($directory);
+    }
+
     /**
      * @param  ?string  $field
      */
@@ -810,10 +835,7 @@ trait Paper
         static::resolveAttributes();
 
         $cache = app(CacheContract::class);
-
-        $class = static::class;
-        $driver = static::$paperDrivers[$class];
-        $path = static::$paperContentPaths[$class];
+        $driver = static::$paperDrivers[static::class];
 
         $isCreating = ! $this->exists;
 
@@ -840,7 +862,8 @@ trait Paper
 
         $original = static::keyToString($this->getRawOriginal($this->getKeyName()));
         $isRenaming = $original !== '' && $original !== $slug;
-        $existing = $this->paperFilepath($path, $slug, $driver);
+        $directory = $this->paperDirectory();
+        $existing = $this->paperFilepath($directory, $slug, $driver);
 
         if ($isCreating && is_file($existing)) {
             throw DuplicateSlugException::forSlug($slug, $existing);
@@ -851,8 +874,9 @@ trait Paper
             return false;
         }
 
-        $source = $isRenaming ? $this->paperFilepath($path, $original, $driver) : $existing;
-        $filepath = $path.'/'.$slug.'.'.pathinfo($source, PATHINFO_EXTENSION);
+        $extension = $this->storedExtension($directory);
+        $filepath = $directory.'/'.$slug.'.'.$extension;
+        $source = $isRenaming ? $directory.'/'.$original.'.'.$extension : $filepath;
 
         $attributes = PaperCasts::toStorage($this, $this->getAttributes());
 
@@ -867,7 +891,7 @@ trait Paper
 
         $content = $driver->serialize($attributes);
 
-        app(Filesystem::class)->ensureDirectoryExists($path);
+        app(Filesystem::class)->ensureDirectoryExists($directory);
 
         $tempPath = @tempnam(dirname($filepath), '.paper-');
 
@@ -992,9 +1016,6 @@ trait Paper
         $files = app(Filesystem::class);
         $cache = app(CacheContract::class);
 
-        $class = static::class;
-        $driver = static::$paperDrivers[$class];
-        $path = static::$paperContentPaths[$class];
         $slug = static::keyToString($this->getAttribute($this->getKeyName()));
         $stored = static::keyToString($this->getRawOriginal($this->getKeyName()));
 
@@ -1006,23 +1027,22 @@ trait Paper
 
         PaperQueryBuilder::guardSlug($slug);
 
-        foreach ($driver->extensions() as $ext) {
-            $filepath = $path.'/'.$slug.'.'.$ext;
+        $directory = $this->paperDirectory();
+        $filepath = $directory.'/'.$slug.'.'.$this->storedExtension($directory);
 
-            if ($files->exists($filepath)) {
-                $cache->forget($filepath);
-                $deleted = $files->delete($filepath);
-
-                if ($deleted) {
-                    $this->exists = false;
-                    $this->fireModelEvent('deleted', false);
-                }
-
-                return $deleted;
-            }
+        if (! $files->exists($filepath)) {
+            return false;
         }
 
-        return false;
+        $cache->forget($filepath);
+        $deleted = $files->delete($filepath);
+
+        if ($deleted) {
+            $this->exists = false;
+            $this->fireModelEvent('deleted', false);
+        }
+
+        return $deleted;
     }
 
     public function deleteQuietly(): bool
@@ -1103,6 +1123,37 @@ trait Paper
         return $directory.'/'.$slug.'.'.$extensions[0];
     }
 
+    private function paperDirectory(): string
+    {
+        $path = $this->getContentPath();
+        $isAbsolute = preg_match('~^([A-Za-z]:)?[/\\\\]~', $path) === 1;
+
+        return $isAbsolute ? $path : base_path($path);
+    }
+
+    private function storedExtension(string $directory): string
+    {
+        if ($this->paperExtension !== null) {
+            return $this->paperExtension;
+        }
+
+        static::resolveAttributes();
+
+        $stored = static::keyToString($this->getRawOriginal($this->getKeyName()));
+        $slug = $stored !== '' ? $stored : static::keyToString($this->getAttribute($this->getKeyName()));
+
+        $driver = static::$paperDrivers[static::class];
+        $filepath = $this->paperFilepath($directory, $slug, $driver);
+        $extension = pathinfo($filepath, PATHINFO_EXTENSION);
+
+        // Only kept once stored, because a new record's slug may still point at another record's file.
+        if ($this->exists) {
+            $this->paperExtension = $extension;
+        }
+
+        return $extension;
+    }
+
     private static function resolveAttributes(): void
     {
         $class = static::class;
@@ -1115,7 +1166,7 @@ trait Paper
         $contentPath = static::paperAttribute(ContentPath::class)->path ?? 'content';
 
         static::$paperDrivers[$class] = static::resolveDriver($driverName);
-        static::$paperContentPaths[$class] = base_path($contentPath);
+        static::$paperContentPaths[$class] = $contentPath;
         static::$paperTimestamps[$class] = static::paperAttribute(Timestamps::class) !== null;
     }
 

@@ -169,6 +169,15 @@ it('marks the model as not existing after a successful delete', function (): voi
     expect($post->exists)->toBeFalse();
 });
 
+it('still reports the file it removed after a delete', function (): void {
+    file_put_contents(__DIR__.'/../content/posts/__save_test__.markdown', "---\ntitle: Gone\n---\n\nBody\n");
+
+    $post = Post::find('__save_test__');
+
+    expect($post->delete())->toBeTrue()
+        ->and($post->getFilePath())->toEndWith('__save_test__.markdown');
+});
+
 it('deletes records by slug with destroy, given an array, several arguments, or a collection', function (): void {
     foreach (['one', 'two', 'three', 'four', 'five'] as $name) {
         Post::create(['slug' => '__save_test__'.$name, 'title' => 'Doomed']);
