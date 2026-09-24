@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-Version 1.18.0 (2026-09-25)
+## Version 1.18.0 (2026-09-25)
 * Added global scopes with `addGlobalScope` and `#[ScopedBy]`, applied to every query including `find` and route model binding
 * Added `ScopeContract` for scope classes, because a Paper query does not run through Eloquent's builder
 * Added `withoutGlobalScope` and `withoutGlobalScopes` to drop a scope for a single query
