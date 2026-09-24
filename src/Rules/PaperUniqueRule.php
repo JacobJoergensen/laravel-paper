@@ -36,7 +36,7 @@ final class PaperUniqueRule implements ValidationRule
      */
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
-        $query = $this->model::query();
+        $query = $this->model::query()->withoutGlobalScopes();
         $query->where($this->column, $value);
 
         if ($this->ignore !== null) {

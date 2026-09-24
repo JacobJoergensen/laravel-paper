@@ -5,9 +5,20 @@ declare(strict_types=1);
 use Illuminate\Support\Facades\Validator;
 use JacobJoergensen\LaravelPaper\Rules\PaperRule;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
+use JacobJoergensen\LaravelPaper\Tests\Fixtures\ScopedPost;
 
 beforeEach(function (): void {
     Post::resetPaperState();
+});
+
+it('ignores global scopes, like the database rules', function (): void {
+    $input = ['slug' => 'draft-post'];
+
+    $unique = Validator::make($input, ['slug' => PaperRule::unique(ScopedPost::class)]);
+    $exists = Validator::make($input, ['slug' => PaperRule::exists(ScopedPost::class)]);
+
+    expect($unique->fails())->toBeTrue()
+        ->and($exists->passes())->toBeTrue();
 });
 
 it('validates exists rule passes for existing model', function (): void {

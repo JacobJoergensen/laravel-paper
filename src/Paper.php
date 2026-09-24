@@ -954,7 +954,9 @@ trait Paper
             return null;
         }
 
-        return static::find($this->getAttribute($this->getKeyName()));
+        $slug = static::keyToString($this->getAttribute($this->getKeyName()));
+
+        return static::withoutGlobalScopes()->find($slug);
     }
 
     public function refresh(): static
@@ -963,7 +965,8 @@ trait Paper
             return $this;
         }
 
-        $fresh = static::findOrFail($this->getAttribute($this->getKeyName()));
+        $slug = static::keyToString($this->getAttribute($this->getKeyName()));
+        $fresh = $this->fresh() ?? throw new ModelNotFoundException()->setModel(static::class, [$slug]);
         $this->setRawAttributes($fresh->getAttributes(), true);
 
         return $this;
