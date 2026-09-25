@@ -3,7 +3,7 @@
 ## Unreleased
 
 ## Version 1.18.0 (2026-09-25)
-* Added global scopes with `addGlobalScope` and `#[ScopedBy]`, applied to every query including `find` and route model binding
+* Added global scopes with `addGlobalScope` and `#[ScopedBy]`, applied to every query including `find` and route model binding; `fresh`, `refresh` and `PaperRule` skip them, like Eloquent
 * Added `ScopeContract` for scope classes, because a Paper query does not run through Eloquent's builder
 * Added `withoutGlobalScope` and `withoutGlobalScopes` to drop a scope for a single query
 * Added an array form to `where` and `orWhere` for applying several conditions at once, e.g. `where([['status', '=', 'a'], ['x', '!=', 'b']])`
@@ -11,7 +11,7 @@
 * Added `whereColumn` and `orWhereColumn` to compare two frontmatter fields; both columns must share the same cast status, validated when the query is built
 * Added `whereDate`, `whereMonth`, `whereDay`, and `whereYear`, plus their `or` variants, to query frontmatter dates
 * Added `whereRegexp` and `whereNotRegexp`, plus `or` variants; regex patterns must carry their own delimiters and are validated when the query is built
-* Added `getContentPath` so a model can resolve its content directory at runtime
+* Added `getContentPath` so a model can resolve its content directory at runtime; a content path can now also be absolute
 * Added `getFilePath` for the file a record is stored in, kept on the model so a `deleted` listener can still name it
 
 ## Version 1.17.0 (2026-09-15)
