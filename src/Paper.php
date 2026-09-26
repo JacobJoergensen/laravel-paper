@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper;
 
+use BadMethodCallException;
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -24,7 +25,6 @@ use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
 use JacobJoergensen\LaravelPaper\Exceptions\DuplicateSlugException;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
 use JacobJoergensen\LaravelPaper\Exceptions\UnsupportedDatabaseQueryException;
-use JacobJoergensen\LaravelPaper\Exceptions\UnsupportedRouteBindingException;
 use ReflectionClass;
 
 /**
@@ -804,10 +804,41 @@ trait Paper
 
     /**
      * @param  string  $childType
+     * @param  ?string  $field
      */
-    public function resolveChildRouteBinding($childType, mixed $value, mixed $field): never
+    public function resolveChildRouteBinding($childType, mixed $value, mixed $field): ?Model
     {
-        throw UnsupportedRouteBindingException::scopedChild($childType);
+        $relationName = Str::plural(Str::camel($childType));
+
+        if (! method_exists($this, $relationName)) {
+            throw new BadMethodCallException(
+                sprintf('Relation %s::%s does not exist.', static::class, $relationName)
+            );
+        }
+
+        $relation = $this->{$relationName}();
+
+        if (! $relation instanceof Collection) {
+            throw new BadMethodCallException(
+                sprintf(
+                    'Relation %s::%s must return %s for scoped route binding.',
+                    static::class,
+                    $relationName,
+                    Collection::class,
+                )
+            );
+        }
+
+        $children = $relation->whereInstanceOf(Model::class);
+        $firstChild = $children->first();
+
+        if ($firstChild === null) {
+            return null;
+        }
+
+        $childField = $field ?? $firstChild->getRouteKeyName();
+
+        return $children->firstWhere($childField, static::keyToString($value));
     }
 
     public function getIncrementing(): bool

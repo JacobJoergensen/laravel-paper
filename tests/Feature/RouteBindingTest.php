@@ -2,11 +2,14 @@
 
 declare(strict_types=1);
 
-use JacobJoergensen\LaravelPaper\Exceptions\UnsupportedRouteBindingException;
+use Illuminate\Routing\Middleware\SubstituteBindings;
+use Illuminate\Support\Facades\Route;
+use JacobJoergensen\LaravelPaper\Tests\Fixtures\Author;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 
 beforeEach(function (): void {
     Post::resetPaperState();
+    Author::resetPaperState();
 });
 
 it('resolves a model from its route key', function (): void {
@@ -33,8 +36,39 @@ it('returns null when the route key field is absent from frontmatter', function 
     expect($post->resolveRouteBinding('hello-world', 'nonexistent'))->toBeNull();
 });
 
-it('throws for scoped child route bindings', function (): void {
+it('resolves a child model from a custom binding field', function (): void {
+    $author = Author::find('john-doe');
+
+    expect($author->resolveChildRouteBinding('post', 'Hello World', 'title')?->slug)->toBe('hello-world');
+});
+
+it('returns null for a child when the parent has no children', function (): void {
+    $author = new Author;
+    $author->slug = 'jane-doe';
+
+    expect($author->resolveChildRouteBinding('post', 'hello-world', null))->toBeNull();
+});
+
+it('throws when the child relation does not exist on the parent', function (): void {
     $post = new Post;
 
-    $post->resolveChildRouteBinding('author', 'someone', null);
-})->throws(UnsupportedRouteBindingException::class);
+    $post->resolveChildRouteBinding('comment', 'first-comment', null);
+})->throws(BadMethodCallException::class, 'Post::comments does not exist.');
+
+it('throws when the child relation does not return a collection', function (): void {
+    $post = new Post;
+
+    $post->resolveChildRouteBinding('getAttribute', 'hello-world', null);
+})->throws(BadMethodCallException::class, 'Post::getAttributes must return Illuminate\Support\Collection');
+
+it('substitutes scoped bindings through the router', function (): void {
+    Route::middleware(SubstituteBindings::class)
+        ->get('/authors/{author}/posts/{post}', fn (Author $author, Post $post): string => $post->slug)
+        ->scopeBindings();
+
+    $this->get('/authors/john-doe/posts/hello-world')
+        ->assertOk()
+        ->assertSee('hello-world');
+
+    $this->get('/authors/john-doe/posts/second-post')->assertNotFound();
+});

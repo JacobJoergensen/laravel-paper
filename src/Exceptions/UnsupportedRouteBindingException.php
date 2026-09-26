@@ -6,6 +6,9 @@ namespace JacobJoergensen\LaravelPaper\Exceptions;
 
 use RuntimeException;
 
+/**
+ * @deprecated
+ */
 final class UnsupportedRouteBindingException extends RuntimeException implements PaperException
 {
     public static function scopedChild(string $childType): self
