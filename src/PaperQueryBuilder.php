@@ -1435,12 +1435,30 @@ final class PaperQueryBuilder
      */
     private function scanFiles(): Collection
     {
+        $matches = [];
+
+        foreach ($this->contentFiles() as $slug => $filepath) {
+            if (! isset($matches[$slug])) {
+                $matches[$slug] = $filepath;
+            }
+        }
+
+        ksort($matches, SORT_STRING);
+
+        /** @var Collection<int, string> */
+        return collect(array_values($matches));
+    }
+
+    /**
+     * @return Generator<string, string>
+     */
+    private function contentFiles(): Generator
+    {
         if (! $this->files->isDirectory($this->contentPath)) {
             throw ContentPathNotFoundException::forPath($this->contentPath, $this->modelClass);
         }
 
         $entries = scandir($this->contentPath, SCANDIR_SORT_NONE) ?: [];
-        $matches = [];
 
         // Extensions stay outermost so the earliest one wins a slug, matching locate().
         // Fold it into one pass and the filesystem picks instead.
@@ -1452,18 +1470,41 @@ final class PaperQueryBuilder
                     continue;
                 }
 
-                $slug = substr($entry, 0, -strlen($suffix));
+                yield substr($entry, 0, -strlen($suffix)) => $this->contentPath.'/'.$entry;
+            }
+        }
+    }
 
-                if (! isset($matches[$slug])) {
-                    $matches[$slug] = $this->contentPath.'/'.$entry;
-                }
+    /**
+     * @internal
+     *
+     * @return array{checked: int, failures: list<array{path: string, error: string}>}
+     */
+    public function validateFiles(): array
+    {
+        $claimed = [];
+        $failures = [];
+
+        foreach ($this->contentFiles() as $slug => $filepath) {
+            if (isset($claimed[$slug])) {
+                $failures[] = [
+                    'path' => $filepath,
+                    'error' => sprintf('Never read, %s claims the same slug.', $claimed[$slug]),
+                ];
+
+                continue;
+            }
+
+            $claimed[$slug] = $filepath;
+
+            try {
+                $this->fileToModel($filepath)->toArray();
+            } catch (Throwable $e) {
+                $failures[] = ['path' => $filepath, 'error' => $e->getMessage()];
             }
         }
 
-        ksort($matches, SORT_STRING);
-
-        /** @var Collection<int, string> */
-        return collect(array_values($matches));
+        return ['checked' => count($claimed), 'failures' => $failures];
     }
 
     /**

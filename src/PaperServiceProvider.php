@@ -8,6 +8,7 @@ use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
 use JacobJoergensen\LaravelPaper\Cache\FileModificationCache;
+use JacobJoergensen\LaravelPaper\Console\ValidateCommand;
 use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
 use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
 use JacobJoergensen\LaravelPaper\Drivers\JsonDriver;
@@ -34,5 +35,14 @@ final class PaperServiceProvider extends ServiceProvider
 
             return $registry;
         });
+    }
+
+    public function boot(): void
+    {
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                ValidateCommand::class,
+            ]);
+        }
     }
 }

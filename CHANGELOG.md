@@ -2,6 +2,7 @@
 
 ## Unreleased
 * Added scoped route model binding so `/authors/{author}/posts/{post}` resolves the child through the parent's `hasManyPaper` relation and 404s when it belongs to another parent
+* Added `paper:validate` to check every content file parses and hydrates, catching malformed frontmatter and files a slug collision hides
 * Fixed `save` leaving `updated_at` empty or stale on `#[Timestamps]` models; it now holds the new file modification time
 
 ## Version 1.18.0 (2026-09-25)
