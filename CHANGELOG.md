@@ -2,6 +2,7 @@
 
 ## Unreleased
 * Added scoped route model binding so `/authors/{author}/posts/{post}` resolves the child through the parent's `hasManyPaper` relation and 404s when it belongs to another parent
+* Fixed `save` leaving `updated_at` empty or stale on `#[Timestamps]` models; it now holds the new file modification time
 
 ## Version 1.18.0 (2026-09-25)
 * Added global scopes with `addGlobalScope` and `#[ScopedBy]`, applied to every query including `find` and route model binding; `fresh`, `refresh` and `PaperRule` skip them, like Eloquent

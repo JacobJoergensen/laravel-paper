@@ -86,6 +86,26 @@ it('does not persist the derived updated_at into the file on save', function ():
         ->and($raw)->not->toContain('updated_at');
 });
 
+it('sets updated_at to the new file modification time after save', function (): void {
+    $path = base_path('tests/content/posts/__ts_test__.md');
+
+    $post = new TimestampedPost;
+    $post->slug = '__ts_test__';
+    $post->title = 'First';
+    $post->save();
+
+    expect($post->updated_at?->getTimestamp())->toBe(filemtime($path));
+
+    touch($path, 1_700_000_000);
+    clearstatcache();
+
+    $reloaded = TimestampedPost::find('__ts_test__');
+    $reloaded->title = 'Second';
+    $reloaded->save();
+
+    expect($reloaded->updated_at->getTimestamp())->toBe(filemtime($path));
+});
+
 it('orders by the derived updated_at using the file mtime', function (): void {
     $dir = base_path('tests/content/posts');
 

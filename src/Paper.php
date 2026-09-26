@@ -910,6 +910,7 @@ trait Paper
         $source = $isRenaming ? $directory.'/'.$original.'.'.$extension : $filepath;
 
         $attributes = PaperCasts::toStorage($this, $this->getAttributes());
+        $mtimeColumn = null;
 
         if ($this->usesTimestamps()) {
             $updatedAt = $this->getUpdatedAtColumn();
@@ -917,6 +918,7 @@ trait Paper
 
             if ($updatedAt !== null && ! array_key_exists($updatedAt, $stored)) {
                 unset($attributes[$updatedAt]);
+                $mtimeColumn = $updatedAt;
             }
         }
 
@@ -952,6 +954,10 @@ trait Paper
 
             $this->exists = true;
             $cache->forget($filepath);
+
+            if ($mtimeColumn !== null) {
+                $this->attributes[$mtimeColumn] = filemtime($filepath);
+            }
 
             if ($isCreating) {
                 $this->wasRecentlyCreated = true;
