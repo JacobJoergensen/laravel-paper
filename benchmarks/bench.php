@@ -305,7 +305,7 @@ function machineBlock(int $seed, array $counts): string
         '- Storage '.(getenv('BENCH_STORAGE') ?: 'unspecified'),
         '- RAM '.(getenv('BENCH_RAM') ?: 'unspecified'),
         '- Fixture seed '.$seed.', cold samples '.COLD_SAMPLES.', warm samples '.WARM_SAMPLES,
-        '- File counts '.implode(' / ', array_map(static fn (int $c): string => number_format($c), $counts)).' (+ 10,000 cold-only)',
+        '- File counts '.implode(' / ', array_map(static fn (int $c): string => number_format($c), $counts)).' (+ 10,000 cold and hot)',
     ];
 
     return implode("\n", $lines)."\n";
