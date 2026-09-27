@@ -24,6 +24,12 @@ it('resolves the content path per call so it can vary at runtime', function (): 
         ->and($b->title)->toBe('Tenant B Hello');
 });
 
+it('uses an absolute content path as is', function (): void {
+    $post = TenantPost::find('hello');
+
+    expect($post->getFilePath())->toBe(dirname(__DIR__).'/content/tenants/a/hello.md');
+});
+
 it('reports the file extension the record was loaded with', function (): void {
     expect(Post::find('draft-post')->getFilePath())->toEndWith('posts/draft-post.markdown');
 });

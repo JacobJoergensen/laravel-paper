@@ -138,6 +138,12 @@ it('applies a constraint given with the relation to a belongsTo eager load', fun
         ->and($posts->firstWhere('slug', 'hello-world')->relationLoaded('author'))->toBeTrue();
 });
 
+it('applies a constraint passed as the second argument, like Eloquent', function (): void {
+    $authors = Author::with('posts', fn (PaperQueryBuilder $query): PaperQueryBuilder => $query->where('published', false))->get();
+
+    expect($authors->firstWhere('slug', 'john-doe')->posts)->toHaveCount(0);
+});
+
 it('lazy eager loads a relation onto a model that is already in memory', function (): void {
     $post = Post::find('hello-world');
 

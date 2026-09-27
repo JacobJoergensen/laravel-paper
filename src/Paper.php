@@ -819,11 +819,9 @@ trait Paper
      * @param  array<int|string, string|Closure>|string  $relations
      * @return PaperQueryBuilder<static>
      */
-    public static function with($relations, string ...$more): PaperQueryBuilder
+    public static function with($relations, Closure|string ...$more): PaperQueryBuilder
     {
-        $names = is_string($relations) ? [$relations, ...$more] : $relations;
-
-        return static::query()->with($names);
+        return static::query()->with($relations, ...$more);
     }
 
     /**
@@ -894,17 +892,6 @@ trait Paper
         }
 
         return static::create(array_merge($attributes, $values));
-    }
-
-    /**
-     * @param  array<int, scalar>|scalar  $ids
-     */
-    public static function destroy(mixed $ids): int
-    {
-        $keys = is_array($ids) ? $ids : [$ids];
-        $key = new static()->getKeyName();
-
-        return static::query()->whereIn($key, $keys)->delete();
     }
 
     /**
@@ -1101,6 +1088,7 @@ trait Paper
         $this->loadPaperBody();
 
         $attributes = PaperCasts::toStorage($this, $this->getAttributes());
+        $mtimeColumn = null;
 
         if ($this->usesTimestamps()) {
             $updatedAt = $this->getUpdatedAtColumn();
@@ -1108,6 +1096,7 @@ trait Paper
 
             if ($updatedAt !== null && ($stored === null || ! array_key_exists($updatedAt, $stored['data']))) {
                 unset($attributes[$updatedAt]);
+                $mtimeColumn = $updatedAt;
             }
         }
 
@@ -1153,6 +1142,10 @@ trait Paper
 
         if ($isRenaming) {
             $manifest->forget($adapter, $driver, $path, $original, $resolved['nested']);
+        }
+
+        if ($mtimeColumn !== null) {
+            $this->attributes[$mtimeColumn] = $adapter->lastModified($filepath);
         }
 
         if ($isCreating) {
@@ -1257,7 +1250,7 @@ trait Paper
         $names = is_string($with) ? [$with, ...$more] : $with;
         $key = self::keyToString($this->getAttribute($this->getKeyName()));
 
-        return static::with($names)->find($key);
+        return static::with($names)->withoutGlobalScopes()->find($key);
     }
 
     public function refresh(): static
@@ -1266,7 +1259,8 @@ trait Paper
             return $this;
         }
 
-        $fresh = static::findOrFail($this->getAttribute($this->getKeyName()));
+        $key = self::keyToString($this->getAttribute($this->getKeyName()));
+        $fresh = $this->fresh() ?? throw new ModelNotFoundException()->setModel(static::class, [$key]);
         $this->setRawAttributes($fresh->getAttributes(), true);
         $this->paperVersion = $fresh->paperVersion;
 

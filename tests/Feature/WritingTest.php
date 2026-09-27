@@ -198,14 +198,15 @@ it('marks the model as not existing after a successful delete', function (): voi
     expect($post->exists)->toBeFalse();
 });
 
-it('deletes every named record with destroy and counts the ones it removed', function (): void {
-    foreach (['__save_test__one', '__save_test__two'] as $slug) {
-        Post::create(['slug' => $slug, 'title' => 'Doomed']);
+it('deletes records by slug with destroy, given an array, several arguments, or a collection', function (): void {
+    foreach (['one', 'two', 'three', 'four', 'five'] as $name) {
+        Post::create(['slug' => '__save_test__'.$name, 'title' => 'Doomed']);
     }
 
     expect(Post::destroy(['__save_test__one', '__save_test__two', 'does-not-exist']))->toBe(2)
-        ->and(Post::find('__save_test__one'))->toBeNull()
-        ->and(Post::find('__save_test__two'))->toBeNull();
+        ->and(Post::destroy('__save_test__three', '__save_test__four'))->toBe(2)
+        ->and(Post::destroy(collect(['__save_test__five'])))->toBe(1)
+        ->and(Post::where('title', 'Doomed')->count())->toBe(0);
 });
 
 it('still reports the file it removed after a delete', function (): void {

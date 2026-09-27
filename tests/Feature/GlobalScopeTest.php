@@ -15,6 +15,10 @@ beforeEach(function (): void {
     SortedPost::resetPaperState();
 });
 
+afterEach(function (): void {
+    @unlink(__DIR__.'/../content/posts/__scope_test__.md');
+});
+
 it('returns only records that pass every global scope', function (): void {
     expect(ScopedPost::all()->pluck('slug')->all())->toBe(['second-post']);
 });
@@ -53,6 +57,18 @@ it('counts and paginates only the records a global scope allows', function (): v
     expect(ScopedPost::count())->toBe(1)
         ->and(ScopedPost::paginate(10)->total())->toBe(1)
         ->and(ScopedPost::pluck('slug')->all())->toBe(['second-post']);
+});
+
+it('reloads a record with fresh and refresh after a global scope stops matching it', function (): void {
+    $file = __DIR__.'/../content/posts/__scope_test__.md';
+    file_put_contents($file, "---\npublished: true\norder: 5\n---\n");
+
+    $post = ScopedPost::find('__scope_test__');
+    $post->published = false;
+    $post->save();
+
+    expect($post->fresh()?->published)->toBeFalse()
+        ->and($post->refresh()->published)->toBeFalse();
 });
 
 it('lets the caller order take precedence over a global scope order', function (): void {

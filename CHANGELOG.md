@@ -1,45 +1,29 @@
 # Changelog
 
 ## Unreleased
-* Added a `yaml` driver for `.yaml` and `.yml` files, so data files can carry comments and multi-line strings
-* Added global scopes with `addGlobalScope` and `#[ScopedBy]`, applied to every query including `find` and route model binding
-* Added `ScopeContract` for scope classes, because a Paper query does not run through Eloquent's builder
-* Added `withoutGlobalScope` and `withoutGlobalScopes` to drop a scope for a single query
 * Added `config/paper.php` to put the manifest on a dedicated cache store that survives `cache:clear`, and to tune the rebuild lock timing
-* Added `countBy` to count a column's distinct values, flattening array fields like `tags` and skipping null so a missing field adds no bucket
-* Added an array form to `where` and `orWhere` for applying several conditions at once, e.g. `where([['status', '=', 'a'], ['x', '!=', 'b']])`
-* Added `whereColumn` and `orWhereColumn` to compare two frontmatter fields; both columns must share the same cast status, validated when the query is built
-* Added `whereRegexp` and `whereNotRegexp`, plus `or` variants; regex patterns must carry their own delimiters and are validated when the query is built
 * Added `has`, `doesntHave`, `whereHas`, `whereDoesntHave`, and `whereRelation`, plus `or` variants, to filter on relations with count constraints like `has('posts', '>=', 3)`
-* Added dot-notation for `where`, `orderBy`, and aggregates to reach into nested frontmatter, e.g. `where('seo.title', 'x')`
-* Added `whereDate`, `whereMonth`, `whereDay`, and `whereYear`, plus their `or` variants, to query frontmatter dates
 * Added `paper.watch` to skip the per-request directory scan when the manifest is trusted; auto by default, on locally and off in production
 * Added `PaperModel` interface that models using the `Paper` trait must implement, so pointing a relation at a non-Paper model is caught before runtime
 * Added a `PaperModel` base class so a model can extend it instead of wiring the `Paper` trait and the interface by hand
-* Added `getContentPath` so a model can resolve its content directory at runtime, e.g. a per-tenant root; defaults to the `#[ContentPath]` attribute
-* Added `getFilePath` for the file a record is stored in, kept on the model so a `deleted` listener can still name it
 * Added lazy loading for relations, so `$post->author` resolves it on first read and keeps the result
 * Added `load` and `loadMissing` on the model, so a relation can be batched onto a record already in memory
 * Added `PaperCollection` as the default collection, giving `load`, `loadMissing`, and `fresh` on a result set; a class named by `#[CollectedBy]` must extend it
 * Added `with` for eager loading relations, batching reads to avoid N+1, and taking a closure per relation to constrain it
 * Added a batch size to `lazy`, the number of records an eager load groups into; `chunk` passes its own count
 * Added `PaperQueryBuilder::driverFor` so tooling can read a model's driver, and with it `bodyColumn` and `bodySyntax`
-* Added `FileSerializeException` for a value a driver cannot write, which `save` stored as an empty file or a null field before
 * Added optimistic concurrency, so `save` and `delete` throw `StaleRecordException` when the record changed on disk after it was loaded
 * Added `paper.concurrency` to choose the policy: `strict`, `best_effort`, or `off`
 * Added `ConditionalWriteContract` for storage that applies a condition and its write in one step; `LocalAdapter` implements it, a disk is checked without that guarantee
 * Added `PaperRelation` abstract base for relation descriptors, with `BelongsToPaper` and `HasManyPaper` as concrete types exposing `getResults()` for lazy resolution and property access after eager loading
 * Added `paperRelations` to enumerate the relations a model declares a concrete `PaperRelation` return type for, keyed by name, so tooling does not have to reflect the model itself
 * Added `nested` to `#[ContentPath]` so a model reads subdirectories, turning `docs/guides/installation.md` into the slug `guides/installation`
-* Added scoped route model binding so `/authors/{author}/posts/{post}` resolves the child through the parent's relation, whichever `PaperRelation` it is, and 404s when it belongs to another parent
 * Added `query` to the `PaperRelation` contract, returning the records a relation covers, so any relation can be filtered before it runs
 * Added `#[Disk]` attribute to point a model at any Laravel filesystem disk; default behavior (local FS) is unchanged when the attribute is absent
 * Added `StorageAdapterContract` with `LocalAdapter` and `DiskAdapter` implementations so reads, writes, listing, and existence checks go through one abstraction
 * Added `PaperFake` to define model content inline in tests instead of writing files to disk
 * Added `RefreshesPaperFakes` test trait to clear fakes between tests, like `RefreshDatabase`
-* Added `paper:validate` to check every content file parses and hydrates, catching malformed frontmatter and files a slug collision hides
 * Added `paper:warm`, `paper:clear`, and `paper:refresh` commands to warm, clear, and rebuild a model's manifest
-* Added `destroy` to delete records by slug, e.g. `Post::destroy(['hello-world', 'second-post'])`
 * Changed `addGlobalScope` to throw `UnsupportedScopeException` for an Eloquent `Scope`, which Paper silently ignored before
 * Changed `belongsToPaper` and `hasManyPaper` to return relation descriptors; call ->getResults() for direct resolution or use with() to eager load
 * Changed `fresh` to eager load the relations it is given instead of ignoring them
@@ -48,27 +32,50 @@
 * Changed `toQuery` and the `loadCount` family on a result set to throw `UnsupportedCollectionMethodException` instead of querying the database
 * Changed `StorageAdapterContract::listing` to take a `$nested` flag, so custom adapters must add the third argument
 * Changed `whereContains` to only accept a scalar value; passing an array silently matched nothing
+* Changed `where`, `orWhere`, and `firstWhere` to take a `Closure` instead of any callable, like Eloquent
 * Changed `where` and the date family to reject a value that is not scalar or null; passing an array silently matched nothing
-* Changed `where` and everything that forwards to it to read a two-argument call as a value, so `where('status', '>=')` matches the text instead of comparing the column against null
 * Changed `where` to reject an operator it cannot evaluate, and a comparison operator handed null, instead of silently matching nothing
 * Changed `orderBy`, `limit`, `offset`, `chunk`, `paginate`, `simplePaginate`, and `whereBetween` to throw on input they cannot apply, like an unknown sort direction or a negative limit
-* Changed `save` to throw `DuplicateSlugException` for a taken slug instead of returning false
 * Changed `save` and `delete` to resolve the file through `getFilePath` instead of probing every driver extension on disk; a record that was never loaded uses the driver's first extension
 * Changed `find` to match slugs case-sensitively, like `where`; a case-mismatched slug now returns null
 * Changed `find` to throw `ContentPathNotFoundException` for a missing content directory, like `where`, instead of returning null
 * Changed `DriverContract` to require `bodyColumn()`, naming the column that holds the file's body, or null for a format without one
 * Changed `DriverContract` to require `bodySyntax()`, naming the markup the body is written in, or null when the driver does not say
 * Changed `DriverContract::parse` signature to `parse(string $contents)`; drivers no longer perform I/O, the adapter reads files. `PaperQueryBuilder` wraps format errors with the filepath via `FileParseException::inFile`
-* Changed `PaperQueryBuilder::resolveFor` to no longer return the content path; it resolves per call via `getContentPath` so it can vary at runtime
-* Changed static query calls like `Post::orderBy(...)`, `Post::get()` and local scopes to run through Paper's builder instead of Eloquent's, which queried a database table
-* Changed `newQuery` and `on` to throw `UnsupportedDatabaseQueryException` instead of handing back an Eloquent builder bound to a database table
-* Improved `#[ContentPath]`, `#[Driver]`, `#[Disk]`, and `#[Timestamps]` to be read from a parent model, so subclassing no longer falls back to the defaults
-* Improved the manifest so concurrent requests on a cold cache rebuild it once, instead of each reading every file
+* Improved scoped route model binding to resolve through any `PaperRelation`, not only `hasManyPaper`
 * Optimized `where` to filter on the raw record and build only the matching models when the filtered columns have no cast, accessor, or relation
 * Optimized queries to reconcile a per content-path manifest against one directory listing, so a query reads one listing instead of a metadata call per file and warm reads scale flat with file count
-* Moved driver and content path resolution to PaperQueryBuilder as a single shared cache
-* Fixed `delete` to drop the manifest entry only after the file is gone, so a failed delete no longer hides a record that is still on disk
+* Removed `applyGlobalScopes` from `PaperQueryBuilder`; global scopes are applied when the query is built
 * Removed `UnsupportedRouteBindingException` now that `resolveChildRouteBinding` resolves the child instead of throwing
+
+## Version 1.18.0 (2026-09-25)
+* Added global scopes with `addGlobalScope` and `#[ScopedBy]`, applied to every query including `find` and route model binding; `fresh`, `refresh` and `PaperRule` skip them, like Eloquent
+* Added `ScopeContract` for scope classes, because a Paper query does not run through Eloquent's builder
+* Added `withoutGlobalScope` and `withoutGlobalScopes` to drop a scope for a single query
+* Added an array form to `where` and `orWhere` for applying several conditions at once, e.g. `where([['status', '=', 'a'], ['x', '!=', 'b']])`
+* Added dot-notation for `where`, `orderBy`, and aggregates to reach into nested frontmatter, e.g. `where('seo.title', 'x')`
+* Added `whereColumn` and `orWhereColumn` to compare two frontmatter fields; both columns must share the same cast status, validated when the query is built
+* Added `whereDate`, `whereMonth`, `whereDay`, and `whereYear`, plus their `or` variants, to query frontmatter dates
+* Added `whereRegexp` and `whereNotRegexp`, plus `or` variants; regex patterns must carry their own delimiters and are validated when the query is built
+* Added `getContentPath` so a model can resolve its content directory at runtime; a content path can now also be absolute
+* Added `getFilePath` for the file a record is stored in, kept on the model so a `deleted` listener can still name it
+
+## Version 1.17.0 (2026-09-15)
+* Added a `yaml` driver for `.yaml` and `.yml` files, so data files can carry comments and multi-line strings
+* Added `countBy` to count a column's distinct values, flattening array fields like `tags` and skipping null so a missing field adds no bucket
+* Improved `#[ContentPath]`, `#[Driver]`, and `#[Timestamps]` to be read from a parent model instead of falling back to the defaults
+* Fixed `where` and the methods built on it to read a two-argument call as a value, so `where('status', '!=')` no longer matches every record that has a status
+* Fixed `where` matching nothing for an uppercase operator like `LIKE`
+* Fixed `PaperRule::exists` passing when the input is an operator like `!=`
+* Fixed `limit` to ignore a negative value instead of returning the last record
+* Fixed `paginate` and `simplePaginate` returning records from the end for a page number below one
+* Fixed `paginate` and `simplePaginate` to use the model's page size for a page size of zero instead of failing
+* Fixed static query calls like `Post::orderBy()`, `Post::get()`, and local scopes querying a database table instead of the content files
+* Fixed `newQuery` and `on` to throw `UnsupportedDatabaseQueryException` instead of querying a database table
+* Fixed `save` to throw `FileSerializeException` for a value the driver cannot write instead of saving an empty file or null
+* Fixed `save` to keep a record's file extension when its slug changes instead of switching to the driver's first extension
+* Fixed `save` to keep the `UPDATED_AT` frontmatter field when the slug changes instead of stripping it
+* Fixed `create` and `save` to throw `DuplicateSlugException` for a taken slug instead of overwriting the existing record
 
 ## Version 1.16.0 (2026-08-25)
 * Changed `save` to read the slug after the saving and creating events, so a listener can set or rewrite it

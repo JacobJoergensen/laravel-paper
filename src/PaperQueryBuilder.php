@@ -242,8 +242,9 @@ final class PaperQueryBuilder
         $usesDisk = self::resolveFor($modelClass)['usesDisk'];
 
         $path = new $modelClass()->getContentPath();
+        $isAbsolute = preg_match('~^([A-Za-z]:)?[/\\\\]~', $path) === 1;
 
-        return $usesDisk ? $path : base_path($path);
+        return $usesDisk || $isAbsolute ? $path : base_path($path);
     }
 
     /**
@@ -1169,9 +1170,13 @@ final class PaperQueryBuilder
     /**
      * @param  array<int|string, string|Closure>|string  $relations
      */
-    public function with(array|string $relations): static
+    public function with(array|string $relations, Closure|string ...$more): static
     {
-        $relations = is_string($relations) ? func_get_args() : $relations;
+        if (is_string($relations)) {
+            $relations = ($more[0] ?? null) instanceof Closure
+                ? [$relations => $more[0]]
+                : [$relations, ...$more];
+        }
 
         foreach ($relations as $name => $constraint) {
             if (is_int($name)) {

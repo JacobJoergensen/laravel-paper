@@ -17,6 +17,6 @@ final class TenantPost extends PaperModel
 
     public function getContentPath(): string
     {
-        return 'tests/content/tenants/'.self::$tenant;
+        return dirname(__DIR__).'/content/tenants/'.self::$tenant;
     }
 }
