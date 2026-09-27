@@ -19,13 +19,19 @@ $run = match ($shape) {
     'where' => static fn (): Collection => BenchmarkPost::where('published', true)->get(),
     'count' => static fn (): int => BenchmarkPost::count(),
     'paginate' => static fn (): LengthAwarePaginator => BenchmarkPost::paginate(),
-    default => throw new InvalidArgumentException("unknown shape '$shape'; expected find, where, count, or paginate"),
+    'page' => static function (): void {
+        BenchmarkPost::find('post-00001');
+        BenchmarkPost::where('published', true)->orderByDesc('date')->limit(5)->get();
+        BenchmarkPost::count();
+    },
+    default => throw new InvalidArgumentException("unknown shape '$shape'; expected find, where, count, paginate, or page"),
 };
 
-// Resolve the model's attributes up front; this touches no files, so a cold run stays cold.
 BenchmarkPost::query();
 
-if ($mode === 'cold') {
+// Cold and hot are both single-shot; they differ only in whether the caller left
+// parsed file data behind in a store that outlives the process.
+if ($mode !== 'warm') {
     $start = hrtime(true);
     $run();
 
