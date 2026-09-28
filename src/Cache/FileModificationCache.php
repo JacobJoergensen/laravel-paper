@@ -28,7 +28,7 @@ final class FileModificationCache implements CacheContract
     {
         $memoed = $this->memo[$filepath] ?? null;
 
-        if ($memoed !== null && $memoed['mtime'] >= $mtime) {
+        if ($memoed !== null && $memoed['mtime'] === $mtime) {
             return $memoed['data'];
         }
 
@@ -40,7 +40,7 @@ final class FileModificationCache implements CacheContract
 
         $cachedMtime = is_int($cached['mtime'] ?? null) ? $cached['mtime'] : 0;
 
-        if ($cachedMtime < $mtime) {
+        if ($cachedMtime !== $mtime) {
             return null;
         }
 
@@ -64,6 +64,11 @@ final class FileModificationCache implements CacheContract
      */
     public function set(string $filepath, array $data, int $mtime): void
     {
+        // A second write within the same second keeps this mtime, so it would never be seen.
+        if ($mtime >= time()) {
+            return;
+        }
+
         $entry = ['mtime' => $mtime, 'data' => $data];
 
         $this->memo[$filepath] = $entry;

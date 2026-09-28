@@ -67,7 +67,6 @@ it('reloads a record with fresh and refresh after a global scope stops matching 
     $post = ScopedPost::find('__scope_test__');
 
     file_put_contents($file, "---\npublished: false\norder: 5\n---\n");
-    touch($file, time() + 1);
 
     expect($post->fresh()?->published)->toBeFalse()
         ->and($post->refresh()->published)->toBeFalse();

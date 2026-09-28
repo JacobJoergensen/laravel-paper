@@ -11,6 +11,7 @@ beforeEach(function (): void {
     $this->cache = new FileModificationCache($this->repository);
     $this->filepath = tempnam(sys_get_temp_dir(), 'paper_cache_');
     file_put_contents($this->filepath, 'content');
+    touch($this->filepath, time() - 60);
 });
 
 afterEach(function (): void {
@@ -38,20 +39,25 @@ it('populates memo from the underlying repository on first read', function (): v
     expect($fresh->getIfFresh($this->filepath, $mtime))->toBe(['title' => 'persisted']);
 });
 
-it('invalidates memo when the file is newer than the memoed entry', function (): void {
+it('rejects a cached entry older than the file, so an edited file is re-read', function (): void {
     $mtime = (int) filemtime($this->filepath);
     $this->cache->set($this->filepath, ['title' => 'stale'], $mtime);
 
     expect($this->cache->getIfFresh($this->filepath, $mtime + 60))->toBeNull();
 });
 
-it('rejects a stored entry older than the file, so an edited file is re-read', function (): void {
+it('rejects a cached entry newer than the file, so a file restored to an older mtime is re-read', function (): void {
     $mtime = (int) filemtime($this->filepath);
-    $this->cache->set($this->filepath, ['title' => 'stale'], $mtime);
+    $this->cache->set($this->filepath, ['title' => 'newer'], $mtime);
 
-    $fresh = new FileModificationCache($this->repository);
+    expect($this->cache->getIfFresh($this->filepath, $mtime - 60))->toBeNull();
+});
 
-    expect($fresh->getIfFresh($this->filepath, $mtime + 60))->toBeNull();
+it('does not cache a file modified within the current second', function (): void {
+    $now = time();
+    $this->cache->set($this->filepath, ['title' => 'first write'], $now);
+
+    expect($this->cache->getIfFresh($this->filepath, $now))->toBeNull();
 });
 
 it('reads freshness from the given mtime instead of stating the file', function (): void {
