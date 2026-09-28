@@ -7,7 +7,7 @@ namespace JacobJoergensen\LaravelPaper\Exceptions;
 use RuntimeException;
 
 /**
- * @deprecated
+ * @deprecated Will be removed in 2.0.
  */
 final class UnsupportedRouteBindingException extends RuntimeException implements PaperException
 {
