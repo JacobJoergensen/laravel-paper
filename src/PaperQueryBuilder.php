@@ -32,7 +32,7 @@ use Throwable;
  */
 final class PaperQueryBuilder
 {
-    private const array OPERATORS = ['=', '==', '===', '!=', '<>', '!==', '>', '>=', '<', '<=', 'like'];
+    private const array OPERATORS = ['=', '==', '===', '!=', '<>', '!==', '>', '>=', '<', '<=', 'like', 'not like'];
 
     /** @var list<array{type: string, column?: string, second?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, wheres?: list<array<string, mixed>>, boolean: string}> */
     private array $wheres = [];
@@ -143,12 +143,11 @@ final class PaperQueryBuilder
     }
 
     /**
-     * Rejects slugs that would escape the content directory.
+     * Rejects slugs that would escape the content directory or be hidden from listings.
      */
     public static function guardSlug(string $slug): void
     {
-        $invalid = $slug === '.'
-            || $slug === '..'
+        $invalid = str_starts_with($slug, '.')
             || str_contains($slug, '/')
             || str_contains($slug, '\\')
             || str_contains($slug, "\0");
@@ -243,6 +242,8 @@ final class PaperQueryBuilder
 
         [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 2);
 
+        $this->guardOperator($operator);
+
         if ($value === null) {
             if (in_array($operator, ['=', '==', '==='], true)) {
                 return $this->whereNull($column, $boolean);
@@ -327,6 +328,13 @@ final class PaperQueryBuilder
         }
 
         return [is_string($operator) ? strtolower($operator) : '=', $value];
+    }
+
+    private function guardOperator(string $operator): void
+    {
+        if (! in_array($operator, self::OPERATORS, true)) {
+            throw new InvalidArgumentException(sprintf('Unsupported operator: %s', $operator));
+        }
     }
 
     /**
@@ -505,6 +513,10 @@ final class PaperQueryBuilder
             $operator = '=';
         }
 
+        $operator = strtolower($operator);
+
+        $this->guardOperator($operator);
+
         if ($this->transformsOnHydration($first) !== $this->transformsOnHydration($second)) {
             throw new InvalidArgumentException(sprintf(
                 "whereColumn('%s', '%s'): columns must have the same cast status; one is transformed on hydration and the other is not.",
@@ -517,7 +529,7 @@ final class PaperQueryBuilder
             'type' => 'column',
             'column' => $first,
             'second' => $second,
-            'operator' => strtolower($operator),
+            'operator' => $operator,
             'boolean' => $boolean,
         ];
 
@@ -731,6 +743,8 @@ final class PaperQueryBuilder
 
     private function addDateWhere(string $type, string $column, string $operator, mixed $value, string $boolean): static
     {
+        $this->guardOperator($operator);
+
         if ($value instanceof DateTimeInterface) {
             $carbon = Carbon::instance($value);
             $value = match ($type) {
@@ -898,17 +912,23 @@ final class PaperQueryBuilder
 
     public function count(): int
     {
+        $files = $this->scanFiles();
+
         if ($this->allWheres() === []) {
-            return $this->scanFiles()->count();
+            return $files->count();
         }
 
-        return $this->lazyModels()->count();
+        $matching = $files->filter(
+            fn (string $filepath): bool => $this->matchesWheres($this->fileToModel($filepath))
+        );
+
+        return $matching->count();
     }
 
     public function exists(): bool
     {
         if ($this->allWheres() === []) {
-            return $this->scanFiles()->isNotEmpty();
+            return $this->limitValue !== 0 && $this->scanFiles()->count() > $this->offsetValue;
         }
 
         return $this->lazyModels()->isNotEmpty();
@@ -1701,13 +1721,14 @@ final class PaperQueryBuilder
             '<' => $bothPresent && $actual < $expected,
             '<=' => $bothPresent && $actual <= $expected,
             'like' => is_string($actual) && is_string($expected) && $this->evaluateLike($actual, $expected),
+            'not like' => is_string($actual) && is_string($expected) && ! $this->evaluateLike($actual, $expected),
             default => false,
         };
     }
 
     private function evaluateLike(string $actual, string $pattern, bool $caseSensitive = false): bool
     {
-        $modifiers = $caseSensitive ? '' : 'i';
+        $modifiers = $caseSensitive ? 'su' : 'siu';
         $regex = '/^'.str_replace(['%', '_'], ['.*', '.'], preg_quote($pattern, '/')).'$/'.$modifiers;
 
         return (bool) preg_match($regex, $actual);

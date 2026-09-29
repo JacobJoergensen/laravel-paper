@@ -171,12 +171,12 @@ trait Paper
     }
 
     /**
-     * @param  array<array-key, mixed>|string  $column
+     * @param  array<array-key, mixed>|(callable(PaperQueryBuilder<static>): mixed)|string  $column
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      * @return PaperQueryBuilder<static>
      */
-    public static function where(array|string $column, mixed $operator = null, mixed $value = null): PaperQueryBuilder
+    public static function where(array|callable|string $column, mixed $operator = null, mixed $value = null): PaperQueryBuilder
     {
         [$operator, $value] = func_num_args() === 2 ? ['=', $operator] : [$operator, $value];
 
@@ -184,12 +184,12 @@ trait Paper
     }
 
     /**
-     * @param  array<array-key, mixed>|string  $column
+     * @param  array<array-key, mixed>|(callable(PaperQueryBuilder<static>): mixed)|string  $column
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      * @return PaperQueryBuilder<static>
      */
-    public static function orWhere(array|string $column, mixed $operator = null, mixed $value = null): PaperQueryBuilder
+    public static function orWhere(array|callable|string $column, mixed $operator = null, mixed $value = null): PaperQueryBuilder
     {
         [$operator, $value] = func_num_args() === 2 ? ['=', $operator] : [$operator, $value];
 
@@ -565,10 +565,11 @@ trait Paper
     }
 
     /**
+     * @param  array<array-key, mixed>|(callable(PaperQueryBuilder<static>): mixed)|string  $column
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      */
-    public static function firstWhere(string $column, mixed $operator = null, mixed $value = null): ?static
+    public static function firstWhere(array|callable|string $column, mixed $operator = null, mixed $value = null): ?static
     {
         [$operator, $value] = func_num_args() === 2 ? ['=', $operator] : [$operator, $value];
 
@@ -874,6 +875,12 @@ trait Paper
             return false;
         }
 
+        if (! $isCreating && ! $this->isDirty()) {
+            $this->fireModelEvent('saved', false);
+
+            return true;
+        }
+
         if ($isCreating && $this->fireModelEvent('creating') === false) {
             return false;
         }
@@ -900,14 +907,21 @@ trait Paper
             throw DuplicateSlugException::forSlug($slug, $existing);
         }
 
-        // A rename would write over the record already stored under the new slug.
-        if ($isRenaming && is_file($existing)) {
-            return false;
-        }
-
         $extension = $this->storedExtension($directory);
         $filepath = $directory.'/'.$slug.'.'.$extension;
         $source = $isRenaming ? $directory.'/'.$original.'.'.$extension : $filepath;
+
+        // A case-insensitive filesystem finds the record itself under a slug that only changes case.
+        $renamesInPlace = $isRenaming
+            && strcasecmp($existing, $source) === 0
+            && is_file($existing)
+            && is_file($source)
+            && fileinode($existing) === fileinode($source);
+
+        // A rename would write over the record already stored under the new slug.
+        if ($isRenaming && ! $renamesInPlace && is_file($existing)) {
+            return false;
+        }
 
         $attributes = PaperCasts::toStorage($this, $this->getAttributes());
         $mtimeColumn = null;
@@ -942,9 +956,11 @@ trait Paper
         }
 
         if ($success) {
-            if ($isRenaming && is_file($source)) {
+            if ($isRenaming) {
                 $cache->forget($source);
+            }
 
+            if ($isRenaming && ! $renamesInPlace && is_file($source)) {
                 if (! @unlink($source)) {
                     @unlink($filepath);
 

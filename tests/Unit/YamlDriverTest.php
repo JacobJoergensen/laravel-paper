@@ -51,6 +51,12 @@ it('serializes multi-line strings as literal blocks and drops the slug', functio
         ->and($parsed)->toBe(['bio' => "One.\nTwo.", 'skills' => ['php']]);
 });
 
+it('writes an empty list as a list', function (): void {
+    $driver = new YamlDriver;
+
+    expect($driver->serialize(['tags' => []]))->toBe("tags: []\n");
+});
+
 it('ends the file with a newline when the last value is a literal block', function (): void {
     $driver = new YamlDriver;
 
@@ -81,9 +87,9 @@ it('throws a paper exception naming the file when the yaml is malformed', functi
     }
 })->throws(FileParseException::class, 'Failed to parse YAML file');
 
-it('throws when the yaml root is not a mapping', function (): void {
+it('throws when the yaml root is not a mapping', function (string $yaml): void {
     $tempFile = tempnam(sys_get_temp_dir(), 'yaml_');
-    file_put_contents($tempFile, 'just a string');
+    file_put_contents($tempFile, $yaml);
 
     $driver = new YamlDriver;
 
@@ -92,7 +98,10 @@ it('throws when the yaml root is not a mapping', function (): void {
     } finally {
         unlink($tempFile);
     }
-})->throws(FileParseException::class, 'Root must be a mapping');
+})->throws(FileParseException::class, 'Root must be a mapping')->with([
+    'string' => 'just a string',
+    'list' => "- one\n- two\n",
+]);
 
 it('throws exception for unreadable file', function (): void {
     $driver = new YamlDriver;

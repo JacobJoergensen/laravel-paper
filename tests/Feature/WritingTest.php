@@ -140,6 +140,31 @@ it('clears dirty state and records changes after saving', function (): void {
         ->and($post->getOriginal('title'))->toBe('Second');
 });
 
+it('leaves the file alone and fires no update events when saving an unchanged record', function (): void {
+    $path = __DIR__.'/../content/posts/__save_test__unchanged.md';
+    file_put_contents($path, "---\ntitle: Unchanged\n---\n\nBody\n");
+    touch($path, time() - 3600);
+    clearstatcache();
+
+    $modified = filemtime($path);
+    $events = [];
+
+    Post::updating(function () use (&$events): void {
+        $events[] = 'updating';
+    });
+
+    Post::saved(function () use (&$events): void {
+        $events[] = 'saved';
+    });
+
+    $saved = Post::find('__save_test__unchanged')->save();
+    clearstatcache();
+
+    expect($saved)->toBeTrue()
+        ->and(filemtime($path))->toBe($modified)
+        ->and($events)->toBe(['saved']);
+});
+
 it('mass updates only the records matching the query, bypassing fillable', function (): void {
     foreach (['a' => 'bulk', 'b' => 'bulk', 'c' => 'other'] as $key => $group) {
         $post = new Post;
@@ -218,6 +243,20 @@ it('keeps the file extension when the slug changes', function (): void {
         ->and(file_exists($dir.'/__save_test__to.md'))->toBeFalse();
 });
 
+it('renames a record when only the case of its slug changes', function (): void {
+    $dir = __DIR__.'/../content/posts';
+    file_put_contents($dir.'/__save_test__case.md', "---\ntitle: Case\n---\n\nBody\n");
+
+    Post::resetPaperState();
+
+    $post = Post::find('__save_test__case');
+    $post->slug = '__save_test__CASE';
+
+    expect($post->save())->toBeTrue()
+        ->and(glob($dir.'/__save_test__*'))->toBe([$dir.'/__save_test__CASE.md'])
+        ->and(Post::find('__save_test__CASE')->title)->toBe('Case');
+});
+
 it('refuses to rename a record onto a slug another record holds', function (): void {
     $dir = __DIR__.'/../content/posts';
     file_put_contents($dir.'/__save_test__source.md', "---\ntitle: Source\n---\n");
@@ -251,13 +290,16 @@ it('refuses to create a record on a slug another extension already holds', funct
         ->and(file_exists($dir.'/__save_test__taken.md'))->toBeFalse();
 });
 
-it('rejects path traversal when saving', function (): void {
+it('rejects a slug that escapes or hides from the content directory when saving', function (string $slug): void {
     $post = new Post;
-    $post->slug = '../../routes/web';
+    $post->slug = $slug;
     $post->title = 'Nope';
 
     $post->save();
-})->throws(InvalidSlugException::class);
+})->throws(InvalidSlugException::class)->with([
+    'parent traversal' => '../../routes/web',
+    'hidden file' => '.hidden',
+]);
 
 it('rejects path traversal when deleting', function (): void {
     $post = new Post;

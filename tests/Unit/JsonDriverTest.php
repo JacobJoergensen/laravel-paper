@@ -57,9 +57,9 @@ it('throws exception for unreadable file', function (): void {
     $driver->parse('/nonexistent/file.json');
 })->throws(FileParseException::class);
 
-it('throws when the json root is not an object', function (): void {
+it('throws when the json root is not an object', function (string $json): void {
     $tempFile = tempnam(sys_get_temp_dir(), 'json_');
-    file_put_contents($tempFile, '"just a string"');
+    file_put_contents($tempFile, $json);
 
     $driver = new JsonDriver;
 
@@ -68,4 +68,7 @@ it('throws when the json root is not an object', function (): void {
     } finally {
         unlink($tempFile);
     }
-})->throws(FileParseException::class);
+})->throws(FileParseException::class, 'Root must be an object')->with([
+    'string' => '"just a string"',
+    'list' => '[1, 2]',
+]);
