@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## Version 1.19.0 (2026-09-29)
 * Added scoped route model binding so `/authors/{author}/posts/{post}` resolves the child through the parent's `hasManyPaper` relation and 404s when it belongs to another parent
 * Added `paper:validate` to check every content file parses and hydrates, catching malformed frontmatter and files a slug collision hides
 * Added the `not like` operator to `where`
