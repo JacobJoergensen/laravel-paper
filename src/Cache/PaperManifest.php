@@ -97,7 +97,8 @@ final class PaperManifest
      */
     private function fresh(?array $existing, array $info): bool
     {
-        if ($existing === null) {
+        // A second write within the same second keeps this mtime, so it would never be seen.
+        if ($existing === null || $info['mtime'] >= time()) {
             return false;
         }
 

@@ -95,6 +95,7 @@ function coldStats(string $shape): array
     $samples = [];
 
     for ($i = 0; $i < COLD_SAMPLES; $i++) {
+        flushStore();
         $samples[] = sample($shape, 'cold')[0];
     }
 
@@ -114,7 +115,6 @@ function warmStats(string $shape): array
  */
 function hotStats(string $shape): array
 {
-    putenv('BENCH_CACHE_STORE=file');
     flushStore();
 
     // The first process builds and persists the manifest, the measured ones only read it.
@@ -126,17 +126,18 @@ function hotStats(string $shape): array
         $samples[] = sample($shape, 'hot')[0];
     }
 
-    putenv('BENCH_CACHE_STORE=array');
-
     return stats($samples);
 }
 
 function flushStore(): void
 {
-    $entries = glob(dirname(__DIR__).'/storage/framework/cache/data/*/*/*') ?: [];
+    $data = dirname(__DIR__).'/storage/framework/cache/data';
 
-    foreach ($entries as $entry) {
-        @unlink($entry);
+    // Drops the shard directories too, like cache:clear, so a cold run pays for recreating them.
+    foreach (['/*/*/*', '/*/*', '/*'] as $depth) {
+        foreach (glob($data.$depth) ?: [] as $entry) {
+            is_dir($entry) ? rmdir($entry) : unlink($entry);
+        }
     }
 }
 
@@ -236,10 +237,6 @@ function writeResults(array $rows, string $validation, int $seed, array $counts)
     $body .= "\nCold runs measure a fresh PHP process with an empty application cache. Page cache and PHP opcache stay warm, so this is a first request after a deploy, not a bare-metal disk read.\n";
     $body .= "\nHot runs measure a fresh process against a manifest already held in the file store, which is what a request hits in production once the cache is populated.\n";
 
-    if (PHP_OS_FAMILY === 'Windows') {
-        $body .= "\nPHP's `glob()` is far slower on Windows than on glibc, by more than an order of magnitude, so `count()` and `paginate(15)` are listing-bound here.\n";
-    }
-
     $body .= "\n";
     $body .= "| shape | files | cache | median | min | p90 | peak MB |\n";
     $body .= "|-------|------:|-------|-------:|----:|----:|--------:|\n";
@@ -286,8 +283,8 @@ function validationSection(array $cold, array $hot, int $files): string
     $hotRatio = $hot['50KB']['median'] / $hot['1KB']['median'];
 
     return $body.($hotRatio >= 1.5
-        ? "\nFile size is decision-relevant on the hot path and kept as an axis.\n"
-        : "\nFile size is not decision-relevant in either cache state; the axis is dropped per the design.\n");
+        ? "\nFile size is decision-relevant on the hot path.\n"
+        : "\nFile size is not decision-relevant in either cache state.\n");
 }
 
 /**

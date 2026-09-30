@@ -48,6 +48,29 @@
 * Removed `applyGlobalScopes` from `PaperQueryBuilder`; global scopes are applied when the query is built
 * Removed `UnsupportedRouteBindingException` now that `resolveChildRouteBinding` resolves the child instead of throwing
 
+## Version 1.19.0 (2026-09-29)
+* Added scoped route model binding so `/authors/{author}/posts/{post}` resolves the child through the parent's `hasManyPaper` relation and 404s when it belongs to another parent
+* Added `paper:validate` to check every content file parses and hydrates, catching malformed frontmatter and files a slug collision hides
+* Added the `not like` operator to `where`
+* Fixed Markdown files without frontmatter losing their body when it contains two `---` lines
+* Fixed Markdown files saved with a byte order mark losing their frontmatter
+* Fixed a content-only Markdown record that starts with `---` being read back as frontmatter
+* Fixed the `json` and `yaml` drivers reading a list as a record instead of throwing
+* Fixed `save` leaving `updated_at` empty or stale on `#[Timestamps]` models; it now holds the new file modification time
+* Fixed `save` rewriting the file and firing `updating` and `updated` for an unchanged record
+* Fixed `save` writing Windows line endings around a horizontal rule in a Markdown body
+* Fixed `save` stripping the indentation from the first line of a Markdown body
+* Fixed `save` writing an empty list as `{}` in Markdown and YAML files
+* Fixed `save` refusing to rename a record when only the case of its slug changes on Windows and macOS
+* Fixed `save` and `find` accepting a slug with a leading dot, which queries never list
+* Fixed queries returning stale data for a file edited twice within one second or restored with an older modification time
+* Fixed `count` applying `limit` and `offset` when the query has a where clause
+* Fixed `exists` ignoring `limit` and `offset` when the query has no where clause
+* Fixed `where` and `whereColumn` matching nothing for an unknown operator instead of throwing
+* Fixed static `where`, `orWhere` and `firstWhere` rejecting a closure
+* Fixed `whereLike` not matching across lines or by character in non-ASCII text
+* Removed the `spatie/yaml-front-matter` dependency; frontmatter is now read with `symfony/yaml` directly
+
 ## Version 1.18.0 (2026-09-25)
 * Added global scopes with `addGlobalScope` and `#[ScopedBy]`, applied to every query including `find` and route model binding; `fresh`, `refresh` and `PaperRule` skip them, like Eloquent
 * Added `ScopeContract` for scope classes, because a Paper query does not run through Eloquent's builder

@@ -7,13 +7,16 @@ namespace JacobJoergensen\LaravelPaper\Drivers;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
 use JacobJoergensen\LaravelPaper\Exceptions\FileSerializeException;
-use Spatie\YamlFrontMatter\YamlFrontMatter;
 use Symfony\Component\Yaml\Exception\DumpException;
 use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
 
 final readonly class MarkdownDriver implements DriverContract
 {
+    private const string BYTE_ORDER_MARK = "\xEF\xBB\xBF";
+
+    private const string FRONTMATTER = '/\A\s*---\h*\R(?<matter>.*?)^---\h*$\R?/ms';
+
     /**
      * @return list<string>
      */
@@ -37,15 +40,25 @@ final readonly class MarkdownDriver implements DriverContract
      */
     public function parse(string $contents): array
     {
+        $contents = str_starts_with($contents, self::BYTE_ORDER_MARK)
+            ? substr($contents, strlen(self::BYTE_ORDER_MARK))
+            : $contents;
+
+        if (preg_match(self::FRONTMATTER, $contents, $match) !== 1) {
+            return ['content' => rtrim(ltrim($contents, "\r\n"))];
+        }
+
         try {
-            $document = YamlFrontMatter::parse($contents);
+            $matter = Yaml::parse($match['matter']);
         } catch (ParseException $e) {
             throw FileParseException::invalidFrontmatter($e->getMessage());
         }
 
+        $body = substr($contents, strlen($match[0]));
+
         /** @var array<string, mixed> $data */
-        $data = $document->matter();
-        $data['content'] = trim($document->body());
+        $data = is_array($matter) ? $matter : [];
+        $data['content'] = rtrim(ltrim($body, "\r\n"));
 
         return $data;
     }
@@ -59,11 +72,14 @@ final readonly class MarkdownDriver implements DriverContract
         unset($data['content'], $data['slug']);
 
         if ($data === []) {
-            return "$content\n";
+            $readsAsFrontmatter = preg_match(self::FRONTMATTER, $content) === 1;
+
+            return $readsAsFrontmatter ? "---\n---\n\n$content\n" : "$content\n";
         }
 
         try {
-            $yaml = Yaml::dump($data, PHP_INT_MAX, 4, Yaml::DUMP_EXCEPTION_ON_INVALID_TYPE);
+            $flags = Yaml::DUMP_EMPTY_ARRAY_AS_SEQUENCE | Yaml::DUMP_EXCEPTION_ON_INVALID_TYPE;
+            $yaml = Yaml::dump($data, PHP_INT_MAX, 4, $flags);
         } catch (DumpException $e) {
             throw FileSerializeException::invalidYaml($e->getMessage());
         }

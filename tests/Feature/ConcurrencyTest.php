@@ -206,5 +206,7 @@ it('rejects a concurrency policy it does not know', function (): void {
 
     ($this->write)('__cc_test__policy');
 
-    Post::find('__cc_test__policy')->save();
+    $post = Post::find('__cc_test__policy');
+    $post->title = 'Changed';
+    $post->save();
 })->throws(UnsupportedConcurrencyException::class, 'Unknown concurrency policy');

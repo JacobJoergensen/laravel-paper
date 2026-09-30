@@ -11,7 +11,7 @@ final class InvalidSlugException extends InvalidArgumentException implements Pap
     public static function forSlug(string $slug): self
     {
         return new self(
-            "The slug '$slug' is not a valid path. Segments must be separated by single forward slashes and cannot be '.', '..', or contain null bytes."
+            "The slug '$slug' is not a valid path. Segments must be separated by single forward slashes and cannot start with a dot or contain null bytes."
         );
     }
 

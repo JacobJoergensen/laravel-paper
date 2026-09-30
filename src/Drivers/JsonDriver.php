@@ -39,7 +39,7 @@ final readonly class JsonDriver implements DriverContract
             throw FileParseException::invalidJson(json_last_error_msg());
         }
 
-        if (! is_array($data)) {
+        if (! is_array($data) || ($data !== [] && array_is_list($data))) {
             throw FileParseException::invalidJson('Root must be an object');
         }
 

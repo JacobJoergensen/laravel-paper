@@ -101,10 +101,29 @@ final readonly class LocalAdapter implements ConditionalWriteContract, StorageAd
                 return $mismatch;
             }
 
-            $taken = $this->firstTaken([$to, ...$conflicts]);
+            // A case-insensitive filesystem finds the record itself under a slug that only changes case.
+            $changesCase = strcasecmp($from, $to) === 0
+                && $this->exists($to)
+                && fileinode($from) === fileinode($to);
+
+            $taken = $this->firstTaken($changesCase ? $conflicts : [$to, ...$conflicts]);
 
             if ($taken !== null) {
                 return $taken;
+            }
+
+            if ($changesCase) {
+                if (! @rename($from, $to)) {
+                    return ConditionalWriteResult::failed();
+                }
+
+                $written = $this->writeResult($to, $contents);
+
+                if ($written->status !== ConditionalWriteStatus::Written) {
+                    @rename($to, $from);
+                }
+
+                return $written;
             }
 
             $written = $this->writeResult($to, $contents);

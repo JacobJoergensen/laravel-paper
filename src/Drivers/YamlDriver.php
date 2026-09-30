@@ -46,7 +46,7 @@ final readonly class YamlDriver implements DriverContract
             return [];
         }
 
-        if (! is_array($data)) {
+        if (! is_array($data) || ($data !== [] && array_is_list($data))) {
             throw FileParseException::invalidYaml('Root must be a mapping');
         }
 
@@ -66,7 +66,10 @@ final readonly class YamlDriver implements DriverContract
         }
 
         try {
-            $yaml = Yaml::dump($data, PHP_INT_MAX, 4, Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK | Yaml::DUMP_EXCEPTION_ON_INVALID_TYPE);
+            $flags = Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK
+                | Yaml::DUMP_EMPTY_ARRAY_AS_SEQUENCE
+                | Yaml::DUMP_EXCEPTION_ON_INVALID_TYPE;
+            $yaml = Yaml::dump($data, PHP_INT_MAX, 4, $flags);
         } catch (DumpException $e) {
             throw FileSerializeException::invalidYaml($e->getMessage());
         }

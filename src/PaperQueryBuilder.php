@@ -45,7 +45,7 @@ use Throwable;
  */
 final class PaperQueryBuilder
 {
-    private const array OPERATORS = ['=', '==', '===', '!=', '<>', '!==', '>', '>=', '<', '<=', 'like'];
+    private const array OPERATORS = ['=', '==', '===', '!=', '<>', '!==', '>', '>=', '<', '<=', 'like', 'not like'];
 
     private const array EQUALITY_OPERATORS = ['=', '==', '===', '!=', '<>', '!=='];
 
@@ -363,7 +363,7 @@ final class PaperQueryBuilder
     }
 
     /**
-     * Rejects slugs that would escape the content directory.
+     * Rejects slugs that would escape the content directory or be hidden from listings.
      */
     public static function guardSlug(string $slug): void
     {
@@ -373,15 +373,15 @@ final class PaperQueryBuilder
             || str_ends_with($slug, '/')
             || str_contains($slug, '//');
 
-        if ($malformed || self::hasTraversalSegment($slug)) {
+        if ($malformed || self::hasDotSegment($slug)) {
             throw InvalidSlugException::forSlug($slug);
         }
     }
 
-    private static function hasTraversalSegment(string $slug): bool
+    private static function hasDotSegment(string $slug): bool
     {
         foreach (explode('/', $slug) as $segment) {
-            if ($segment === '.' || $segment === '..') {
+            if (str_starts_with($segment, '.')) {
                 return true;
             }
         }
@@ -577,15 +577,20 @@ final class PaperQueryBuilder
 
         $operator = strtolower($operator);
 
-        if (! in_array($operator, self::OPERATORS, true)) {
-            throw new InvalidArgumentException(sprintf('Unsupported where operator: %s.', $operator));
-        }
+        $this->guardOperator($operator);
 
         if ($value === null && ! in_array($operator, self::EQUALITY_OPERATORS, true)) {
             throw new InvalidArgumentException(sprintf('Operator %s cannot be used with a null value.', $operator));
         }
 
         return [$operator, $value];
+    }
+
+    private function guardOperator(string $operator): void
+    {
+        if (! in_array($operator, self::OPERATORS, true)) {
+            throw new InvalidArgumentException(sprintf('Unsupported where operator: %s.', $operator));
+        }
     }
 
     /**
@@ -917,6 +922,10 @@ final class PaperQueryBuilder
             $second = $operator;
             $operator = '=';
         }
+
+        $operator = strtolower($operator);
+
+        $this->guardOperator($operator);
 
         if ($this->columnSafe($first) !== $this->columnSafe($second)) {
             throw new InvalidArgumentException(sprintf(
@@ -1281,18 +1290,18 @@ final class PaperQueryBuilder
             return count($this->scanSlugs());
         }
 
-        if ($this->canCountRaw()) {
+        if ($this->pushDown()) {
             return $this->records()->filter(fn (array $record): bool => $this->recordMatches($record))->count();
         }
 
-        return $this->lazyModels()->count();
+        return iterator_count($this->matchingModels());
     }
 
     public function exists(): bool
     {
 
         if ($this->allWheres() === []) {
-            return $this->scanSlugs() !== [];
+            return $this->limitValue !== 0 && count($this->scanSlugs()) > $this->offsetValue;
         }
 
         if ($this->canCountRaw()) {
@@ -2397,13 +2406,14 @@ final class PaperQueryBuilder
             '<' => $bothPresent && $actual < $expected,
             '<=' => $bothPresent && $actual <= $expected,
             'like' => is_string($actual) && is_string($expected) && $this->evaluateLike($actual, $expected),
+            'not like' => is_string($actual) && is_string($expected) && ! $this->evaluateLike($actual, $expected),
             default => false,
         };
     }
 
     private function evaluateLike(string $actual, string $pattern, bool $caseSensitive = false): bool
     {
-        $modifiers = $caseSensitive ? '' : 'i';
+        $modifiers = $caseSensitive ? 'su' : 'siu';
         $regex = '/^'.str_replace(['%', '_'], ['.*', '.'], preg_quote($pattern, '/')).'$/'.$modifiers;
 
         return (bool) preg_match($regex, $actual);

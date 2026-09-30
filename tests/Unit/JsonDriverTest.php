@@ -51,7 +51,10 @@ it('throws exception for invalid json', function (): void {
     $driver->parse('{ invalid json }');
 })->throws(FileParseException::class, 'Syntax error');
 
-it('throws when the json root is not an object', function (): void {
+it('throws when the json root is not an object', function (string $json): void {
     $driver = new JsonDriver;
-    $driver->parse('"just a string"');
-})->throws(FileParseException::class, 'Root must be an object');
+    $driver->parse($json);
+})->throws(FileParseException::class, 'Root must be an object')->with([
+    'string' => '"just a string"',
+    'list' => '[1, 2]',
+]);

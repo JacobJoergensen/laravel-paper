@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use JacobJoergensen\LaravelPaper\Benchmarks\BenchmarkPost;
 
@@ -29,6 +30,9 @@ $run = match ($shape) {
 };
 
 BenchmarkPost::query();
+
+// A real request boots Carbon early; without this the file store's expiry check pays for it inside the timer.
+Carbon::now();
 
 // Cold and hot are both single-shot; they differ only in whether the caller left a
 // manifest behind in a store that outlives the process.

@@ -629,10 +629,11 @@ trait Paper
     }
 
     /**
+     * @param  (Closure(PaperQueryBuilder<static>): mixed)|string|array<array-key, mixed>  $column
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      */
-    public static function firstWhere(string $column, mixed $operator = null, mixed $value = null): ?static
+    public static function firstWhere(array|Closure|string $column, mixed $operator = null, mixed $value = null): ?static
     {
         [$operator, $value] = func_num_args() === 2 ? ['=', $operator] : [$operator, $value];
 
@@ -1059,6 +1060,12 @@ trait Paper
 
         if ($this->fireModelEvent('saving') === false) {
             return false;
+        }
+
+        if (! $isCreating && ! $this->isDirty()) {
+            $this->fireModelEvent('saved', false);
+
+            return true;
         }
 
         if ($isCreating && $this->fireModelEvent('creating') === false) {

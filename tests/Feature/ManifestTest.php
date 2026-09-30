@@ -80,6 +80,18 @@ it('re-reads only the file whose mtime differs from the cached entry', function 
     'restored from backup, so older' => 500,
 ]);
 
+it('sees a second edit within the second that keeps the same modification time', function (): void {
+    $current = time() + 60;
+
+    $this->adapter->seed('blog/post-3.md', "---\nstatus: draft\n---\nfirst", $current);
+    ($this->build)()->get();
+
+    $this->adapter->seed('blog/post-3.md', "---\nstatus: archived\n---\nsecond", $current);
+    $models = ($this->build)()->get();
+
+    expect($models->firstWhere('slug', 'post-3')->status)->toBe('archived');
+});
+
 it('drops a deleted file from results without reading anything', function (): void {
     ($this->build)()->get();
 

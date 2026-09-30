@@ -79,11 +79,10 @@ it('filters on a column whose name matches a php function', function (): void {
 });
 
 it('groups conditions passed as a closure', function (): void {
-    $posts = Post::query()
+    $posts = Post::where(function (PaperQueryBuilder $query): void {
+        $query->where('order', 1)->orWhere('order', 2);
+    })
         ->where('published', true)
-        ->where(function (PaperQueryBuilder $query): void {
-            $query->where('order', 1)->orWhere('order', 2);
-        })
         ->get();
 
     expect($posts->pluck('slug')->toArray())->toBe(['hello-world', 'second-post']);
@@ -228,6 +227,17 @@ it('counts only posts matching where clause', function (): void {
     expect($count)->toBe(2);
 });
 
+it('counts every matching post regardless of limit and offset', function (): void {
+    expect(Post::query()->limit(1)->offset(1)->count())->toBe(3)
+        ->and(Post::where('published', true)->limit(1)->offset(1)->count())->toBe(2);
+});
+
+it('checks existence past the offset and within the limit', function (): void {
+    expect(Post::query()->offset(3)->exists())->toBeFalse()
+        ->and(Post::query()->offset(2)->exists())->toBeTrue()
+        ->and(Post::query()->limit(0)->exists())->toBeFalse();
+});
+
 it('returns true when posts exist', function (): void {
     expect(Post::exists())->toBeTrue();
 });
@@ -293,6 +303,23 @@ it('matches with whereLike and respects case sensitivity', function (): void {
         ->and(Post::whereLike('title', 'Hello World')->count())->toBe(1);
 });
 
+it('matches whereLike across lines and on non-ASCII characters', function (): void {
+    $path = __DIR__.'/../content/posts/__like__.md';
+    File::put($path, "---\ntitle: Æble\n---\n\nFirst line\nSecond line\n");
+
+    try {
+        expect(Post::whereLike('content', 'First%Second line')->count())->toBe(1)
+            ->and(Post::whereLike('title', '_ble')->count())->toBe(1)
+            ->and(Post::whereLike('title', 'æble')->count())->toBe(1);
+    } finally {
+        File::delete($path);
+    }
+});
+
+it('filters with the not like operator', function (): void {
+    expect(Post::where('title', 'not like', '%Post%')->pluck('slug')->toArray())->toBe(['hello-world']);
+});
+
 it('rejects unsafe slugs when finding', function (string $slug): void {
     Post::find($slug);
 })->throws(InvalidSlugException::class)->with([
@@ -303,6 +330,7 @@ it('rejects unsafe slugs when finding', function (string $slug): void {
     'absolute path' => '/etc/passwd',
     'empty segment' => 'guides//installation',
     'trailing slash' => 'guides/',
+    'hidden segment' => 'guides/.draft',
 ]);
 
 it('runs the callback when truthy and the default when falsy', function (): void {
@@ -524,6 +552,7 @@ it('rejects query input it cannot apply', function (): void {
 
 it('rejects an unknown operator and an operator that cannot compare against null', function (): void {
     expect(fn () => Post::where('order', '~=', 1))->toThrow(InvalidArgumentException::class)
+        ->and(fn () => Post::whereColumn('title', '~=', 'slug'))->toThrow(InvalidArgumentException::class)
         ->and(fn () => Post::where('order', '>', null))->toThrow(InvalidArgumentException::class);
 });
 
