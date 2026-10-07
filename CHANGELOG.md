@@ -38,7 +38,6 @@
 * Changed `DriverContract` to require `bodyColumn()`, naming the column that holds the file's body, or null for a format without one
 * Changed `DriverContract` to require `bodySyntax()`, naming the markup the body is written in, or null when the driver does not say
 * Changed `DriverContract::parse` signature to `parse(string $contents)`; drivers no longer perform I/O, the adapter reads files. A format error is rethrown with the file path via `FileParseException::inFile`
-* Changed unquoted YAML dates to read as the date string instead of a Unix timestamp, so `save` no longer writes them back as numbers
 * Changed Markdown frontmatter that is not a mapping to throw instead of being dropped on the next `save`
 * Changed Markdown frontmatter to write multi-line strings as literal blocks, like the `yaml` driver
 * Improved scoped route model binding to resolve through any `PaperRelation`, not only `hasManyPaper`
