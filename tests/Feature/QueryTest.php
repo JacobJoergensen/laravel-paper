@@ -101,7 +101,7 @@ it('can filter posts with two-argument string where', function (): void {
 });
 
 it('filters on a column whose name matches a php function', function (): void {
-    $posts = Post::where('date', '>', strtotime('2024-01-18 UTC'))->get();
+    $posts = Post::where('date', '>', '2024-01-18')->get();
 
     expect($posts->pluck('slug')->toArray())->toBe(['draft-post', 'second-post']);
 });
@@ -150,13 +150,6 @@ it('binds and tighter than or when a chain mixes both', function (): void {
     expect($posts->pluck('slug')->toArray())->toBe(['draft-post', 'hello-world']);
 });
 
-it('can order posts', function (): void {
-    $posts = Post::query()->orderBy('order', 'desc')->get();
-
-    expect($posts->first()->slug)->toBe('draft-post')
-        ->and($posts->last()->slug)->toBe('hello-world');
-});
-
 it('treats the first orderBy as primary and later ones as tiebreakers', function (): void {
     $posts = Post::query()->orderBy('published')->orderBy('date')->get();
 
@@ -189,12 +182,6 @@ it('reads the slug from the first driver extension when it exists under several'
     } finally {
         File::delete($duplicate);
     }
-});
-
-it('can limit results', function (): void {
-    $posts = Post::query()->limit(2)->get();
-
-    expect($posts)->toHaveCount(2);
 });
 
 it('ignores a negative limit', function (): void {
@@ -276,12 +263,6 @@ it('counts all posts without parsing files', function (): void {
     expect(Post::count())->toBe(3);
 });
 
-it('counts only posts matching where clause', function (): void {
-    $count = Post::where('published', true)->count();
-
-    expect($count)->toBe(2);
-});
-
 it('counts every matching post regardless of limit and offset', function (): void {
     expect(Post::query()->limit(1)->offset(1)->count())->toBe(3)
         ->and(Post::where('published', true)->limit(1)->offset(1)->count())->toBe(2);
@@ -291,10 +272,6 @@ it('checks existence past the offset and within the limit', function (): void {
     expect(Post::query()->offset(3)->exists())->toBeFalse()
         ->and(Post::query()->offset(2)->exists())->toBeTrue()
         ->and(Post::query()->limit(0)->exists())->toBeFalse();
-});
-
-it('returns true when posts exist', function (): void {
-    expect(Post::exists())->toBeTrue();
 });
 
 it('returns true for doesntExist when no posts match', function (): void {
@@ -317,7 +294,7 @@ it('throws MultipleRecordsFoundException when sole finds multiple records', func
     Post::where('published', true)->sole();
 })->throws(MultipleRecordsFoundException::class);
 
-it('paginates using the Paginator resolvers so it works without a request', function (): void {
+it('takes the current page and path from Paginator, so it paginates outside a request', function (): void {
     Paginator::currentPageResolver(fn () => 2);
     Paginator::currentPathResolver(fn () => 'http://example.test/posts');
 

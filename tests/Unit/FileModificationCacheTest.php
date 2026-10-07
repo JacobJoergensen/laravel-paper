@@ -71,6 +71,15 @@ it('reads freshness from the given mtime instead of stating the file', function 
     expect($fresh->getIfFresh($this->filepath, $mtime))->toBe(['title' => 'persisted']);
 });
 
+it('rereads every file after a Paper upgrade instead of trusting what the old version parsed', function (): void {
+    $mtime = (int) filemtime($this->filepath);
+    new FileModificationCache($this->repository, '1.0.0')->set($this->filepath, ['date' => 1705276800], $mtime);
+
+    $upgraded = new FileModificationCache($this->repository, '1.1.0');
+
+    expect($upgraded->getIfFresh($this->filepath, $mtime))->toBeNull();
+});
+
 it('clears the memo on forget so save invalidation flows through', function (): void {
     $mtime = (int) filemtime($this->filepath);
     $this->cache->set($this->filepath, ['title' => 'memoed'], $mtime);

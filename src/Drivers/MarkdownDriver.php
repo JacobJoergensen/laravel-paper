@@ -45,7 +45,7 @@ final readonly class MarkdownDriver implements DriverContract
         }
 
         try {
-            $matter = Yaml::parse($match['matter']);
+            $matter = YamlDriver::decode($match['matter']);
         } catch (ParseException $e) {
             throw FileParseException::invalidFrontmatter($filepath, $e->getMessage());
         }

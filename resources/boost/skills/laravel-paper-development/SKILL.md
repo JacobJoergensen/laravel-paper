@@ -105,8 +105,9 @@ scope, unlike in Eloquent.
 
 ## Large result sets
 
-Every query reads and parses every file in the directory. Prefer `lazy` over `get`, and
-`simplePaginate` over `paginate`, since the count is what costs.
+A query lists every file and builds a model per record it checks, parsing only files changed
+since they were cached. Prefer `lazy` over `get`, and `simplePaginate` over `paginate` on a
+filtered query, since counting the matches is what costs.
 
 ```php
 foreach (Post::query()->lazy() as $post) {
@@ -143,7 +144,8 @@ $next = Post::max('order') + 1;
 $views = Post::where('published', true)->sum('views');
 ```
 
-On an empty result `sum` returns `0` and the others return `null`. Null, missing, and non-numeric values are skipped.
+`sum` and `avg` skip null, missing, and non-numeric values. `min` and `max` skip only null and
+compare the rest with PHP's rules, so a column mixing numbers and text can return the text.
 
 `countBy` counts a column's distinct values into a collection, flattening array fields like `tags`.
 
@@ -193,17 +195,6 @@ does not apply, and it is not a single atomic operation:
 
 ```php
 Post::where('draft', true)->update(['published' => true]);
-```
-
-Use `saveQuietly` and `deleteQuietly` to persist without firing events. Use `fresh` for a
-new instance reloaded from disk, or `refresh` to reload the current one in place.
-
-`firstOrNew` returns an unsaved instance when nothing matches. `findOr` and `firstOr` run a
-callback instead:
-
-```php
-$post = Post::firstOrNew(['slug' => 'hello-world'], ['title' => 'Hello World']);
-$post = Post::findOr('hello-world', fn () => abort(404));
 ```
 
 ## Timestamps

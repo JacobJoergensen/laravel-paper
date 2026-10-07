@@ -17,6 +17,7 @@ final class FileModificationCache implements CacheContract
 
     public function __construct(
         private readonly Repository $cache,
+        private readonly string $version = '',
     ) {}
 
     /**
@@ -84,6 +85,6 @@ final class FileModificationCache implements CacheContract
 
     private function key(string $filepath): string
     {
-        return self::PREFIX.md5($filepath);
+        return self::PREFIX.md5($this->version.':'.$filepath);
     }
 }

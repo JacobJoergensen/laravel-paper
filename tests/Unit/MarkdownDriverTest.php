@@ -6,7 +6,7 @@ use JacobJoergensen\LaravelPaper\Drivers\MarkdownDriver;
 use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
 use JacobJoergensen\LaravelPaper\Exceptions\FileSerializeException;
 
-it('returns correct extensions', function (): void {
+it('reads .md and .markdown files', function (): void {
     $driver = new MarkdownDriver;
 
     expect($driver->extensions())->toBe(['md', 'markdown']);
@@ -36,6 +36,19 @@ it('throws a paper exception naming the file when the frontmatter is malformed',
         unlink($tempFile);
     }
 })->throws(FileParseException::class, 'Failed to parse frontmatter in file');
+
+it('reads an unquoted frontmatter date as the date it states', function (): void {
+    $tempFile = tempnam(sys_get_temp_dir(), 'md_');
+    file_put_contents($tempFile, "---\ndate: 2024-01-15\n---\n\nBody.\n");
+
+    $driver = new MarkdownDriver;
+
+    try {
+        expect($driver->parse($tempFile))->toHaveKey('date', '2024-01-15');
+    } finally {
+        unlink($tempFile);
+    }
+});
 
 it('handles files without frontmatter', function (): void {
     $tempFile = tempnam(sys_get_temp_dir(), 'md_');

@@ -706,7 +706,7 @@ trait Paper
         $model = new static;
         $model->fill($attributes);
 
-        $slug = static::keyToString($model->getAttribute($model->getKeyName()));
+        $slug = static::keyToString($model->getKey());
 
         if ($slug === '') {
             throw InvalidSlugException::missing();
@@ -782,7 +782,7 @@ trait Paper
 
     public function getFilePath(): string
     {
-        $slug = static::keyToString($this->getAttribute($this->getKeyName()));
+        $slug = static::keyToString($this->getKey());
 
         if ($slug === '') {
             throw InvalidSlugException::missing();
@@ -890,7 +890,7 @@ trait Paper
         }
 
         // Read after the events, because a listener may have set the slug or rewritten it.
-        $slug = static::keyToString($this->getAttribute($this->getKeyName()));
+        $slug = static::keyToString($this->getKey());
 
         if ($slug === '') {
             return false;
@@ -991,14 +991,6 @@ trait Paper
     }
 
     /**
-     * @param  array<string, mixed>  $options
-     */
-    public function saveQuietly(array $options = []): bool
-    {
-        return $this->quietly(fn (): bool => $this->save($options));
-    }
-
-    /**
      * @param  array<int, string>|string  $with  Ignored, kept for Eloquent parity.
      */
     public function fresh($with = []): ?static
@@ -1007,7 +999,7 @@ trait Paper
             return null;
         }
 
-        $slug = static::keyToString($this->getAttribute($this->getKeyName()));
+        $slug = static::keyToString($this->getKey());
 
         return static::withoutGlobalScopes()->find($slug);
     }
@@ -1018,7 +1010,7 @@ trait Paper
             return $this;
         }
 
-        $slug = static::keyToString($this->getAttribute($this->getKeyName()));
+        $slug = static::keyToString($this->getKey());
         $fresh = $this->fresh() ?? throw new ModelNotFoundException()->setModel(static::class, [$slug]);
         $this->setRawAttributes($fresh->getAttributes(), true);
 
@@ -1055,7 +1047,7 @@ trait Paper
     protected function hasManyPaper(string $related, ?string $foreignKey = null): Collection
     {
         $foreignKey ??= Str::snake(class_basename(static::class)).'_slug';
-        $key = $this->getAttribute($this->getKeyName());
+        $key = $this->getKey();
 
         /** @var Collection<int, TRelated> */
         return $related::where($foreignKey, $key)->get(); // @phpstan-ignore staticMethod.notFound, method.nonObject
@@ -1072,7 +1064,7 @@ trait Paper
         $files = app(Filesystem::class);
         $cache = app(CacheContract::class);
 
-        $slug = static::keyToString($this->getAttribute($this->getKeyName()));
+        $slug = static::keyToString($this->getKey());
         $stored = static::keyToString($this->getRawOriginal($this->getKeyName()));
 
         // A record is deleted by the key it was loaded under, like Eloquent, so a slug changed
@@ -1099,11 +1091,6 @@ trait Paper
         }
 
         return $deleted;
-    }
-
-    public function deleteQuietly(): bool
-    {
-        return $this->quietly(fn (): bool => $this->delete());
     }
 
     public function newQuery(): never
@@ -1144,26 +1131,6 @@ trait Paper
         return static::query()->{$method}(...$parameters);
     }
 
-    /**
-     * @param  callable(): bool  $callback
-     */
-    private function quietly(callable $callback): bool
-    {
-        $dispatcher = static::getEventDispatcher();
-
-        if ($dispatcher !== null) {
-            static::unsetEventDispatcher();
-        }
-
-        try {
-            return $callback();
-        } finally {
-            if ($dispatcher !== null) {
-                static::setEventDispatcher($dispatcher);
-            }
-        }
-    }
-
     private function paperFilepath(string $directory, string $slug, DriverContract $driver): string
     {
         $extensions = $driver->extensions();
@@ -1196,7 +1163,7 @@ trait Paper
         static::resolveAttributes();
 
         $stored = static::keyToString($this->getRawOriginal($this->getKeyName()));
-        $slug = $stored !== '' ? $stored : static::keyToString($this->getAttribute($this->getKeyName()));
+        $slug = $stored !== '' ? $stored : static::keyToString($this->getKey());
 
         $driver = static::$paperDrivers[static::class];
         $filepath = $this->paperFilepath($directory, $slug, $driver);

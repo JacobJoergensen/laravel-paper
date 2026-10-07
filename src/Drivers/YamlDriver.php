@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper\Drivers;
 
+use DateTimeInterface;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
 use JacobJoergensen\LaravelPaper\Exceptions\FileSerializeException;
@@ -33,7 +34,7 @@ final readonly class YamlDriver implements DriverContract
         }
 
         try {
-            $data = Yaml::parse($content);
+            $data = self::decode($content);
         } catch (ParseException $e) {
             throw FileParseException::invalidYaml($filepath, $e->getMessage());
         }
@@ -47,6 +48,34 @@ final readonly class YamlDriver implements DriverContract
         }
 
         /** @var array<string, mixed> */
+        return $data;
+    }
+
+    /**
+     * @internal
+     *
+     * @throws ParseException
+     */
+    public static function decode(string $yaml): mixed
+    {
+        $data = Yaml::parse($yaml, Yaml::PARSE_DATETIME);
+
+        if (! is_array($data)) {
+            return $data;
+        }
+
+        array_walk_recursive($data, function (mixed &$value): void {
+            if ($value instanceof DateTimeInterface) {
+                $format = match (true) {
+                    $value->format('H:i:s') === '00:00:00' && $value->getOffset() === 0 => 'Y-m-d',
+                    $value->getOffset() === 0 => 'Y-m-d H:i:s',
+                    default => 'Y-m-d H:i:sP',
+                };
+
+                $value = $value->format($format);
+            }
+        });
+
         return $data;
     }
 

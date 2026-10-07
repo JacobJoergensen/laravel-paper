@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper;
 
+use Composer\InstalledVersions;
 use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
@@ -20,7 +21,10 @@ final class PaperServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(CacheContract::class, function (Application $app): CacheContract {
-            return new FileModificationCache($app->make(Repository::class));
+            $package = 'jacobjoergensen/laravel-paper';
+            $version = InstalledVersions::getReference($package) ?? InstalledVersions::getVersion($package) ?? '';
+
+            return new FileModificationCache($app->make(Repository::class), $version);
         });
 
         $this->app->singleton(MarkdownDriver::class);

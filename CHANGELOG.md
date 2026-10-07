@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+* Fixed unquoted YAML dates reading as a Unix timestamp, which `save` then wrote back into the file as a number; they now read as the date string
 
 ## Version 1.19.0 (2026-09-29)
 * Added scoped route model binding so `/authors/{author}/posts/{post}` resolves the child through the parent's `hasManyPaper` relation and 404s when it belongs to another parent
