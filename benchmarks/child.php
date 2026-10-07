@@ -19,6 +19,8 @@ $run = match ($shape) {
     'find' => static fn (): ?BenchmarkPost => BenchmarkPost::find('post-00001'),
     'where' => static fn (): Collection => BenchmarkPost::where('published', true)->get(),
     'count' => static fn (): int => BenchmarkPost::count(),
+    'count-where' => static fn (): int => BenchmarkPost::where('published', true)->count(),
+    'pluck' => static fn (): Collection => BenchmarkPost::pluck('title'),
     'paginate' => static fn (): LengthAwarePaginator => BenchmarkPost::paginate(),
     'bodies' => static fn (): Collection => BenchmarkPost::where('published', true)->pluck('content'),
     'page' => static function (): void {
@@ -26,7 +28,7 @@ $run = match ($shape) {
         BenchmarkPost::where('published', true)->orderByDesc('date')->limit(5)->get();
         BenchmarkPost::count();
     },
-    default => throw new InvalidArgumentException("unknown shape '$shape'; expected find, where, bodies, count, paginate, or page"),
+    default => throw new InvalidArgumentException("unknown shape '$shape'; expected find, where, bodies, count, count-where, pluck, paginate, or page"),
 };
 
 BenchmarkPost::query();

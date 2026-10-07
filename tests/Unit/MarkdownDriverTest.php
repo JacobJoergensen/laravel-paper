@@ -6,7 +6,7 @@ use JacobJoergensen\LaravelPaper\Drivers\MarkdownDriver;
 use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
 use JacobJoergensen\LaravelPaper\Exceptions\FileSerializeException;
 
-it('returns correct extensions', function (): void {
+it('reads .md and .markdown files', function (): void {
     $driver = new MarkdownDriver;
 
     expect($driver->extensions())->toBe(['md', 'markdown']);
@@ -41,7 +41,12 @@ it('handles content without frontmatter', function (): void {
 it('throws a Paper exception when the frontmatter is malformed', function (): void {
     $driver = new MarkdownDriver;
     $driver->parse("---\ntitle: [unclosed\n---\nBody");
-})->throws(FileParseException::class, 'Failed to parse frontmatter');
+})->throws(FileParseException::class, 'Failed to parse YAML');
+
+it('throws when the frontmatter is not a mapping, instead of dropping it', function (): void {
+    $driver = new MarkdownDriver;
+    $driver->parse("---\n- one\n- two\n---\nBody");
+})->throws(FileParseException::class, 'Root must be a mapping');
 
 it('serializes nested frontmatter as block yaml that round-trips', function (): void {
     $driver = new MarkdownDriver;
@@ -56,6 +61,17 @@ it('serializes nested frontmatter as block yaml that round-trips', function (): 
 
     expect($serialized)->not->toContain('{')
         ->and($parsed['seo'])->toBe(['og' => ['title' => 'T', 'tags' => ['a', 'b']]]);
+});
+
+it('writes a multi-line frontmatter value as a literal block that keeps its horizontal rule', function (): void {
+    $driver = new MarkdownDriver;
+    $note = "Above\n---\nBelow";
+
+    $serialized = $driver->serialize(['note' => $note, 'content' => 'Body']);
+    $parsed = $driver->parse($serialized);
+
+    expect($serialized)->toContain("note: |-\n")
+        ->and($parsed)->toBe(['note' => $note, 'content' => 'Body']);
 });
 
 it('throws for a frontmatter value it cannot represent, instead of writing null', function (): void {

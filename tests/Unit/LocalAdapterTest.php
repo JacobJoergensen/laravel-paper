@@ -12,18 +12,25 @@ beforeEach(function (): void {
     $this->files = new Filesystem;
     $this->adapter = new LocalAdapter($this->files);
     $this->dir = sys_get_temp_dir().'/paper_local_adapter_'.uniqid();
+    $this->locks = glob(sys_get_temp_dir().'/paper-*.lock') ?: [];
     mkdir($this->dir);
 });
 
 afterEach(function (): void {
     $this->files->deleteDirectory($this->dir);
+
+    $locks = glob(sys_get_temp_dir().'/paper-*.lock') ?: [];
+
+    foreach (array_diff($locks, $this->locks) as $lock) {
+        @unlink($lock);
+    }
 });
 
 it('returns null when reading a missing file', function (): void {
     expect($this->adapter->read($this->dir.'/missing.md'))->toBeNull();
 });
 
-it('writes atomically via temp file and rename', function (): void {
+it('writes the contents without leaving a temp file behind', function (): void {
     $path = $this->dir.'/post.md';
 
     expect($this->adapter->write($path, 'body'))->toBeTrue()
@@ -104,13 +111,11 @@ it('refuses a create when a conflicting path is already held', function (): void
 });
 
 it('takes one lock per record, whichever extension the file has', function (): void {
-    $before = glob(sys_get_temp_dir().'/paper-*.lock') ?: [];
-
     $this->adapter->createIfMissing($this->dir.'/post.md', 'one');
     $this->adapter->createIfMissing($this->dir.'/post.markdown', 'two', [$this->dir.'/post.md']);
     $this->adapter->createIfMissing($this->dir.'/other.md', 'three');
 
-    $created = array_diff(glob(sys_get_temp_dir().'/paper-*.lock') ?: [], $before);
+    $created = array_diff(glob(sys_get_temp_dir().'/paper-*.lock') ?: [], $this->locks);
 
     expect($created)->toHaveCount(2);
 });

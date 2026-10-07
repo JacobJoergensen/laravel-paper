@@ -38,6 +38,12 @@ foreach ($counts as $count) {
     progress("count() / $count / cold");
     $rows[] = ['count()', $count, 'cold', coldStats('count')];
 
+    progress("where()->count() / $count / hot");
+    $rows[] = ['where()->count()', $count, 'hot', hotStats('count-where')];
+
+    progress("pluck(\$column) / $count / hot");
+    $rows[] = ['pluck($column)', $count, 'hot', hotStats('pluck')];
+
     progress("paginate(15) / $count / cold");
     $rows[] = ['paginate(15)', $count, 'cold', coldStats('paginate')];
 

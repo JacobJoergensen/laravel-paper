@@ -9,7 +9,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Filesystem\Filesystem;
 use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
 use JacobJoergensen\LaravelPaper\Exceptions\PaperException;
-use JacobJoergensen\LaravelPaper\Paper;
 use ReflectionClass;
 
 /**
@@ -137,6 +136,6 @@ abstract class PaperCommand extends Command
      */
     private function isPaperModel(string $model): bool
     {
-        return class_exists($model) && isset(class_uses_recursive($model)[Paper::class]);
+        return is_subclass_of($model, PaperModel::class);
     }
 }

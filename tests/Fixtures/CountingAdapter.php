@@ -10,7 +10,7 @@ use JacobJoergensen\LaravelPaper\Contracts\StorageAdapterContract;
 final class CountingAdapter implements StorageAdapterContract
 {
     /** @var array<string, int> */
-    public array $counts = ['read' => 0, 'listing' => 0, 'lastModified' => 0, 'exists' => 0, 'write' => 0, 'delete' => 0];
+    public array $counts = ['read' => 0, 'listing' => 0];
 
     public bool $failDelete = false;
 
@@ -74,7 +74,6 @@ final class CountingAdapter implements StorageAdapterContract
 
     public function write(string $path, string $contents): bool
     {
-        $this->counts['write']++;
         $mtime = ($this->files[$path]['mtime'] ?? 0) + 1;
         $this->files[$path] = ['contents' => $contents, 'mtime' => $mtime];
 
@@ -83,8 +82,6 @@ final class CountingAdapter implements StorageAdapterContract
 
     public function delete(string $path): bool
     {
-        $this->counts['delete']++;
-
         if ($this->failDelete || $path === $this->undeletable) {
             return false;
         }
@@ -96,15 +93,11 @@ final class CountingAdapter implements StorageAdapterContract
 
     public function exists(string $path): bool
     {
-        $this->counts['exists']++;
-
         return isset($this->files[$path]);
     }
 
     public function lastModified(string $path): ?int
     {
-        $this->counts['lastModified']++;
-
         return $this->files[$path]['mtime'] ?? null;
     }
 

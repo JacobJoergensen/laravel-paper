@@ -29,6 +29,19 @@ it('warms the manifest so a later query serves from cache without reading files'
     expect($adapter->counts['read'])->toBe(0);
 });
 
+it('compiles the manifest with --compile and removes it again with paper:clear', function (): void {
+    fakePostAdapter();
+    $compiled = fn (): array => glob(app()->bootstrapPath('cache').'/paper-manifest-*.php') ?: [];
+
+    $this->artisan('paper:warm', ['model' => [Post::class], '--compile' => true])->assertSuccessful();
+    $afterWarm = count($compiled());
+
+    $this->artisan('paper:clear', ['model' => [Post::class]])->assertSuccessful();
+
+    expect($afterWarm)->toBe(1)
+        ->and($compiled())->toBe([]);
+});
+
 it('clears the manifest so a later query reads the files again', function (): void {
     $adapter = fakePostAdapter();
 

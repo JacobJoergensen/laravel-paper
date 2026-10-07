@@ -6,13 +6,21 @@ namespace JacobJoergensen\LaravelPaper\Testing;
 
 use JacobJoergensen\LaravelPaper\Contracts\ConditionalWriteContract;
 use JacobJoergensen\LaravelPaper\Contracts\StorageAdapterContract;
-use JacobJoergensen\LaravelPaper\PaperVersion;
+use JacobJoergensen\LaravelPaper\StorageAdapters\BestEffortWriter;
 use JacobJoergensen\LaravelPaper\StorageAdapters\ConditionalWriteResult;
 
 final class FakeAdapter implements ConditionalWriteContract, StorageAdapterContract
 {
     /** @var array<string, array{contents: string, mtime: int}> */
     private array $files = [];
+
+    // Nothing lands in memory between the check and the write, so the best effort is atomic here.
+    private readonly BestEffortWriter $writer;
+
+    public function __construct()
+    {
+        $this->writer = new BestEffortWriter($this);
+    }
 
     public function seed(string $path, string $contents, int $mtime): void
     {
@@ -54,13 +62,7 @@ final class FakeAdapter implements ConditionalWriteContract, StorageAdapterContr
      */
     public function readVersioned(string $path): ?array
     {
-        $contents = $this->read($path);
-
-        if ($contents === null) {
-            return null;
-        }
-
-        return ['contents' => $contents, 'version' => PaperVersion::of($contents)];
+        return $this->writer->readVersioned($path);
     }
 
     /**
@@ -68,28 +70,12 @@ final class FakeAdapter implements ConditionalWriteContract, StorageAdapterContr
      */
     public function createIfMissing(string $path, string $contents, array $conflicts = []): ConditionalWriteResult
     {
-        $taken = $this->firstTaken([$path, ...$conflicts]);
-
-        if ($taken !== null) {
-            return $taken;
-        }
-
-        $this->write($path, $contents);
-
-        return ConditionalWriteResult::written(PaperVersion::of($contents));
+        return $this->writer->createIfMissing($path, $contents, $conflicts);
     }
 
     public function replaceIf(string $path, string $contents, string $version): ConditionalWriteResult
     {
-        $mismatch = $this->verify($path, $version);
-
-        if ($mismatch !== null) {
-            return $mismatch;
-        }
-
-        $this->write($path, $contents);
-
-        return ConditionalWriteResult::written(PaperVersion::of($contents));
+        return $this->writer->replaceIf($path, $contents, $version);
     }
 
     /**
@@ -97,60 +83,12 @@ final class FakeAdapter implements ConditionalWriteContract, StorageAdapterContr
      */
     public function moveIf(string $from, string $to, string $contents, string $version, array $conflicts = []): ConditionalWriteResult
     {
-        $mismatch = $this->verify($from, $version);
-
-        if ($mismatch !== null) {
-            return $mismatch;
-        }
-
-        $taken = $this->firstTaken([$to, ...$conflicts]);
-
-        if ($taken !== null) {
-            return $taken;
-        }
-
-        $this->write($to, $contents);
-        $this->delete($from);
-
-        return ConditionalWriteResult::written(PaperVersion::of($contents));
+        return $this->writer->moveIf($from, $to, $contents, $version, $conflicts);
     }
 
     public function deleteIf(string $path, string $version): ConditionalWriteResult
     {
-        $mismatch = $this->verify($path, $version);
-
-        if ($mismatch !== null) {
-            return $mismatch;
-        }
-
-        $this->delete($path);
-
-        return ConditionalWriteResult::removed();
-    }
-
-    /**
-     * @param  list<string>  $paths
-     */
-    private function firstTaken(array $paths): ?ConditionalWriteResult
-    {
-        foreach ($paths as $path) {
-            if ($this->exists($path)) {
-                return ConditionalWriteResult::taken($path);
-            }
-        }
-
-        return null;
-    }
-
-    private function verify(string $path, string $version): ?ConditionalWriteResult
-    {
-        $current = $this->readVersioned($path);
-
-        if ($current === null) {
-            return ConditionalWriteResult::missing();
-        }
-
-        return $current['version'] === $version ? null : ConditionalWriteResult::mismatch();
+        return $this->writer->deleteIf($path, $version);
     }
 
     public function cacheKey(string $path): string

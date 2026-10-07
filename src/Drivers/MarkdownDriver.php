@@ -5,11 +5,6 @@ declare(strict_types=1);
 namespace JacobJoergensen\LaravelPaper\Drivers;
 
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
-use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
-use JacobJoergensen\LaravelPaper\Exceptions\FileSerializeException;
-use Symfony\Component\Yaml\Exception\DumpException;
-use Symfony\Component\Yaml\Exception\ParseException;
-use Symfony\Component\Yaml\Yaml;
 
 final readonly class MarkdownDriver implements DriverContract
 {
@@ -48,16 +43,9 @@ final readonly class MarkdownDriver implements DriverContract
             return ['content' => rtrim(ltrim($contents, "\r\n"))];
         }
 
-        try {
-            $matter = Yaml::parse($match['matter']);
-        } catch (ParseException $e) {
-            throw FileParseException::invalidFrontmatter($e->getMessage());
-        }
-
+        $data = new YamlDriver()->parse($match['matter']);
         $body = substr($contents, strlen($match[0]));
 
-        /** @var array<string, mixed> $data */
-        $data = is_array($matter) ? $matter : [];
         $data['content'] = rtrim(ltrim($body, "\r\n"));
 
         return $data;
@@ -77,12 +65,7 @@ final readonly class MarkdownDriver implements DriverContract
             return $readsAsFrontmatter ? "---\n---\n\n$content\n" : "$content\n";
         }
 
-        try {
-            $flags = Yaml::DUMP_EMPTY_ARRAY_AS_SEQUENCE | Yaml::DUMP_EXCEPTION_ON_INVALID_TYPE;
-            $yaml = Yaml::dump($data, PHP_INT_MAX, 4, $flags);
-        } catch (DumpException $e) {
-            throw FileSerializeException::invalidYaml($e->getMessage());
-        }
+        $yaml = new YamlDriver()->serialize($data);
 
         return "---\n$yaml---\n\n$content\n";
     }

@@ -65,13 +65,7 @@ final readonly class BestEffortWriter implements ConditionalWriteContract
             return $mismatch;
         }
 
-        $taken = $this->firstTaken([$to, ...$conflicts]);
-
-        if ($taken !== null) {
-            return $taken;
-        }
-
-        $written = $this->write($to, $contents);
+        $written = $this->createIfMissing($to, $contents, $conflicts);
 
         if ($written->status !== ConditionalWriteStatus::Written) {
             return $written;
@@ -81,6 +75,7 @@ final readonly class BestEffortWriter implements ConditionalWriteContract
             return $written;
         }
 
+        // Only the file this call wrote is rolled back, never whatever stands there now.
         $this->deleteIf($to, (string) $written->version);
 
         return ConditionalWriteResult::failed();

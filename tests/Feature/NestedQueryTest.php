@@ -40,7 +40,7 @@ it('prefers a literal flat key over a nested lookup', function (): void {
     expect($query->where('seo.title', 'Flat')->get()->pluck('slug')->all())->toBe(['doc']);
 });
 
-it('does not push a filter down onto a cast flat key', function (): void {
+it('filters a dotted flat key on its cast value', function (): void {
     $manifest = new PaperManifest(new Repository(new ArrayStore), 60, 10, true);
     $adapter = new CountingAdapter;
     $adapter->seed('cast/doc.md', "---\n'seo.count': '10'\n---\n", 1_000);

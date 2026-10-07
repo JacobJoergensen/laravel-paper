@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
+use JacobJoergensen\LaravelPaper\Testing\PaperFake;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\CountingAdapter;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Page;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
@@ -17,16 +19,17 @@ beforeEach(function (): void {
     PaperQueryBuilder::fake(Post::class, $this->adapter);
 });
 
-it('reads the file only once the body is touched', function (): void {
+it('reads the file only once the body is touched, without listing the directory again', function (): void {
+    config(['paper.watch' => true]);
+    app()->forgetInstance(PaperManifest::class);
+
     Post::find('a');
+    $post = Post::find('a');
     $this->adapter->reset();
 
-    $post = Post::find('a');
-    $beforeTouch = $this->adapter->counts['read'];
-
-    expect($beforeTouch)->toBe(0)
-        ->and($post->content)->toBe('Alpha body')
-        ->and($this->adapter->counts['read'])->toBe(1);
+    expect($post->content)->toBe('Alpha body')
+        ->and($this->adapter->counts['read'])->toBe(1)
+        ->and($this->adapter->counts['listing'])->toBe(0);
 });
 
 it('does not report a body it just read as a change', function (): void {
@@ -70,18 +73,9 @@ it('includes the body in the model array', function (): void {
 });
 
 it('leaves a content field alone for a format without a body', function (): void {
-    $path = PaperQueryBuilder::contentPathFor(Page::class);
+    PaperFake::fake(Page::class, ['home' => ['content' => 'Home body']]);
 
-    $adapter = new CountingAdapter;
-    $adapter->seed("$path/home.json", '{"content":"Home body"}', 1_000);
-
-    PaperQueryBuilder::fake(Page::class, $adapter);
-
-    Page::find('home');
-    $adapter->reset();
-
-    expect(Page::find('home')->content)->toBe('Home body')
-        ->and($adapter->counts['read'])->toBe(0);
+    expect(Page::find('home')->getAttributes())->toHaveKey('content', 'Home body');
 });
 
 it('carries the body into a replicated model', function (): void {

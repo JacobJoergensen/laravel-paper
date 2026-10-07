@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper;
 
-use BadMethodCallException;
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -833,7 +832,7 @@ trait Paper
         $model = new static;
         $model->fill($attributes);
 
-        $slug = self::keyToString($model->getAttribute($model->getKeyName()));
+        $slug = self::keyToString($model->getKey());
 
         if ($slug === '') {
             throw InvalidSlugException::missing();
@@ -900,12 +899,13 @@ trait Paper
      *
      * @param  array<string, mixed>  $attributes
      */
-    public static function fromRecord(array $attributes, string $version): static
+    public static function fromRecord(array $attributes, string $version, string $extension): static
     {
         $model = new static;
         $model->setRawAttributes(PaperCasts::fromStorage($model, $attributes), true);
         $model->exists = true;
         $model->paperVersion = $version;
+        $model->paperExtension = $extension;
 
         return $model;
     }
@@ -922,30 +922,40 @@ trait Paper
 
     public function getFilePath(): string
     {
-        $slug = self::keyToString($this->getAttribute($this->getKeyName()));
+        $slug = self::keyToString($this->getKey());
 
+        return $this->filePathFor($slug);
+    }
+
+    private function filePathFor(string $slug): string
+    {
         if ($slug === '') {
             throw InvalidSlugException::missing();
         }
 
         PaperQueryBuilder::guardSlug($slug);
 
+        $directory = PaperQueryBuilder::contentPathFor(static::class);
+
+        return $directory.'/'.$slug.'.'.$this->storedExtension();
+    }
+
+    private function storedExtension(): string
+    {
+        if ($this->paperExtension !== null) {
+            return $this->paperExtension;
+        }
+
         $resolved = PaperQueryBuilder::resolveFor(static::class);
         $driver = $resolved['driver'];
         $directory = PaperQueryBuilder::contentPathFor(static::class);
 
-        if ($this->paperExtension === null) {
-            $manifest = app(PaperManifest::class);
+        $record = $this->exists
+            ? app(PaperManifest::class)->record($resolved['adapter'], $driver, $directory, $this->storedSlug(), $resolved['nested'])
+            : null;
 
-            $record = $this->exists
-                ? $manifest->record($resolved['adapter'], $driver, $directory, $this->storedSlug(), $resolved['nested'])
-                : null;
-
-            // Held on the model so a renamed record keeps its format and a deleted one can still name its file.
-            $this->paperExtension = $record['ext'] ?? $driver->extensions()[0];
-        }
-
-        return $directory.'/'.$slug.'.'.$this->paperExtension;
+        // Held on the model so a renamed record keeps its format and a deleted one can still name its file.
+        return $this->paperExtension = $record['ext'] ?? $driver->extensions()[0];
     }
 
     /**
@@ -963,25 +973,7 @@ trait Paper
     public function resolveChildRouteBinding($childType, mixed $value, mixed $field): ?Model
     {
         $relationName = Str::plural(Str::camel($childType));
-
-        if (! method_exists($this, $relationName)) {
-            throw new BadMethodCallException(
-                sprintf('Relation %s::%s does not exist.', static::class, $relationName)
-            );
-        }
-
-        $relation = $this->{$relationName}();
-
-        if (! $relation instanceof PaperRelation) {
-            throw new BadMethodCallException(
-                sprintf(
-                    'Relation %s::%s must return %s for scoped route binding.',
-                    static::class,
-                    $relationName,
-                    PaperRelation::class,
-                )
-            );
-        }
+        $relation = PaperQueryBuilder::relationFor($this, $relationName);
 
         $relatedClass = $relation->relatedClass;
         $childField = is_string($field) ? $field : new $relatedClass()->getRouteKeyName();
@@ -1077,7 +1069,7 @@ trait Paper
         }
 
         // Read after the events, because a listener may have set the slug or rewritten it.
-        $slug = self::keyToString($this->getAttribute($this->getKeyName()));
+        $slug = self::keyToString($this->getKey());
 
         if ($slug === '') {
             return false;
@@ -1120,7 +1112,7 @@ trait Paper
         $result = match (true) {
             $isCreating => self::writer($adapter)->createIfMissing($filepath, $content, $conflicts),
             $isRenaming => self::writer($adapter)->moveIf(
-                $path.'/'.$original.'.'.$this->paperExtension,
+                $this->filePathFor($original),
                 $filepath,
                 $content,
                 $this->writeVersion(),
@@ -1199,7 +1191,7 @@ trait Paper
         }
 
         return $this->paperVersion ?? throw StaleRecordException::unverifiable(
-            self::keyToString($this->getAttribute($this->getKeyName()))
+            self::keyToString($this->getKey())
         );
     }
 
@@ -1228,14 +1220,6 @@ trait Paper
     }
 
     /**
-     * @param  array<string, mixed>  $options
-     */
-    public function saveQuietly(array $options = []): bool
-    {
-        return $this->quietly(fn (): bool => $this->save($options));
-    }
-
-    /**
      * @param  ?array<int, string>  $except
      */
     public function replicate(?array $except = null): static
@@ -1255,7 +1239,7 @@ trait Paper
         }
 
         $names = is_string($with) ? [$with, ...$more] : $with;
-        $key = self::keyToString($this->getAttribute($this->getKeyName()));
+        $key = self::keyToString($this->getKey());
 
         return static::with($names)->withoutGlobalScopes()->find($key);
     }
@@ -1266,7 +1250,7 @@ trait Paper
             return $this;
         }
 
-        $key = self::keyToString($this->getAttribute($this->getKeyName()));
+        $key = self::keyToString($this->getKey());
         $fresh = $this->fresh() ?? throw new ModelNotFoundException()->setModel(static::class, [$key]);
         $this->setRawAttributes($fresh->getAttributes(), true);
         $this->paperVersion = $fresh->paperVersion;
@@ -1350,16 +1334,11 @@ trait Paper
         $resolved = PaperQueryBuilder::resolveFor(static::class);
         $adapter = $resolved['adapter'];
         $path = PaperQueryBuilder::contentPathFor(static::class);
-        $slug = self::keyToString($this->getAttribute($this->getKeyName()));
-        $filepath = $this->getFilePath();
-        $stored = self::keyToString($this->getRawOriginal($this->getKeyName()));
 
         // A record is deleted by the key it was loaded under, like Eloquent, so a slug changed
         // in a listener or left dirty on the model cannot point the delete at another record.
-        if ($stored !== '' && $stored !== $slug) {
-            $slug = $stored;
-            $filepath = $path.'/'.$stored.'.'.$this->paperExtension;
-        }
+        $slug = $this->storedSlug();
+        $filepath = $this->filePathFor($slug);
 
         $result = self::writer($adapter)->deleteIf($filepath, $this->writeVersion());
 
@@ -1379,11 +1358,6 @@ trait Paper
         $this->fireModelEvent('deleted', false);
 
         return true;
-    }
-
-    public function deleteQuietly(): bool
-    {
-        return $this->quietly(fn (): bool => $this->delete());
     }
 
     public function newQuery(): never
@@ -1424,26 +1398,6 @@ trait Paper
         return static::query()->{$method}(...$parameters);
     }
 
-    /**
-     * @param  callable(): bool  $callback
-     */
-    private function quietly(callable $callback): bool
-    {
-        $dispatcher = static::getEventDispatcher();
-
-        if ($dispatcher !== null) {
-            static::unsetEventDispatcher();
-        }
-
-        try {
-            return $callback();
-        } finally {
-            if ($dispatcher !== null) {
-                static::setEventDispatcher($dispatcher);
-            }
-        }
-    }
-
     private function loadPaperBody(?string $key = null): void
     {
         $resolved = PaperQueryBuilder::resolveFor(static::class);
@@ -1457,10 +1411,9 @@ trait Paper
             return;
         }
 
-        $path = PaperQueryBuilder::contentPathFor(static::class);
-        $slug = $this->storedSlug();
+        $filepath = $this->filePathFor($this->storedSlug());
 
-        $body = app(PaperManifest::class)->body($resolved['adapter'], $resolved['driver'], $path, $slug, $resolved['nested']);
+        $body = app(PaperManifest::class)->body($resolved['adapter'], $resolved['driver'], $filepath);
         $attributes = PaperCasts::fromStorage($this, [$column => $body]);
 
         $this->attributes[$column] = $attributes[$column];
@@ -1475,7 +1428,7 @@ trait Paper
             return $original;
         }
 
-        return self::keyToString($this->getAttribute($this->getKeyName()));
+        return self::keyToString($this->getKey());
     }
 
     private static function keyToString(mixed $key): string

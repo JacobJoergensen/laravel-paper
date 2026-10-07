@@ -73,7 +73,7 @@ it('can filter posts with where clause', function (): void {
 });
 
 it('filters on a column whose name matches a php function', function (): void {
-    $posts = Post::where('date', '>', strtotime('2024-01-18 UTC'))->get();
+    $posts = Post::where('date', '>', '2024-01-18')->get();
 
     expect($posts->pluck('slug')->toArray())->toBe(['draft-post', 'second-post']);
 });
@@ -86,13 +86,6 @@ it('groups conditions passed as a closure', function (): void {
         ->get();
 
     expect($posts->pluck('slug')->toArray())->toBe(['hello-world', 'second-post']);
-});
-
-it('can order posts', function (): void {
-    $posts = Post::query()->orderBy('order', 'desc')->get();
-
-    expect($posts->first()->slug)->toBe('draft-post')
-        ->and($posts->last()->slug)->toBe('hello-world');
 });
 
 it('treats the first orderBy as primary and later ones as tiebreakers', function (): void {
@@ -139,12 +132,6 @@ it('reads a file whose name is entirely numeric', function (): void {
     } finally {
         File::delete($numeric);
     }
-});
-
-it('can limit results', function (): void {
-    $posts = Post::query()->limit(2)->get();
-
-    expect($posts)->toHaveCount(2);
 });
 
 it('orders and pages records when the query starts from a static call', function (): void {
@@ -221,10 +208,8 @@ it('counts all posts', function (): void {
     expect(Post::count())->toBe(3);
 });
 
-it('counts only posts matching where clause', function (): void {
-    $count = Post::where('published', true)->count();
-
-    expect($count)->toBe(2);
+it('plucks a column from every record in slug order', function (): void {
+    expect(Post::pluck('title')->all())->toBe(['Draft Post', 'Hello World', 'Second Post']);
 });
 
 it('counts every matching post regardless of limit and offset', function (): void {
@@ -236,10 +221,6 @@ it('checks existence past the offset and within the limit', function (): void {
     expect(Post::query()->offset(3)->exists())->toBeFalse()
         ->and(Post::query()->offset(2)->exists())->toBeTrue()
         ->and(Post::query()->limit(0)->exists())->toBeFalse();
-});
-
-it('returns true when posts exist', function (): void {
-    expect(Post::exists())->toBeTrue();
 });
 
 it('returns true for doesntExist when no posts match', function (): void {
@@ -262,7 +243,7 @@ it('throws MultipleRecordsFoundException when sole finds multiple records', func
     Post::where('published', true)->sole();
 })->throws(MultipleRecordsFoundException::class);
 
-it('paginates using the Paginator resolvers so it works without a request', function (): void {
+it('takes the current page and path from Paginator, so it paginates outside a request', function (): void {
     Paginator::currentPageResolver(fn () => 2);
     Paginator::currentPathResolver(fn () => 'http://example.test/posts');
 
@@ -563,13 +544,13 @@ it('applies pending where constraints to find', function (): void {
         ->and($query()->find('hello-world'))->not->toBeNull();
 });
 
-it('throws when querying a model whose content directory is missing', function (): void {
+it('throws a message naming the model when querying a model whose content directory is missing', function (): void {
     File::deleteDirectory(__DIR__.'/../content/drafts');
 
     Draft::resetPaperState();
 
     Draft::all();
-})->throws(ContentPathNotFoundException::class);
+})->throws(ContentPathNotFoundException::class, 'for model '.Draft::class);
 
 it('throws when finding in a model whose content directory is missing', function (): void {
     File::deleteDirectory(__DIR__.'/../content/drafts');

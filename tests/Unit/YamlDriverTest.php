@@ -6,7 +6,7 @@ use JacobJoergensen\LaravelPaper\Drivers\YamlDriver;
 use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
 use JacobJoergensen\LaravelPaper\Exceptions\FileSerializeException;
 
-it('returns correct extensions', function (): void {
+it('reads .yaml and .yml files', function (): void {
     $driver = new YamlDriver;
 
     expect($driver->extensions())->toBe(['yaml', 'yml']);
@@ -51,6 +51,18 @@ it('serializes multi-line strings as literal blocks and drops the slug', functio
 
     expect($yaml)->toContain('bio: |-')
         ->and($driver->parse($yaml))->toBe(['bio' => "One.\nTwo.", 'skills' => ['php']]);
+});
+
+it('reads an unquoted date as the date it states and writes it back as that date', function (): void {
+    $driver = new YamlDriver;
+
+    $data = $driver->parse("day: 2024-01-15\nmoment: 2024-01-15 10:30:00\nzoned: 2024-01-15T10:30:00+02:00\n");
+
+    expect($data)->toBe([
+        'day' => '2024-01-15',
+        'moment' => '2024-01-15 10:30:00',
+        'zoned' => '2024-01-15 10:30:00+02:00',
+    ])->and($driver->parse($driver->serialize($data)))->toBe($data);
 });
 
 it('writes an empty list as a list', function (): void {

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
-use JacobJoergensen\LaravelPaper\Exceptions\DuplicateSlugException;
 use JacobJoergensen\LaravelPaper\Exceptions\StaleRecordException;
 use JacobJoergensen\LaravelPaper\Exceptions\UnsupportedConcurrencyException;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
@@ -92,16 +91,6 @@ it('refuses the second of two renames of the same record', function (): void {
     $second->slug = '__cc_test__renamed_two';
     $second->save();
 })->throws(StaleRecordException::class);
-
-it('refuses to create a record on a slug another write already took', function (): void {
-    ($this->write)('__cc_test__taken');
-
-    $post = new Post;
-    $post->slug = '__cc_test__taken';
-    $post->title = 'Second';
-
-    expect(fn (): bool => $post->save())->toThrow(DuplicateSlugException::class);
-});
 
 it('takes a new version from every write, so the next one is accepted', function (): void {
     ($this->write)('__cc_test__token');

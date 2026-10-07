@@ -26,7 +26,7 @@ it('compares two fields, with a default operator and an or variant', function ()
         ->and($build()->whereColumn('min', '>', 'max')->orWhereColumn('min', 'max')->get()->pluck('slug')->all())->toBe(['b', 'c']);
 });
 
-it('rejects a mismatched cast status but leaves a matching one alone', function (): void {
+it('rejects comparing a cast column with an uncast one, but allows two cast columns', function (): void {
     expect(fn () => BrokenModel::whereColumn('published_at', '>', 'legacy_date'))
         ->toThrow(InvalidArgumentException::class)
         ->and(fn () => Post::whereColumn('tags', '=', 'views'))

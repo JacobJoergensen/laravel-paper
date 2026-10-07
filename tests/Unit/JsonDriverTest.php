@@ -6,7 +6,7 @@ use JacobJoergensen\LaravelPaper\Drivers\JsonDriver;
 use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
 use JacobJoergensen\LaravelPaper\Exceptions\FileSerializeException;
 
-it('returns correct extensions', function (): void {
+it('reads .json files', function (): void {
     $driver = new JsonDriver;
 
     expect($driver->extensions())->toBe(['json']);

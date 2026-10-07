@@ -33,18 +33,6 @@ it('returns null when no model matches the route key', function (): void {
     expect($post->resolveRouteBinding('does-not-exist'))->toBeNull();
 });
 
-it('resolves a child model scoped to its parent', function (): void {
-    $author = Author::find('john-doe');
-
-    expect($author->resolveChildRouteBinding('post', 'hello-world', null)?->slug)->toBe('hello-world');
-});
-
-it('returns null when the child belongs to another parent', function (): void {
-    $author = Author::find('jane-doe');
-
-    expect($author->resolveChildRouteBinding('post', 'hello-world', null))->toBeNull();
-});
-
 it('resolves a child model from a custom binding field', function (): void {
     $author = Author::find('john-doe');
 

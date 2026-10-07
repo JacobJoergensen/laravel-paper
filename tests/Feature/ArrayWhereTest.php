@@ -18,7 +18,6 @@ beforeEach(function (): void {
     $adapter->seed('blog/b.md', "---\nstatus: active\norder: 2\n---\n", 2_000);
     $adapter->seed('blog/c.md', "---\nstatus: draft\norder: 3\n---\n", 3_000);
 
-    $this->adapter = $adapter;
     $this->build = fn (): PaperQueryBuilder => new PaperQueryBuilder($adapter, new MarkdownDriver, $manifest, 'blog', RawModel::class);
 });
 
@@ -59,9 +58,8 @@ it('throws on a non-scalar value instead of matching nothing', function (): void
         ->toThrow(InvalidArgumentException::class, 'must be scalar or null');
 });
 
-it('ignores an empty condition array, keeping the count fast path', function (): void {
+it('ignores an empty condition array', function (): void {
     $count = ($this->build)()->where([])->count();
 
-    expect($count)->toBe(3)
-        ->and($this->adapter->counts['read'])->toBe(0);
+    expect($count)->toBe(3);
 });

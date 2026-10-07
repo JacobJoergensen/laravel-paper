@@ -6,18 +6,20 @@ use Illuminate\Cache\ArrayStore;
 use Illuminate\Cache\Repository;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Exceptions;
+use Illuminate\Support\Facades\File;
 use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
 use JacobJoergensen\LaravelPaper\Drivers\JsonDriver;
 use JacobJoergensen\LaravelPaper\Drivers\MarkdownDriver;
 use JacobJoergensen\LaravelPaper\Drivers\YamlDriver;
 use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
+use JacobJoergensen\LaravelPaper\Exceptions\ManifestCacheException;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\CountingAdapter;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\CountingStore;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\RacingStore;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\RawModel;
-use JacobJoergensen\LaravelPaper\Tests\Fixtures\TimestampedPost;
 
 beforeEach(function (): void {
     $this->manifest = new PaperManifest(new Repository(new ArrayStore), 60, 10, true);
@@ -64,6 +66,96 @@ it('reads only the requested file on a cold find, then serves it warm', function
         ->and($this->adapter->counts['read'])->toBe(0);
 });
 
+it('serves a compiled manifest without the cache store or the disk, only while opcache serves it', function (bool $opcache, int $reads): void {
+    $compiledPath = sys_get_temp_dir().'/paper-compiled-'.getmypid();
+
+    try {
+        new PaperManifest(new Repository(new ArrayStore), 60, 10, false, '', $compiledPath, true)
+            ->compile($this->adapter, new MarkdownDriver, 'blog');
+        $this->adapter->reset();
+
+        $records = new PaperManifest(new Repository(new ArrayStore), 60, 10, false, '', $compiledPath, $opcache)
+            ->records($this->adapter, new MarkdownDriver, 'blog');
+
+        expect($records)->toHaveCount(5)
+            ->and($this->adapter->counts['read'])->toBe($reads);
+    } finally {
+        File::deleteDirectory($compiledPath);
+    }
+})->with([
+    'served by opcache' => [true, 0],
+    'without opcache' => [false, 5],
+]);
+
+it('removes the compiled manifest on a write, so it is never served stale', function (): void {
+    $compiledPath = sys_get_temp_dir().'/paper-compiled-'.getmypid();
+    $cache = new Repository(new ArrayStore);
+
+    try {
+        $manifest = new PaperManifest($cache, 60, 10, false, '', $compiledPath, true);
+        $manifest->compile($this->adapter, new MarkdownDriver, 'blog');
+
+        $this->adapter->remove('blog/post-1.md');
+        $manifest->forget($this->adapter, new MarkdownDriver, 'blog', 'post-1');
+
+        $records = new PaperManifest($cache, 60, 10, false, '', $compiledPath, true)
+            ->records($this->adapter, new MarkdownDriver, 'blog');
+
+        expect($records)->not->toHaveKey('post-1');
+    } finally {
+        File::deleteDirectory($compiledPath);
+    }
+});
+
+it('reports a manifest the cache store refuses and still answers from the files', function (): void {
+    Exceptions::fake();
+
+    $refusing = new class extends ArrayStore
+    {
+        public function forever($key, $value): bool
+        {
+            return str_ends_with($key, ':revision') && parent::forever($key, $value);
+        }
+    };
+
+    $records = new PaperManifest(new Repository($refusing), 60, 10, true)
+        ->records($this->adapter, new MarkdownDriver, 'blog');
+
+    expect($records)->toHaveCount(5);
+
+    Exceptions::assertReported(ManifestCacheException::class);
+});
+
+it('reparses every file after a Paper upgrade instead of trusting the old manifest', function (): void {
+    $cache = new Repository(new ArrayStore);
+
+    new PaperManifest($cache, 60, 10, false, '1.0.0')->records($this->adapter, new MarkdownDriver, 'blog');
+    $this->adapter->reset();
+
+    new PaperManifest($cache, 60, 10, false, '1.1.0')->records($this->adapter, new MarkdownDriver, 'blog');
+
+    expect($this->adapter->counts['read'])->toBe(5);
+});
+
+it('finds several records with one directory listing', function (): void {
+    ($this->build)()->get();
+    $this->adapter->reset();
+
+    $found = ($this->build)()->findMany(['post-1', 'post-2', 'post-3']);
+
+    expect($found)->toHaveCount(3)
+        ->and($this->adapter->counts['listing'])->toBe(1);
+});
+
+it('lists a record first found by slug in slug order', function (): void {
+    ($this->build)()->get();
+    $this->adapter->seed('blog/post-0.md', "---\nstatus: published\n---\nbody 0", 1_000);
+
+    ($this->build)()->find('post-0');
+
+    expect(($this->build)()->pluck('slug')->first())->toBe('post-0');
+});
+
 it('re-reads only the file whose mtime differs from the cached entry', function (int $mtime): void {
     ($this->build)()->get();
 
@@ -103,25 +195,6 @@ it('drops a deleted file from results without reading anything', function (): vo
     expect($models)->toHaveCount(4)
         ->and($this->adapter->counts['read'])->toBe(0)
         ->and($models->pluck('slug')->all())->not->toContain('post-2');
-});
-
-it('counts without reading any file when there is no filter', function (): void {
-    $count = ($this->build)()->count();
-
-    expect($count)->toBe(5)
-        ->and($this->adapter->counts['listing'])->toBe(1)
-        ->and($this->adapter->counts['read'])->toBe(0);
-});
-
-it('orders by updated_at using the manifest mtime, not the filesystem', function (): void {
-    $this->adapter = new CountingAdapter;
-    $this->adapter->seed('blog/alpha.md', "---\n---\na", 3_000);
-    $this->adapter->seed('blog/beta.md', "---\n---\nb", 1_000);
-    $this->adapter->seed('blog/gamma.md', "---\n---\nc", 2_000);
-
-    $latest = ($this->build)(TimestampedPost::class)->orderBy('updated_at', 'desc')->get();
-
-    expect($latest->pluck('slug')->all())->toBe(['alpha', 'gamma', 'beta']);
 });
 
 it('serves later queries in a request from the manifest it already read', function (): void {

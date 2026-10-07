@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Events\Dispatcher;
+use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Author;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\PostObserver;

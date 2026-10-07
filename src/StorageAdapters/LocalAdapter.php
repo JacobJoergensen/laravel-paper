@@ -9,7 +9,6 @@ use Illuminate\Filesystem\Filesystem;
 use JacobJoergensen\LaravelPaper\Contracts\ConditionalWriteContract;
 use JacobJoergensen\LaravelPaper\Contracts\StorageAdapterContract;
 use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
-use JacobJoergensen\LaravelPaper\PaperVersion;
 
 /**
  * The lock is advisory and only holds between Paper processes; an editor writing the file ignores it.
@@ -18,9 +17,13 @@ final readonly class LocalAdapter implements ConditionalWriteContract, StorageAd
 {
     private const string TEMP_PREFIX = '.paper-';
 
+    private BestEffortWriter $writer;
+
     public function __construct(
         private Filesystem $files,
-    ) {}
+    ) {
+        $this->writer = new BestEffortWriter($this);
+    }
 
     public function read(string $path): ?string
     {
@@ -59,13 +62,7 @@ final readonly class LocalAdapter implements ConditionalWriteContract, StorageAd
      */
     public function readVersioned(string $path): ?array
     {
-        $contents = $this->read($path);
-
-        if ($contents === null) {
-            return null;
-        }
-
-        return ['contents' => $contents, 'version' => PaperVersion::of($contents)];
+        return $this->writer->readVersioned($path);
     }
 
     /**
@@ -73,20 +70,18 @@ final readonly class LocalAdapter implements ConditionalWriteContract, StorageAd
      */
     public function createIfMissing(string $path, string $contents, array $conflicts = []): ConditionalWriteResult
     {
-        return $this->locked([$path, ...$conflicts], function () use ($path, $contents, $conflicts): ConditionalWriteResult {
-            $taken = $this->firstTaken([$path, ...$conflicts]);
-
-            return $taken ?? $this->writeResult($path, $contents);
-        });
+        return $this->locked(
+            [$path, ...$conflicts],
+            fn (): ConditionalWriteResult => $this->writer->createIfMissing($path, $contents, $conflicts),
+        );
     }
 
     public function replaceIf(string $path, string $contents, string $version): ConditionalWriteResult
     {
-        return $this->locked([$path], function () use ($path, $contents, $version): ConditionalWriteResult {
-            $mismatch = $this->verify($path, $version);
-
-            return $mismatch ?? $this->writeResult($path, $contents);
-        });
+        return $this->locked(
+            [$path],
+            fn (): ConditionalWriteResult => $this->writer->replaceIf($path, $contents, $version),
+        );
     }
 
     /**
@@ -95,102 +90,52 @@ final readonly class LocalAdapter implements ConditionalWriteContract, StorageAd
     public function moveIf(string $from, string $to, string $contents, string $version, array $conflicts = []): ConditionalWriteResult
     {
         return $this->locked([$from, $to, ...$conflicts], function () use ($from, $to, $contents, $version, $conflicts): ConditionalWriteResult {
-            $mismatch = $this->verify($from, $version);
-
-            if ($mismatch !== null) {
-                return $mismatch;
-            }
-
             // A case-insensitive filesystem finds the record itself under a slug that only changes case.
             $changesCase = strcasecmp($from, $to) === 0
+                && $this->exists($from)
                 && $this->exists($to)
                 && fileinode($from) === fileinode($to);
 
-            $taken = $this->firstTaken($changesCase ? $conflicts : [$to, ...$conflicts]);
+            if (! $changesCase) {
+                return $this->writer->moveIf($from, $to, $contents, $version, $conflicts);
+            }
+
+            $current = $this->readVersioned($from);
+
+            if ($current === null) {
+                return ConditionalWriteResult::missing();
+            }
+
+            if ($current['version'] !== $version) {
+                return ConditionalWriteResult::mismatch();
+            }
+
+            $taken = array_find($conflicts, $this->exists(...));
 
             if ($taken !== null) {
-                return $taken;
+                return ConditionalWriteResult::taken($taken);
             }
 
-            if ($changesCase) {
-                if (! @rename($from, $to)) {
-                    return ConditionalWriteResult::failed();
-                }
-
-                $written = $this->writeResult($to, $contents);
-
-                if ($written->status !== ConditionalWriteStatus::Written) {
-                    @rename($to, $from);
-                }
-
-                return $written;
+            if (! @rename($from, $to)) {
+                return ConditionalWriteResult::failed();
             }
 
-            $written = $this->writeResult($to, $contents);
+            $written = $this->writer->replaceIf($to, $contents, $version);
 
             if ($written->status !== ConditionalWriteStatus::Written) {
-                return $written;
+                @rename($to, $from);
             }
 
-            if ($this->delete($from)) {
-                return $written;
-            }
-
-            // Only the file this call wrote is rolled back, never whatever stands there now.
-            $this->removeIf($to, (string) $written->version);
-
-            return ConditionalWriteResult::failed();
+            return $written;
         });
     }
 
     public function deleteIf(string $path, string $version): ConditionalWriteResult
     {
-        return $this->locked([$path], fn (): ConditionalWriteResult => $this->removeIf($path, $version));
-    }
-
-    private function removeIf(string $path, string $version): ConditionalWriteResult
-    {
-        $mismatch = $this->verify($path, $version);
-
-        if ($mismatch !== null) {
-            return $mismatch;
-        }
-
-        return $this->delete($path)
-            ? ConditionalWriteResult::removed()
-            : ConditionalWriteResult::failed();
-    }
-
-    /**
-     * @param  list<string>  $paths
-     */
-    private function firstTaken(array $paths): ?ConditionalWriteResult
-    {
-        foreach ($paths as $path) {
-            if ($this->exists($path)) {
-                return ConditionalWriteResult::taken($path);
-            }
-        }
-
-        return null;
-    }
-
-    private function verify(string $path, string $version): ?ConditionalWriteResult
-    {
-        $current = $this->readVersioned($path);
-
-        if ($current === null) {
-            return ConditionalWriteResult::missing();
-        }
-
-        return $current['version'] === $version ? null : ConditionalWriteResult::mismatch();
-    }
-
-    private function writeResult(string $path, string $contents): ConditionalWriteResult
-    {
-        return $this->write($path, $contents)
-            ? ConditionalWriteResult::written(PaperVersion::of($contents))
-            : ConditionalWriteResult::failed();
+        return $this->locked(
+            [$path],
+            fn (): ConditionalWriteResult => $this->writer->deleteIf($path, $version),
+        );
     }
 
     /**

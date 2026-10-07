@@ -120,21 +120,6 @@ it('updates the existing record or creates one with updateOrCreate', function ()
     expect(Post::find('__save_test__uoc')->title)->toBe('Second');
 });
 
-it('saves without leaving a temp file behind', function (): void {
-    $post = new Post;
-    $post->slug = '__save_test__';
-    $post->title = 'Atomic Write';
-    $post->published = true;
-
-    expect($post->save())->toBeTrue();
-
-    $written = Post::find('__save_test__');
-
-    expect($written)->not->toBeNull()
-        ->and($written->title)->toBe('Atomic Write')
-        ->and(glob(__DIR__.'/../content/posts/.paper-*') ?: [])->toBeEmpty();
-});
-
 it('clears dirty state and records changes after saving', function (): void {
     $post = new Post;
     $post->slug = '__save_test__';

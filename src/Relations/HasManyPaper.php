@@ -68,13 +68,7 @@ final readonly class HasManyPaper extends PaperRelation
      */
     public function eagerLoad(Collection $parents, string $relationName, ?Closure $constraint): void
     {
-        $first = $parents->first();
-
-        if ($first === null) {
-            return;
-        }
-
-        $parentKeyName = $first->getKeyName();
+        $parentKeyName = $this->parent->getKeyName();
         $parentKeys = $this->collectKeys($parents, $parentKeyName);
 
         if ($parentKeys === []) {
@@ -110,9 +104,9 @@ final readonly class HasManyPaper extends PaperRelation
         $groups = [];
 
         foreach ($models as $model) {
-            $key = $model->getAttribute($column);
+            $key = $this->keyOf($model, $column);
 
-            if (! is_string($key) && ! is_int($key)) {
+            if ($key === null) {
                 continue;
             }
 

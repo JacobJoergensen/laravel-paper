@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper;
 
+use Composer\InstalledVersions;
 use Illuminate\Config\Repository as Config;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Foundation\Application;
@@ -32,11 +33,21 @@ final class PaperServiceProvider extends ServiceProvider
             $watch = $config->get('paper.watch');
             $watching = $watch === 'auto' ? $app->environment('local') === true : $watch === true;
 
+            $package = 'jacobjoergensen/laravel-paper';
+            $version = InstalledVersions::getReference($package) ?? InstalledVersions::getVersion($package) ?? '';
+
+            $opcacheSetting = in_array(PHP_SAPI, ['cli', 'phpdbg'], true) ? 'opcache.enable_cli' : 'opcache.enable';
+            $opcache = filter_var(ini_get('opcache.enable'), FILTER_VALIDATE_BOOL)
+                && filter_var(ini_get($opcacheSetting), FILTER_VALIDATE_BOOL);
+
             return new PaperManifest(
                 $cache,
                 $config->integer('paper.lock_ttl'),
                 $config->integer('paper.lock_wait'),
                 $watching,
+                $version,
+                $app->bootstrapPath('cache'),
+                $opcache,
             );
         });
 

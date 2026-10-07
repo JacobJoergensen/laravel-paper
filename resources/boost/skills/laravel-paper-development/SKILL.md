@@ -105,26 +105,6 @@ Eloquent's `Scope`, which Paper's builder cannot accept. Drop one with
 
 `#[CollectedBy]` is also respected, so queries return your model's custom collection.
 
-## Large result sets
-
-A query lists the directory once and serves the rest from the manifest, reading only files
-that are new or changed, so what costs on a large set is building a model per record rather
-than touching the disk. Prefer `lazy` or `chunk` over `get` there. `count` and `exists` can
-answer from the manifest alone, while `min`, `max`, `sum`, `avg`, and `countBy` build a model
-per matching record, because they read the column through its cast.
-
-```php
-foreach (Post::query()->lazy() as $post) {
-    // ...
-}
-
-Post::chunk(100, function (Collection $posts): void {
-    // ...
-});
-
-$posts = Post::simplePaginate(15);
-```
-
 ## Route model binding
 
 `{post}` binds on the slug, `{post:title}` on any frontmatter field. Scoped child bindings
@@ -140,17 +120,14 @@ Route::get('/authors/{author}/posts/{post}', fn (Author $author, Post $post) => 
 
 ## Aggregates
 
-`count`, `min`, `max`, `sum`, `avg`, and the `average` alias work on the model and the query
-builder. They read through casts and ignore `orderBy`/`limit`/`offset`, like SQL.
+`min`, `max`, `sum`, and `avg` read the column through its cast, building a model per matching
+record. `min` and `max` compare with PHP's rules, so a column mixing numbers and text can return
+the text.
 
 ```php
 $next = Post::max('order') + 1;
 $views = Post::where('published', true)->sum('views');
 ```
-
-On an empty result `sum` returns `0` and the others return `null`. `sum` and `avg` skip null, missing and
-non-numeric values. `min` and `max` skip only null and compare the rest with PHP's rules, so a column
-mixing numbers and text can return the text.
 
 ## Casts
 
@@ -200,9 +177,6 @@ does not apply, and it is not a single atomic operation:
 Post::where('draft', true)->update(['published' => true]);
 ```
 
-Use `saveQuietly` and `deleteQuietly` to persist without firing events. Use `fresh` for a
-new instance reloaded from disk, or `refresh` to reload the current one in place.
-
 A save or delete checks that the file still holds what the record was loaded with, and throws
 `StaleRecordException` when it does not. `paper.concurrency` picks the policy: `strict` refuses
 storage that cannot apply the check and the write in one step, `best_effort` (the default)
@@ -214,14 +188,6 @@ try {
 } catch (StaleRecordException) {
     $post->refresh();
 }
-```
-
-`firstOrNew` returns an unsaved instance when nothing matches. `findOr` and `firstOr` run a
-callback instead:
-
-```php
-$post = Post::firstOrNew(['slug' => 'hello-world'], ['title' => 'Hello World']);
-$post = Post::findOr('hello-world', fn () => abort(404));
 ```
 
 ## Timestamps
@@ -328,12 +294,6 @@ exposed as, `content` for Markdown, and returns `null` for a format that is data
 
 `bodySyntax` names the markup the body is written in, lowercase, `markdown` for Markdown.
 Paper never reads it; editors and other tooling do. Return `null` to say nothing.
-
-Tooling gets a model's driver from the query builder:
-
-```php
-PaperQueryBuilder::driverFor(Post::class)->bodySyntax();
-```
 
 Order `extensions()` deliberately. New records are written with the first one, and when a slug
 exists under several, the first one wins.

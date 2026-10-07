@@ -23,7 +23,7 @@ interface PaperModel
      *
      * @param  array<string, mixed>  $attributes
      */
-    public static function fromRecord(array $attributes, string $version): static;
+    public static function fromRecord(array $attributes, string $version, string $extension): static;
 
     /**
      * @return array<string, PaperRelation<Model&PaperModel>>

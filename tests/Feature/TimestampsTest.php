@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Carbon;
+use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
+use JacobJoergensen\LaravelPaper\Testing\PaperFake;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\DatedPost;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\TimestampedPost;
@@ -14,6 +16,8 @@ beforeEach(function (): void {
 });
 
 afterEach(function (): void {
+    PaperFake::reset();
+
     foreach (glob(__DIR__.'/../content/posts/__ts_test__*') ?: [] as $file) {
         @unlink($file);
     }
@@ -64,37 +68,20 @@ it('orders by the model CREATED_AT column when latest is given no column', funct
     expect(DatedPost::latest()->pluck('slug')->all())->toBe(['draft-post', 'second-post', 'hello-world']);
 });
 
-it('orders an authored timestamp column by its frontmatter value when paginating', function (): void {
-    $dir = base_path('tests/content/posts');
+it('orders an authored timestamp column by its frontmatter value, keeping ties in slug order', function (): void {
+    $dir = PaperQueryBuilder::contentPathFor(DatedPost::class);
+    $adapter = PaperFake::fake(DatedPost::class);
 
-    // The reverse of the frontmatter date order, so sorting by mtime cannot pass by accident.
-    $mtimes = [
-        'draft-post.markdown' => 1_700_000_100,
-        'second-post.md' => 1_700_000_200,
-        'hello-world.md' => 1_700_000_300,
-    ];
+    // The mtimes run against the expected order, so sorting by mtime cannot pass by accident.
+    $adapter->seed("$dir/hello-world.md", "---\ndate: 2024-01-15\n---\n", 1_700_000_300);
+    $adapter->seed("$dir/draft-post.markdown", "---\ndate: 2024-01-20\n---\n", 1_700_000_200);
+    $adapter->seed("$dir/second-post.md", "---\ndate: 2024-01-20\n---\n", 1_700_000_100);
 
-    $original = [];
+    $paginated = DatedPost::query()->orderBy('date')->paginate(perPage: 10)->pluck('slug')->all();
+    $unpaginated = DatedPost::query()->orderBy('date')->get()->pluck('slug')->all();
 
-    foreach ($mtimes as $name => $mtime) {
-        $path = $dir.'/'.$name;
-        $original[$path] = filemtime($path);
-        touch($path, $mtime);
-    }
-
-    clearstatcache();
-
-    try {
-        $paginated = DatedPost::query()->orderBy('date')->paginate(perPage: 10)->pluck('slug')->all();
-        $unpaginated = DatedPost::query()->orderBy('date')->get()->pluck('slug')->all();
-
-        expect($paginated)->toBe(['hello-world', 'second-post', 'draft-post'])
-            ->and($unpaginated)->toBe($paginated);
-    } finally {
-        foreach ($original as $path => $mtime) {
-            touch($path, $mtime);
-        }
-    }
+    expect($paginated)->toBe(['hello-world', 'draft-post', 'second-post'])
+        ->and($unpaginated)->toBe($paginated);
 });
 
 it('leaves updated_at unset when timestamps are not enabled', function (): void {
@@ -175,44 +162,19 @@ it('sets updated_at to the new file modification time after save', function (): 
     expect($reloaded->updated_at->getTimestamp())->toBe(filemtime($path));
 });
 
-it('orders by updated_at identically whether or not the fast path runs', function (): void {
-    $dir = base_path('tests/content/posts');
+it('keeps records that share an updated_at in slug order', function (): void {
+    $dir = PaperQueryBuilder::contentPathFor(TimestampedPost::class);
+    $adapter = PaperFake::fake(TimestampedPost::class);
 
-    $mtimes = [
-        'second-post.md' => 1_700_000_300,
-        'draft-post.markdown' => 1_700_000_200,
-        'hello-world.md' => 1_700_000_200,
-    ];
+    $adapter->seed("$dir/second-post.md", "---\ntitle: Second\n---\n", 1_700_000_300);
+    $adapter->seed("$dir/draft-post.markdown", "---\ntitle: Draft\n---\n", 1_700_000_200);
+    $adapter->seed("$dir/hello-world.md", "---\ntitle: Hello\n---\n", 1_700_000_200);
 
-    $original = [];
+    $slugs = TimestampedPost::query()
+        ->orderByDesc('updated_at')
+        ->paginate(perPage: 10)
+        ->pluck('slug')
+        ->all();
 
-    foreach ($mtimes as $name => $mtime) {
-        $path = $dir.'/'.$name;
-        $original[$path] = filemtime($path);
-        touch($path, $mtime);
-    }
-
-    clearstatcache();
-
-    try {
-        $fastPath = TimestampedPost::query()
-            ->orderByDesc('updated_at')
-            ->paginate(perPage: 10)
-            ->pluck('slug')
-            ->all();
-
-        $fullParse = TimestampedPost::query()
-            ->whereNotNull('slug')
-            ->orderByDesc('updated_at')
-            ->paginate(perPage: 10)
-            ->pluck('slug')
-            ->all();
-
-        expect($fastPath)->toBe(['second-post', 'draft-post', 'hello-world'])
-            ->and($fullParse)->toBe($fastPath);
-    } finally {
-        foreach ($original as $path => $mtime) {
-            touch($path, $mtime);
-        }
-    }
+    expect($slugs)->toBe(['second-post', 'draft-post', 'hello-world']);
 });

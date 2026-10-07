@@ -9,10 +9,10 @@ return [
     | Manifest Cache Store
     |--------------------------------------------------------------------------
     |
-    | The cache store that holds the file manifest. Null uses the application's
-    | default store. Point this at a store you do not wipe with "cache:clear",
-    | and one that supports atomic locks (redis, memcached, database, file) so
-    | concurrent rebuilds are serialized instead of stampeding.
+    | The cache store that holds the file manifest. Null uses the default store.
+    | Pick one that "cache:clear" does not wipe and that supports locks (redis,
+    | database, file). The manifest grows about 0.35 MB per 1,000 files, so
+    | avoid memcached (1 MB per value) and dynamodb (400 KB).
     |
     */
 
@@ -23,10 +23,10 @@ return [
     | File Watcher
     |--------------------------------------------------------------------------
     |
-    | Whether a query re-scans the content directory to notice files changed
-    | outside the app. "auto" watches in the local environment and trusts the
-    | manifest everywhere else. With it off, a warm query is a pure cache read
-    | with no per-file stat, and disk edits show up after "paper:refresh".
+    | Whether a query lists the content directory to pick up files changed
+    | outside the app. "auto" watches locally and trusts the manifest elsewhere.
+    | With it off, a warm query is a pure cache read and disk edits show up
+    | after "paper:refresh".
     |
     */
 
@@ -37,10 +37,10 @@ return [
     | Concurrency
     |--------------------------------------------------------------------------
     |
-    | How a write reacts when the record changed on disk after it was loaded.
-    | "strict" refuses to write through storage that cannot apply the check and
-    | the write as one step, "best_effort" checks anyway and accepts the gap on
-    | such storage, and "off" writes without checking, so the last write wins.
+    | What a write does when the file changed after the record was loaded.
+    | "strict" refuses storage that cannot check and write in one step,
+    | "best_effort" checks anyway and accepts the gap, and "off" skips the
+    | check so the last write wins.
     |
     */
 
@@ -52,8 +52,8 @@ return [
     |--------------------------------------------------------------------------
     |
     | When the manifest is cold, one process rebuilds it while the others wait.
-    | "lock_ttl" is how many seconds that process may hold the lock; "lock_wait"
-    | is how long the others block for it before building the manifest instead.
+    | "lock_ttl" is how long that process may hold the lock, and "lock_wait"
+    | how long the others wait before building it themselves. Both in seconds.
     |
     */
 

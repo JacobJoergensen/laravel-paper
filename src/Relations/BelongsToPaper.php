@@ -120,9 +120,9 @@ final readonly class BelongsToPaper extends PaperRelation
         $map = [];
 
         foreach ($models as $model) {
-            $key = $model->getAttribute($column);
+            $key = $this->keyOf($model, $column);
 
-            if (is_string($key) || is_int($key)) {
+            if ($key !== null) {
                 $map[$key] = $model;
             }
         }

@@ -13,22 +13,20 @@ use JacobJoergensen\LaravelPaper\PaperVersion;
  */
 final readonly class UncheckedWriter implements ConditionalWriteContract
 {
+    private BestEffortWriter $writer;
+
     public function __construct(
         private StorageAdapterContract $adapter,
-    ) {}
+    ) {
+        $this->writer = new BestEffortWriter($adapter);
+    }
 
     /**
      * @return array{contents: string, version: string}|null
      */
     public function readVersioned(string $path): ?array
     {
-        $contents = $this->adapter->read($path);
-
-        if ($contents === null) {
-            return null;
-        }
-
-        return ['contents' => $contents, 'version' => PaperVersion::of($contents)];
+        return $this->writer->readVersioned($path);
     }
 
     /**
@@ -38,14 +36,14 @@ final readonly class UncheckedWriter implements ConditionalWriteContract
      */
     public function createIfMissing(string $path, string $contents, array $conflicts = []): ConditionalWriteResult
     {
-        $taken = $this->firstTaken([$path, ...$conflicts]);
-
-        return $taken ?? $this->write($path, $contents);
+        return $this->writer->createIfMissing($path, $contents, $conflicts);
     }
 
     public function replaceIf(string $path, string $contents, string $version): ConditionalWriteResult
     {
-        return $this->write($path, $contents);
+        return $this->adapter->write($path, $contents)
+            ? ConditionalWriteResult::written(PaperVersion::of($contents))
+            : ConditionalWriteResult::failed();
     }
 
     /**
@@ -53,13 +51,7 @@ final readonly class UncheckedWriter implements ConditionalWriteContract
      */
     public function moveIf(string $from, string $to, string $contents, string $version, array $conflicts = []): ConditionalWriteResult
     {
-        $taken = $this->firstTaken([$to, ...$conflicts]);
-
-        if ($taken !== null) {
-            return $taken;
-        }
-
-        $written = $this->write($to, $contents);
+        $written = $this->writer->createIfMissing($to, $contents, $conflicts);
 
         if ($written->status !== ConditionalWriteStatus::Written) {
             return $written;
@@ -70,45 +62,15 @@ final readonly class UncheckedWriter implements ConditionalWriteContract
         }
 
         // Only the file this call wrote is rolled back, never whatever stands there now.
-        $this->rollback($to, (string) $written->version);
+        $this->writer->deleteIf($to, (string) $written->version);
 
         return ConditionalWriteResult::failed();
-    }
-
-    private function rollback(string $path, string $version): void
-    {
-        $current = $this->adapter->read($path);
-
-        if ($current !== null && PaperVersion::of($current) === $version) {
-            $this->adapter->delete($path);
-        }
     }
 
     public function deleteIf(string $path, string $version): ConditionalWriteResult
     {
         return $this->adapter->delete($path)
             ? ConditionalWriteResult::removed()
-            : ConditionalWriteResult::failed();
-    }
-
-    /**
-     * @param  list<string>  $paths
-     */
-    private function firstTaken(array $paths): ?ConditionalWriteResult
-    {
-        foreach ($paths as $path) {
-            if ($this->adapter->exists($path)) {
-                return ConditionalWriteResult::taken($path);
-            }
-        }
-
-        return null;
-    }
-
-    private function write(string $path, string $contents): ConditionalWriteResult
-    {
-        return $this->adapter->write($path, $contents)
-            ? ConditionalWriteResult::written(PaperVersion::of($contents))
             : ConditionalWriteResult::failed();
     }
 }

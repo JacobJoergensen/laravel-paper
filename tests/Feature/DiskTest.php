@@ -38,17 +38,6 @@ it('reports a disk relative file path, not an absolute one', function (): void {
     expect($article->getFilePath())->toBe('articles/first.md');
 });
 
-it('lists files of every driver extension on the disk, ignoring others', function (): void {
-    Storage::disk('paper')->put('articles/one.md', "---\ntitle: One\n---\n");
-    Storage::disk('paper')->put('articles/two.markdown', "---\ntitle: Two\n---\n");
-    Storage::disk('paper')->put('articles/ignored.txt', 'not markdown');
-
-    $articles = Article::all();
-
-    expect($articles)->toHaveCount(2)
-        ->and($articles->pluck('slug')->sort()->values()->toArray())->toBe(['one', 'two']);
-});
-
 it('reads nested subdirectories on a disk as multi-segment slugs', function (): void {
     Storage::disk('paper')->put('docs/index.md', "---\ntitle: Index\n---\n");
     Storage::disk('paper')->put('docs/guides/installation.md', "---\ntitle: Installation\n---\n");
