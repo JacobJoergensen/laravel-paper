@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## Version 1.20.0 (2026-10-22)
 * Bumped `symfony/yaml` to `^7.4.18|^8.1.6` to prevent deeply nested YAML from crashing the PHP process
 * Fixed unquoted YAML dates reading as a Unix timestamp, which `save` then wrote back into the file as a number; they now read as the date string
 * Fixed `save` writing an empty Markdown body when `content` is a number; a body that is not text now throws
