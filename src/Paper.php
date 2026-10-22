@@ -1057,6 +1057,10 @@ trait Paper
     {
         static::resolveAttributes();
 
+        if (! $this->exists) {
+            return false;
+        }
+
         if ($this->fireModelEvent('deleting') === false) {
             return false;
         }

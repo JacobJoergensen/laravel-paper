@@ -7,6 +7,7 @@ namespace JacobJoergensen\LaravelPaper\Drivers;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
 use JacobJoergensen\LaravelPaper\Exceptions\FileSerializeException;
+use Stringable;
 use Symfony\Component\Yaml\Exception\DumpException;
 use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
@@ -64,8 +65,14 @@ final readonly class MarkdownDriver implements DriverContract
      */
     public function serialize(array $data): string
     {
-        $content = isset($data['content']) && is_string($data['content']) ? $data['content'] : '';
+        $content = $data['content'] ?? '';
         unset($data['content'], $data['slug']);
+
+        if (! is_scalar($content) && ! $content instanceof Stringable) {
+            throw FileSerializeException::invalidContent(get_debug_type($content));
+        }
+
+        $content = (string) $content;
 
         if ($data === []) {
             $readsAsFrontmatter = preg_match(self::FRONTMATTER, $content) === 1;

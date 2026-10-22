@@ -301,6 +301,16 @@ it('rejects a slug that escapes or hides from the content directory when saving'
     'hidden file' => '.hidden',
 ]);
 
+it('leaves the stored file alone when deleting a model that was never loaded', function (): void {
+    $path = __DIR__.'/../content/posts/__save_test__kept.md';
+    file_put_contents($path, "---\ntitle: Kept\n---\n");
+
+    $post = new Post(['slug' => '__save_test__kept']);
+
+    expect($post->delete())->toBeFalse()
+        ->and(file_exists($path))->toBeTrue();
+});
+
 it('rejects path traversal when deleting', function (): void {
     $post = new Post;
     $post->slug = '../../config/app';

@@ -18,6 +18,7 @@ use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\LazyCollection;
+use Illuminate\Support\Str;
 use InvalidArgumentException;
 use JacobJoergensen\LaravelPaper\Contracts\CacheContract;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
@@ -147,7 +148,8 @@ final class PaperQueryBuilder
      */
     public static function guardSlug(string $slug): void
     {
-        $invalid = str_starts_with($slug, '.')
+        $invalid = $slug === ''
+            || str_starts_with($slug, '.')
             || str_contains($slug, '/')
             || str_contains($slug, '\\')
             || str_contains($slug, "\0");
@@ -213,13 +215,24 @@ final class PaperQueryBuilder
         self::guardSlug($slug);
 
         foreach ($this->driver->extensions() as $ext) {
-            $filepath = $this->contentPath.'/'.$slug.'.'.$ext;
+            $filename = $slug.'.'.$ext;
+            $filepath = $this->contentPath.'/'.$filename;
 
-            if ($this->files->exists($filepath)) {
-                $model = $this->fileToModel($filepath);
-
-                return $this->matchesWheres($model) ? $model : null;
+            if (! $this->files->exists($filepath)) {
+                continue;
             }
+
+            // A case-insensitive filesystem also finds the file under another casing of its slug.
+            $otherCase = Str::lower($filename) === $filename ? Str::upper($filename) : Str::lower($filename);
+            $foldsCase = $otherCase !== $filename && $this->files->exists($this->contentPath.'/'.$otherCase);
+
+            if ($foldsCase && ! in_array($filename, scandir($this->contentPath) ?: [], true)) {
+                continue;
+            }
+
+            $model = $this->fileToModel($filepath);
+
+            return $this->matchesWheres($model) ? $model : null;
         }
 
         return null;
@@ -1026,7 +1039,10 @@ final class PaperQueryBuilder
      */
     public function pluck(string $column, ?string $key = null): Collection
     {
-        return $this->getModels()->pluck($column, $key);
+        $value = fn (Model $model): mixed => $this->attribute($model, $column);
+        $keyBy = $key === null ? null : fn (Model $model): mixed => $this->attribute($model, $key);
+
+        return $this->getModels()->pluck($value, $keyBy);
     }
 
     /**
@@ -1582,11 +1598,24 @@ final class PaperQueryBuilder
 
     private function attribute(Model $model, string $column): mixed
     {
-        if (! str_contains($column, '.') || array_key_exists($column, $model->getAttributes())) {
+        $attributes = $model->getAttributes();
+
+        if (array_key_exists($column, $attributes)) {
             return $model->getAttribute($column);
         }
 
-        return data_get($model, $column);
+        [$key] = explode('.', $column, 2);
+
+        // Eloquent calls a method of that name as a relation, and a column can come from a request.
+        $callsMethod = method_exists($model, $key)
+            && ! array_key_exists($key, $attributes)
+            && ! $this->transformsOnHydration($key);
+
+        if ($callsMethod) {
+            return null;
+        }
+
+        return str_contains($column, '.') ? data_get($model, $column) : $model->getAttribute($column);
     }
 
     private function matchesWheres(Model $model): bool
@@ -1645,13 +1674,13 @@ final class PaperQueryBuilder
         $value = $this->attribute($model, $column);
 
         return match ($where['type']) {
-            'in' => $value !== null && in_array($value, $where['values'] ?? []),
-            'notIn' => $value !== null && ! in_array($value, $where['values'] ?? []),
+            'in' => $value !== null && $this->evaluateIn($value, $where['values'] ?? []),
+            'notIn' => $value !== null && ! $this->evaluateIn($value, $where['values'] ?? []),
             'contains' => is_array($value) && in_array($where['value'] ?? null, $value, true),
             'like' => is_string($value) && $this->evaluateLike($value, (string) ($where['value'] ?? ''), $where['caseSensitive'] ?? false),
             'notLike' => is_string($value) && ! $this->evaluateLike($value, (string) ($where['value'] ?? ''), $where['caseSensitive'] ?? false),
             'regexp' => is_string($value) && preg_match((string) ($where['value'] ?? ''), $value) === 1,
-            'notRegexp' => is_string($value) && preg_match((string) ($where['value'] ?? ''), $value) !== 1,
+            'notRegexp' => is_string($value) && preg_match((string) ($where['value'] ?? ''), $value) === 0,
             'null' => $value === null,
             'notNull' => $value !== null,
             'between' => $value !== null && $this->evaluateBetween($value, $where['values'] ?? []),
@@ -1710,11 +1739,18 @@ final class PaperQueryBuilder
     {
         $bothPresent = $actual !== null && $expected !== null;
 
+        $equal = match (true) {
+            is_string($actual) && is_string($expected) => $actual === $expected,
+            is_bool($actual) => (int) $actual == $expected,
+            is_bool($expected) => $actual == (int) $expected,
+            default => $actual == $expected,
+        };
+
         return match ($operator) {
-            '=' => $bothPresent && $actual == $expected,
+            '=' => $bothPresent && $equal,
             '==' => $actual == $expected,
             '===' => $actual === $expected,
-            '!=', '<>' => $bothPresent && $actual != $expected,
+            '!=', '<>' => $bothPresent && ! $equal,
             '!==' => $actual !== $expected,
             '>' => $bothPresent && $actual > $expected,
             '>=' => $bothPresent && $actual >= $expected,
@@ -1732,6 +1768,14 @@ final class PaperQueryBuilder
         $regex = '/^'.str_replace(['%', '_'], ['.*', '.'], preg_quote($pattern, '/')).'$/'.$modifiers;
 
         return (bool) preg_match($regex, $actual);
+    }
+
+    /**
+     * @param  array<int, scalar>  $values
+     */
+    private function evaluateIn(mixed $value, array $values): bool
+    {
+        return array_any($values, fn (mixed $candidate): bool => $this->evaluateCondition($value, '=', $candidate));
     }
 
     /**

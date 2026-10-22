@@ -386,7 +386,41 @@ it('rejects unsafe slugs when finding', function (string $slug): void {
     'parent traversal' => '../../etc/passwd',
     'backslash' => '..\\..\\secret',
     'null byte' => "foo\0bar",
+    'empty' => '',
 ]);
+
+it('finds a record only by the exact case of its slug', function (): void {
+    expect(Post::find('Hello-World'))->toBeNull();
+});
+
+it('reads a column named after a model method as empty instead of calling the method', function (): void {
+    expect(Post::where('author', 'john-doe')->count())->toBe(0)
+        ->and(Post::pluck('author')->filter()->all())->toBe([]);
+});
+
+it('matches a string only by its exact text, not as a number or a boolean', function (): void {
+    $path = __DIR__.'/../content/posts/versioned.md';
+    File::put($path, "---\nversion: '1.10'\n---\n");
+
+    try {
+        expect(Post::where('version', '1.1')->count())->toBe(0)
+            ->and(Post::whereIn('version', ['1.1'])->count())->toBe(0)
+            ->and(Post::where('published', 'yes')->count())->toBe(0);
+    } finally {
+        File::delete($path);
+    }
+});
+
+it('leaves a record out of whereNotRegexp when the pattern fails to run on it', function (): void {
+    $path = __DIR__.'/../content/posts/backtracking.md';
+    File::put($path, "---\ntitle: '".str_repeat('a', 30000)."b'\n---\n");
+
+    try {
+        expect(Post::whereNotRegexp('title', '/(a+)+$/')->pluck('slug')->all())->not->toContain('backtracking');
+    } finally {
+        File::delete($path);
+    }
+});
 
 it('runs the callback when truthy and the default when falsy', function (): void {
     $whenTrue = Post::query()->when(true, fn ($q) => $q->where('published', true))->count();

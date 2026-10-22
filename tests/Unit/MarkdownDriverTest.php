@@ -98,6 +98,19 @@ it('throws for a frontmatter value it cannot represent, instead of writing null'
     }
 });
 
+it('writes a number as the body', function (): void {
+    $driver = new MarkdownDriver;
+
+    expect($driver->serialize(['content' => 42]))->toBe("42\n");
+});
+
+it('throws for a body that is not text, instead of writing an empty one', function (): void {
+    $driver = new MarkdownDriver;
+
+    expect(fn (): string => $driver->serialize(['content' => ['a', 'b']]))
+        ->toThrow(FileSerializeException::class);
+});
+
 it('writes an empty list as a list', function (): void {
     $driver = new MarkdownDriver;
 

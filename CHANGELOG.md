@@ -1,7 +1,15 @@
 # Changelog
 
 ## Unreleased
+* Bumped `symfony/yaml` to `^7.4.18|^8.1.6` to prevent deeply nested YAML from crashing the PHP process
 * Fixed unquoted YAML dates reading as a Unix timestamp, which `save` then wrote back into the file as a number; they now read as the date string
+* Fixed `save` writing an empty Markdown body when `content` is a number; a body that is not text now throws
+* Fixed `delete` removing the file of a model that was never saved or loaded
+* Fixed `find` matching a slug written in another case on Windows and macOS
+* Fixed `find('')` reading a file named `.md`
+* Fixed `where`, `orderBy` and `pluck` calling a model method that shares its name with the column
+* Fixed `where` and `whereIn` matching a string against another string that reads as the same number, or against `true`
+* Fixed `whereNotRegexp` including a record the pattern failed to run on
 
 ## Version 1.19.0 (2026-09-29)
 * Added scoped route model binding so `/authors/{author}/posts/{post}` resolves the child through the parent's `hasManyPaper` relation and 404s when it belongs to another parent
