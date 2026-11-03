@@ -23,8 +23,13 @@ final class PaperUniqueRule implements ValidationRule
         private readonly string $column,
     ) {}
 
-    public function ignore(int|string $value, ?string $column = null): self
+    public function ignore(int|Model|string $value, ?string $column = null): self
     {
+        if ($value instanceof Model) {
+            $key = $value->getAttribute($column ?? $value->getKeyName());
+            $value = is_int($key) || is_string($key) ? $key : null;
+        }
+
         $this->ignore = $value;
         $this->ignoreColumn = $column;
 

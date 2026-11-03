@@ -52,6 +52,17 @@ it('finds many posts by slug, omitting missing and duplicate ids', function (): 
         ->and($posts->pluck('slug')->sort()->values()->toArray())->toBe(['hello-world', 'second-post']);
 });
 
+it('finds many posts from a collection of slugs, skipping null', function (): void {
+    $posts = Post::findMany(collect(['hello-world', null]));
+
+    expect($posts->pluck('slug')->toArray())->toBe(['hello-world']);
+});
+
+it('finds nothing for a null slug, like Eloquent', function (): void {
+    expect(Post::find(null))->toBeNull()
+        ->and(fn (): Post => Post::findOrFail(null))->toThrow(ModelNotFoundException::class);
+});
+
 it('checks the column for null when the value is null', function (): void {
     expect(Post::where('author_slug', null)->pluck('slug')->toArray())->toBe(['draft-post', 'second-post'])
         ->and(Post::where('author_slug', '!=', null)->pluck('slug')->toArray())->toBe(['hello-world']);
@@ -242,6 +253,14 @@ it('can reload model in place with refresh', function (): void {
 
     expect($returned)->toBe($post)
         ->and($post->title)->toBe('Hello World');
+});
+
+it('reloads the record by the slug it was loaded under when the slug changed', function (): void {
+    $post = Post::find('hello-world');
+    $post->slug = 'draft-post';
+
+    expect($post->fresh()->title)->toBe('Hello World')
+        ->and($post->refresh()->slug)->toBe('hello-world');
 });
 
 it('can use local scopes', function (): void {
@@ -624,10 +643,13 @@ it('returns the first page when the page number is below one', function (): void
         ->and(Post::simplePaginate(perPage: 1, page: -1)->first()->slug)->toBe('draft-post');
 });
 
-it('uses the model page size when the page size is zero', function (): void {
-    expect(Post::paginate(0))->toHaveCount(3)
-        ->and(Post::simplePaginate(0))->toHaveCount(3);
-});
+it('uses the model page size when the page size is below one', function (int $perPage): void {
+    expect(Post::paginate($perPage))->toHaveCount(3)
+        ->and(Post::simplePaginate($perPage))->toHaveCount(3);
+})->with([
+    'zero' => 0,
+    'negative' => -1,
+]);
 
 it('throws when querying a model whose content directory is missing', function (): void {
     File::deleteDirectory(__DIR__.'/../content/drafts');

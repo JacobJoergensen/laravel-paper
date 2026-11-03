@@ -6,6 +6,7 @@ namespace JacobJoergensen\LaravelPaper;
 
 use BadMethodCallException;
 use Closure;
+use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -133,6 +134,10 @@ trait Paper
      */
     public static function find(mixed $id, $columns = ['*']): ?static
     {
+        if ($id === null) {
+            return null;
+        }
+
         return static::query()->find(static::keyToString($id));
     }
 
@@ -158,14 +163,14 @@ trait Paper
      */
     public static function findOr(mixed $id, Closure $callback): mixed
     {
-        return static::query()->findOr(static::keyToString($id), $callback);
+        return static::find($id) ?? $callback();
     }
 
     /**
-     * @param  array<int, scalar>  $ids
+     * @param  array<int, ?scalar>|Arrayable<int, ?scalar>  $ids
      * @return Collection<int, static>
      */
-    public static function findMany(array $ids): Collection
+    public static function findMany(array|Arrayable $ids): Collection
     {
         return static::query()->findMany($ids);
     }
@@ -898,6 +903,10 @@ trait Paper
 
         PaperQueryBuilder::guardSlug($slug);
 
+        if (PHP_OS_FAMILY === 'Windows' && preg_match('/[<>:"|?*\x01-\x1F]/', $slug) === 1) {
+            throw InvalidSlugException::forWindows($slug);
+        }
+
         $original = static::keyToString($this->getRawOriginal($this->getKeyName()));
         $isRenaming = $original !== '' && $original !== $slug;
         $directory = $this->paperDirectory();
@@ -948,10 +957,29 @@ trait Paper
 
         @chmod($tempPath, 0666 & ~umask());
 
-        $success = @file_put_contents($tempPath, $content) !== false
-            && @rename($tempPath, $filepath);
+        if (@file_put_contents($tempPath, $content) === false) {
+            @unlink($tempPath);
 
-        if (! $success) {
+            return false;
+        }
+
+        // link() fails when another process wrote the file since the checks above, where rename() would replace it.
+        $claimsSlug = $isCreating || ($isRenaming && ! $renamesInPlace);
+        $linked = $claimsSlug && @link($tempPath, $filepath);
+
+        if ($claimsSlug && ! $linked && file_exists($filepath)) {
+            @unlink($tempPath);
+
+            if ($isCreating) {
+                throw DuplicateSlugException::forSlug($slug, $filepath);
+            }
+
+            return false;
+        }
+
+        $success = $linked || @rename($tempPath, $filepath);
+
+        if ($linked || ! $success) {
             @unlink($tempPath);
         }
 
@@ -999,9 +1027,7 @@ trait Paper
             return null;
         }
 
-        $slug = static::keyToString($this->getKey());
-
-        return static::withoutGlobalScopes()->find($slug);
+        return static::withoutGlobalScopes()->find($this->paperStoredSlug());
     }
 
     public function refresh(): static
@@ -1010,7 +1036,7 @@ trait Paper
             return $this;
         }
 
-        $slug = static::keyToString($this->getKey());
+        $slug = $this->paperStoredSlug();
         $fresh = $this->fresh() ?? throw new ModelNotFoundException()->setModel(static::class, [$slug]);
         $this->setRawAttributes($fresh->getAttributes(), true);
 
@@ -1049,6 +1075,10 @@ trait Paper
         $foreignKey ??= Str::snake(class_basename(static::class)).'_slug';
         $key = $this->getKey();
 
+        if ($key === null) {
+            return new $related()->newCollection();
+        }
+
         /** @var Collection<int, TRelated> */
         return $related::where($foreignKey, $key)->get(); // @phpstan-ignore staticMethod.notFound, method.nonObject
     }
@@ -1068,14 +1098,9 @@ trait Paper
         $files = app(Filesystem::class);
         $cache = app(CacheContract::class);
 
-        $slug = static::keyToString($this->getKey());
-        $stored = static::keyToString($this->getRawOriginal($this->getKeyName()));
-
         // A record is deleted by the key it was loaded under, like Eloquent, so a slug changed
         // in a listener or left dirty on the model cannot point to delete at another record.
-        if ($stored !== '' && $stored !== $slug) {
-            $slug = $stored;
-        }
+        $slug = $this->paperStoredSlug();
 
         PaperQueryBuilder::guardSlug($slug);
 
@@ -1166,11 +1191,8 @@ trait Paper
 
         static::resolveAttributes();
 
-        $stored = static::keyToString($this->getRawOriginal($this->getKeyName()));
-        $slug = $stored !== '' ? $stored : static::keyToString($this->getKey());
-
         $driver = static::$paperDrivers[static::class];
-        $filepath = $this->paperFilepath($directory, $slug, $driver);
+        $filepath = $this->paperFilepath($directory, $this->paperStoredSlug(), $driver);
         $extension = pathinfo($filepath, PATHINFO_EXTENSION);
 
         // Only kept once stored, because a new record's slug may still point at another record's file.
@@ -1179,6 +1201,13 @@ trait Paper
         }
 
         return $extension;
+    }
+
+    private function paperStoredSlug(): string
+    {
+        $stored = static::keyToString($this->getRawOriginal($this->getKeyName()));
+
+        return $stored !== '' ? $stored : static::keyToString($this->getKey());
     }
 
     private static function resolveAttributes(): void

@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\File;
+use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
+use JacobJoergensen\LaravelPaper\Drivers\MarkdownDriver;
 use JacobJoergensen\LaravelPaper\Exceptions\DuplicateSlugException;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Draft;
@@ -289,6 +291,45 @@ it('refuses to create a record on a slug another extension already holds', funct
         ->toThrow(DuplicateSlugException::class)
         ->and(file_exists($dir.'/__save_test__taken.md'))->toBeFalse();
 });
+
+it('refuses to create a record on a slug another process writes while it saves', function (): void {
+    $path = __DIR__.'/../content/posts/__save_test__raced.md';
+    $markdown = app(MarkdownDriver::class);
+
+    app()->instance(MarkdownDriver::class, new readonly class($markdown, $path) implements DriverContract
+    {
+        public function __construct(private MarkdownDriver $markdown, private string $path) {}
+
+        public function extensions(): array
+        {
+            return $this->markdown->extensions();
+        }
+
+        public function parse(string $filepath): array
+        {
+            return $this->markdown->parse($filepath);
+        }
+
+        public function serialize(array $data): string
+        {
+            file_put_contents($this->path, "---\ntitle: First\n---\n");
+
+            return $this->markdown->serialize($data);
+        }
+    });
+
+    Post::resetPaperState();
+
+    expect(fn (): Post => Post::create(['slug' => '__save_test__raced', 'title' => 'Second']))
+        ->toThrow(DuplicateSlugException::class)
+        ->and(file_get_contents($path))->toContain('First');
+
+    Post::resetPaperState();
+});
+
+it('rejects a slug Windows cannot store as a filename when saving on Windows', function (): void {
+    Post::create(['slug' => '__save_test__a:b', 'title' => 'Nope']);
+})->throws(InvalidSlugException::class)->skip(PHP_OS_FAMILY !== 'Windows', 'Only Windows rejects these characters.');
 
 it('rejects a slug that escapes or hides from the content directory when saving', function (string $slug): void {
     $post = new Post;

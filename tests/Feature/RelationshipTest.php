@@ -32,3 +32,7 @@ it('can resolve hasMany relationship', function (): void {
     expect($posts)->toHaveCount(1)
         ->and($posts->first()->slug)->toBe('hello-world');
 });
+
+it('returns no hasMany records for a model without a slug', function (): void {
+    expect(new Author()->posts())->toBeEmpty();
+});

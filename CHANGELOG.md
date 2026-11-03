@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## Version 1.21.0 (2026-11-03)
+* Improved `findMany` to accept a collection of slugs, like Eloquent
+* Improved `PaperRule::unique()->ignore()` to accept a model, like Laravel's `unique` rule
+* Fixed `find`, `findOrFail` and `findMany` throwing `InvalidSlugException` for a null slug instead of finding nothing
+* Fixed `fresh` and `refresh` loading another record when the slug was changed but not saved
+* Fixed `hasManyPaper` on a model without a slug returning every record without a parent
+* Fixed `paginate` and `simplePaginate` returning the last record for a negative page size; they now use the model page size
+* Fixed `create` overwriting a record another process saved under the same slug at the same time
+* Fixed `create` and `save` failing silently on Windows for a slug with a character Windows forbids in filenames, like `:`
+
 ## Version 1.20.0 (2026-10-22)
 * Bumped `symfony/yaml` to `^7.4.18|^8.1.6` to prevent deeply nested YAML from crashing the PHP process
 * Fixed unquoted YAML dates reading as a Unix timestamp, which `save` then wrote back into the file as a number; they now read as the date string

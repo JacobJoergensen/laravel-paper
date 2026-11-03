@@ -8,6 +8,7 @@ use BadMethodCallException;
 use Closure;
 use DateTimeInterface;
 use Generator;
+use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Database\Eloquent\Attributes\Scope as ScopeAttribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -185,14 +186,16 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @param  array<int, scalar>  $ids
+     * @param  array<int, ?scalar>|Arrayable<int, ?scalar>  $ids
      * @return Collection<int, TModel>
      */
-    public function findMany(array $ids): Collection
+    public function findMany(array|Arrayable $ids): Collection
     {
+        $ids = $ids instanceof Arrayable ? $ids->toArray() : $ids;
+        $present = array_filter($ids, fn (mixed $id): bool => $id !== null);
         $models = [];
 
-        foreach (array_unique(array_map(strval(...), $ids)) as $slug) {
+        foreach (array_unique(array_map(strval(...), $present)) as $slug) {
             $model = $this->locate($slug);
 
             if ($model !== null) {
@@ -1075,7 +1078,7 @@ final class PaperQueryBuilder
     public function paginate(int $perPage = 15, ?int $page = null): LengthAwarePaginator
     {
         $page = $page ?: Paginator::resolveCurrentPage();
-        $perPage = $perPage ?: $this->model()->getPerPage();
+        $perPage = $perPage > 0 ? $perPage : $this->model()->getPerPage();
         $offset = max(0, ($page - 1) * $perPage);
 
         if ($this->allWheres() === [] && $this->ordersAreParseFree()) {
@@ -1122,7 +1125,7 @@ final class PaperQueryBuilder
     public function simplePaginate(int $perPage = 15, ?int $page = null): Paginator
     {
         $page = $page ?: Paginator::resolveCurrentPage();
-        $perPage = $perPage ?: $this->model()->getPerPage();
+        $perPage = $perPage > 0 ? $perPage : $this->model()->getPerPage();
         $offset = max(0, ($page - 1) * $perPage);
 
         if ($this->allWheres() === [] && $this->ordersAreParseFree()) {
