@@ -46,6 +46,27 @@
 * Removed `applyGlobalScopes` from `PaperQueryBuilder`; global scopes are applied when the query is built
 * Removed `UnsupportedRouteBindingException` now that `resolveChildRouteBinding` resolves the child instead of throwing
 
+## Version 1.21.0 (2026-11-03)
+* Improved `findMany` to accept a collection of slugs, like Eloquent
+* Improved `PaperRule::unique()->ignore()` to accept a model, like Laravel's `unique` rule
+* Fixed `find`, `findOrFail` and `findMany` throwing `InvalidSlugException` for a null slug instead of finding nothing
+* Fixed `fresh` and `refresh` loading another record when the slug was changed but not saved
+* Fixed `hasManyPaper` on a model without a slug returning every record without a parent
+* Fixed `paginate` and `simplePaginate` returning the last record for a negative page size; they now use the model page size
+* Fixed `create` overwriting a record another process saved under the same slug at the same time
+* Fixed `create` and `save` failing silently on Windows for a slug with a character Windows forbids in filenames, like `:`
+
+## Version 1.20.0 (2026-10-22)
+* Bumped `symfony/yaml` to `^7.4.18|^8.1.6` to prevent deeply nested YAML from crashing the PHP process
+* Fixed unquoted YAML dates reading as a Unix timestamp, which `save` then wrote back into the file as a number; they now read as the date string
+* Fixed `save` writing an empty Markdown body when `content` is a number; a body that is not text now throws
+* Fixed `delete` removing the file of a model that was never saved or loaded
+* Fixed `find` matching a slug written in another case on Windows and macOS
+* Fixed `find('')` reading a file named `.md`
+* Fixed `where`, `orderBy` and `pluck` calling a model method that shares its name with the column
+* Fixed `where` and `whereIn` matching a string against another string that reads as the same number, or against `true`
+* Fixed `whereNotRegexp` including a record the pattern failed to run on
+
 ## Version 1.19.0 (2026-09-29)
 * Added scoped route model binding so `/authors/{author}/posts/{post}` resolves the child through the parent's `hasManyPaper` relation and 404s when it belongs to another parent
 * Added `paper:validate` to check every content file parses and hydrates, catching malformed frontmatter and files a slug collision hides

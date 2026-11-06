@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace JacobJoergensen\LaravelPaper;
 
 use Closure;
+use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -113,6 +114,10 @@ trait Paper
      */
     public static function find(mixed $id, $columns = ['*']): ?static
     {
+        if ($id === null) {
+            return null;
+        }
+
         return static::query()->find(self::keyToString($id));
     }
 
@@ -138,14 +143,14 @@ trait Paper
      */
     public static function findOr(mixed $id, Closure $callback): mixed
     {
-        return static::query()->findOr(self::keyToString($id), $callback);
+        return static::find($id) ?? $callback();
     }
 
     /**
-     * @param  array<int, scalar>  $ids
+     * @param  array<int, ?scalar>|Arrayable<int, ?scalar>  $ids
      * @return Collection<int, static>
      */
-    public static function findMany(array $ids): Collection
+    public static function findMany(array|Arrayable $ids): Collection
     {
         return static::query()->findMany($ids);
     }
@@ -1081,6 +1086,10 @@ trait Paper
             throw InvalidSlugException::requiresNesting($slug);
         }
 
+        if (PHP_OS_FAMILY === 'Windows' && preg_match('/[<>:"|?*\x01-\x1F]/', $slug) === 1) {
+            throw InvalidSlugException::forWindows($slug);
+        }
+
         $filepath = $this->getFilePath();
         $original = self::keyToString($this->getRawOriginal($this->getKeyName()));
 
@@ -1239,9 +1248,8 @@ trait Paper
         }
 
         $names = is_string($with) ? [$with, ...$more] : $with;
-        $key = self::keyToString($this->getKey());
 
-        return static::with($names)->withoutGlobalScopes()->find($key);
+        return static::with($names)->withoutGlobalScopes()->find($this->storedSlug());
     }
 
     public function refresh(): static
@@ -1250,8 +1258,8 @@ trait Paper
             return $this;
         }
 
-        $key = self::keyToString($this->getKey());
-        $fresh = $this->fresh() ?? throw new ModelNotFoundException()->setModel(static::class, [$key]);
+        $slug = $this->storedSlug();
+        $fresh = $this->fresh() ?? throw new ModelNotFoundException()->setModel(static::class, [$slug]);
         $this->setRawAttributes($fresh->getAttributes(), true);
         $this->paperVersion = $fresh->paperVersion;
 
@@ -1325,6 +1333,10 @@ trait Paper
 
     public function delete(): bool
     {
+        if (! $this->exists) {
+            return false;
+        }
+
         if ($this->fireModelEvent('deleting') === false) {
             return false;
         }

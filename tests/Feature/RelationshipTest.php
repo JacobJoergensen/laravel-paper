@@ -50,3 +50,7 @@ it('resolves a hasMany on property access', function (): void {
 
     expect($author->posts->pluck('slug')->all())->toBe(['hello-world']);
 });
+
+it('returns no hasMany records for a model without a slug', function (): void {
+    expect(new Author()->posts()->getResults())->toBeEmpty();
+});

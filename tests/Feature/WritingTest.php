@@ -260,6 +260,10 @@ it('renames a record when only the case of its slug changes', function (): void 
         ->and(Post::find('__save_test__CASE')->title)->toBe('Case');
 });
 
+it('rejects a slug Windows cannot store as a filename when saving on Windows', function (): void {
+    Post::create(['slug' => '__save_test__a:b', 'title' => 'Nope']);
+})->throws(InvalidSlugException::class)->skip(PHP_OS_FAMILY !== 'Windows', 'Only Windows rejects these characters.');
+
 it('rejects a slug that escapes or hides from the content directory when saving', function (string $slug): void {
     $post = new Post;
     $post->slug = $slug;
@@ -278,6 +282,16 @@ it('rejects a slug with a directory when the model does not read subdirectories'
 
     $post->save();
 })->throws(InvalidSlugException::class);
+
+it('leaves the stored file alone when deleting a model that was never loaded', function (): void {
+    $path = __DIR__.'/../content/posts/__save_test__kept.md';
+    file_put_contents($path, "---\ntitle: Kept\n---\n");
+
+    $post = new Post(['slug' => '__save_test__kept']);
+
+    expect($post->delete())->toBeFalse()
+        ->and(file_exists($path))->toBeTrue();
+});
 
 it('rejects path traversal when deleting', function (): void {
     $post = new Post;

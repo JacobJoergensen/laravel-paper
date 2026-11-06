@@ -48,6 +48,17 @@ it('finds many posts by slug, omitting missing and duplicate ids', function (): 
         ->and($posts->pluck('slug')->sort()->values()->toArray())->toBe(['hello-world', 'second-post']);
 });
 
+it('finds many posts from a collection of slugs, skipping null', function (): void {
+    $posts = Post::findMany(collect(['hello-world', null]));
+
+    expect($posts->pluck('slug')->toArray())->toBe(['hello-world']);
+});
+
+it('finds nothing for a null slug, like Eloquent', function (): void {
+    expect(Post::find(null))->toBeNull()
+        ->and(fn (): Post => Post::findOrFail(null))->toThrow(ModelNotFoundException::class);
+});
+
 it('resolves slugs case-sensitively, so find and where agree', function (): void {
     expect(Post::find('HELLO-WORLD'))->toBeNull()
         ->and(Post::where('slug', 'HELLO-WORLD')->first())->toBeNull()
@@ -189,6 +200,14 @@ it('can reload model in place with refresh', function (): void {
         ->and($post->title)->toBe('Hello World');
 });
 
+it('reloads the record by the slug it was loaded under when the slug changed', function (): void {
+    $post = Post::find('hello-world');
+    $post->slug = 'draft-post';
+
+    expect($post->fresh()->title)->toBe('Hello World')
+        ->and($post->refresh()->slug)->toBe('hello-world');
+});
+
 it('can use local scopes', function (): void {
     $posts = Post::query()->published()->get();
 
@@ -312,7 +331,37 @@ it('rejects unsafe slugs when finding', function (string $slug): void {
     'empty segment' => 'guides//installation',
     'trailing slash' => 'guides/',
     'hidden segment' => 'guides/.draft',
+    'empty' => '',
 ]);
+
+it('reads a column named after a model method as empty instead of calling the method', function (): void {
+    expect(Post::where('author', 'john-doe')->count())->toBe(0)
+        ->and(Post::pluck('author')->filter()->all())->toBe([]);
+});
+
+it('matches a string only by its exact text, not as a number or a boolean', function (): void {
+    $path = __DIR__.'/../content/posts/versioned.md';
+    File::put($path, "---\nversion: '1.10'\n---\n");
+
+    try {
+        expect(Post::where('version', '1.1')->count())->toBe(0)
+            ->and(Post::whereIn('version', ['1.1'])->count())->toBe(0)
+            ->and(Post::where('published', 'yes')->count())->toBe(0);
+    } finally {
+        File::delete($path);
+    }
+});
+
+it('leaves a record out of whereNotRegexp when the pattern fails to run on it', function (): void {
+    $path = __DIR__.'/../content/posts/backtracking.md';
+    File::put($path, "---\ntitle: '".str_repeat('a', 30000)."b'\n---\n");
+
+    try {
+        expect(Post::whereNotRegexp('title', '/(a+)+$/')->pluck('slug')->all())->not->toContain('backtracking');
+    } finally {
+        File::delete($path);
+    }
+});
 
 it('runs the callback when truthy and the default when falsy', function (): void {
     $whenTrue = Post::query()->when(true, fn ($q) => $q->where('published', true))->count();

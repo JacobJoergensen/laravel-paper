@@ -24,7 +24,7 @@
         "illuminate/database": "^12.0|^13.0",
         "illuminate/filesystem": "^12.0|^13.0",
         "illuminate/support": "^12.0|^13.0",
-        "symfony/yaml": "^7.0|^8.0"
+        "symfony/yaml": "^7.4.18|^8.1.6"
     },
     "require-dev": {
         "laravel/pint": "^1.29",

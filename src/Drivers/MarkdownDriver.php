@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace JacobJoergensen\LaravelPaper\Drivers;
 
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
+use JacobJoergensen\LaravelPaper\Exceptions\FileSerializeException;
+use Stringable;
 
 final readonly class MarkdownDriver implements DriverContract
 {
@@ -56,8 +58,14 @@ final readonly class MarkdownDriver implements DriverContract
      */
     public function serialize(array $data): string
     {
-        $content = isset($data['content']) && is_string($data['content']) ? $data['content'] : '';
+        $content = $data['content'] ?? '';
         unset($data['content'], $data['slug']);
+
+        if (! is_scalar($content) && ! $content instanceof Stringable) {
+            throw FileSerializeException::invalidContent(get_debug_type($content));
+        }
+
+        $content = (string) $content;
 
         if ($data === []) {
             $readsAsFrontmatter = preg_match(self::FRONTMATTER, $content) === 1;

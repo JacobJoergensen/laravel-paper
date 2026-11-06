@@ -9,6 +9,7 @@ use Closure;
 use DateTimeInterface;
 use Generator;
 use Illuminate\Contracts\Filesystem\Factory as StorageFactory;
+use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Database\Eloquent\Attributes\Scope as ScopeAttribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -352,7 +353,8 @@ final class PaperQueryBuilder
      */
     public static function guardSlug(string $slug): void
     {
-        $malformed = str_contains($slug, '\\')
+        $malformed = $slug === ''
+            || str_contains($slug, '\\')
             || str_contains($slug, "\0")
             || str_starts_with($slug, '/')
             || str_ends_with($slug, '/')
@@ -404,12 +406,14 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @param  array<int, scalar>  $ids
+     * @param  array<int, ?scalar>|Arrayable<int, ?scalar>  $ids
      * @return Collection<int, TModel>
      */
-    public function findMany(array $ids): Collection
+    public function findMany(array|Arrayable $ids): Collection
     {
-        $slugs = array_unique(array_map(strval(...), $ids));
+        $ids = $ids instanceof Arrayable ? $ids->toArray() : $ids;
+        $present = array_filter($ids, fn (mixed $id): bool => $id !== null);
+        $slugs = array_unique(array_map(strval(...), $present));
         $models = $this->locate(array_values($slugs));
 
         $collection = $this->model()->newCollection($models);
@@ -1456,7 +1460,10 @@ final class PaperQueryBuilder
             });
         }
 
-        return $this->getModels()->pluck($column, $key);
+        $value = fn (Model $model): mixed => $this->attribute($model, $column);
+        $keyBy = $key === null ? null : fn (Model $model): mixed => $this->attribute($model, $key);
+
+        return $this->getModels()->pluck($value, $keyBy);
     }
 
     private function isUnconstrained(): bool
@@ -2190,11 +2197,24 @@ final class PaperQueryBuilder
 
     private function attribute(Model $model, string $column): mixed
     {
-        if (! str_contains($column, '.') || array_key_exists($column, $model->getAttributes())) {
+        $attributes = $model->getAttributes();
+
+        if (array_key_exists($column, $attributes)) {
             return $model->getAttribute($column);
         }
 
-        return data_get($model, $column);
+        [$key] = explode('.', $column, 2);
+
+        // Eloquent calls a method of that name as a relation, and a column can come from a request.
+        $callsMethod = method_exists($model, $key)
+            && ! array_key_exists($key, $attributes)
+            && ! $this->hasCastOrMutator($model, $key);
+
+        if ($callsMethod) {
+            return null;
+        }
+
+        return str_contains($column, '.') ? data_get($model, $column) : $model->getAttribute($column);
     }
 
     /**
@@ -2252,13 +2272,13 @@ final class PaperQueryBuilder
         $value = $resolve($column);
 
         return match ($where['type']) {
-            'in' => $value !== null && in_array($value, $where['values'] ?? []),
-            'notIn' => $value !== null && ! in_array($value, $where['values'] ?? []),
+            'in' => $value !== null && $this->evaluateIn($value, $where['values'] ?? []),
+            'notIn' => $value !== null && ! $this->evaluateIn($value, $where['values'] ?? []),
             'contains' => is_array($value) && in_array($where['value'] ?? null, $value, true),
             'like' => is_string($value) && $this->evaluateLike($value, (string) ($where['value'] ?? ''), $where['caseSensitive'] ?? false),
             'notLike' => is_string($value) && ! $this->evaluateLike($value, (string) ($where['value'] ?? ''), $where['caseSensitive'] ?? false),
             'regexp' => is_string($value) && preg_match((string) ($where['value'] ?? ''), $value) === 1,
-            'notRegexp' => is_string($value) && preg_match((string) ($where['value'] ?? ''), $value) !== 1,
+            'notRegexp' => is_string($value) && preg_match((string) ($where['value'] ?? ''), $value) === 0,
             'null' => $value === null,
             'notNull' => $value !== null,
             'between' => $value !== null && $this->evaluateBetween($value, $where['values'] ?? []),
@@ -2337,11 +2357,18 @@ final class PaperQueryBuilder
     {
         $bothPresent = $actual !== null && $expected !== null;
 
+        $equal = match (true) {
+            is_string($actual) && is_string($expected) => $actual === $expected,
+            is_bool($actual) => (int) $actual == $expected,
+            is_bool($expected) => $actual == (int) $expected,
+            default => $actual == $expected,
+        };
+
         return match ($operator) {
-            '=' => $bothPresent && $actual == $expected,
+            '=' => $bothPresent && $equal,
             '==' => $actual == $expected,
             '===' => $actual === $expected,
-            '!=', '<>' => $bothPresent && $actual != $expected,
+            '!=', '<>' => $bothPresent && ! $equal,
             '!==' => $actual !== $expected,
             '>' => $bothPresent && $actual > $expected,
             '>=' => $bothPresent && $actual >= $expected,
@@ -2363,6 +2390,14 @@ final class PaperQueryBuilder
 
     /**
      * @param  array<array-key, scalar>  $values
+     */
+    private function evaluateIn(mixed $value, array $values): bool
+    {
+        return array_any($values, fn (mixed $candidate): bool => $this->evaluateCondition($value, '=', $candidate));
+    }
+
+    /**
+     * @param  array<int, scalar>  $values
      */
     private function evaluateBetween(mixed $value, array $values): bool
     {

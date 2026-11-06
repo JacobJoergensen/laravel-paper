@@ -17,4 +17,9 @@ final class FileSerializeException extends RuntimeException implements PaperExce
     {
         return new self("Failed to serialize YAML: $error");
     }
+
+    public static function invalidContent(string $type): self
+    {
+        return new self("Failed to serialize Markdown: the content must be text, $type given");
+    }
 }
