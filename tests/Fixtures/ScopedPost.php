@@ -17,6 +17,8 @@ final class ScopedPost extends PaperModel
 {
     protected static function booted(): void
     {
-        self::addGlobalScope('later', fn (PaperQueryBuilder $query): PaperQueryBuilder => $query->where('order', '>', 1));
+        $later = fn (PaperQueryBuilder $query): PaperQueryBuilder => $query->where('order', '>', 1);
+
+        self::addGlobalScope('later', $later);
     }
 }

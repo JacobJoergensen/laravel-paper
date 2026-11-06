@@ -53,6 +53,8 @@ final class PaperQueryBuilder
 
     private const array EQUALITY_OPERATORS = ['=', '==', '===', '!=', '<>', '!=='];
 
+    private const string WINDOWS_RESERVED_NAME = '/^(CON|PRN|AUX|NUL|COM[0-9¹²³]|LPT[0-9¹²³]) *(\.|$)/iu';
+
     /** @var list<array{type: string, column?: string, second?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, wheres?: list<array<string, mixed>>, relation?: string, count?: int, constraint?: ?Closure, boolean: string}> */
     private array $wheres = [];
 
@@ -199,7 +201,7 @@ final class PaperQueryBuilder
             $diskName = self::attributeFor($modelClass, Disk::class)?->name;
 
             if ($diskName === null) {
-                $adapter = new LocalAdapter(app(Filesystem::class));
+                $adapter = new LocalAdapter(app(Filesystem::class), storage_path('framework/cache/paper'));
             } else {
                 $disk = app(StorageFactory::class)->disk($diskName);
                 $adapter = new DiskAdapter($disk, $diskName);
@@ -231,7 +233,8 @@ final class PaperQueryBuilder
     {
         $usesDisk = self::resolveFor($modelClass)['usesDisk'];
 
-        $path = new $modelClass()->getContentPath();
+        $declared = new $modelClass()->getContentPath();
+        $path = rtrim($declared, '/\\');
         $isAbsolute = preg_match('~^([A-Za-z]:)?[/\\\\]~', $path) === 1;
 
         return $usesDisk || $isAbsolute ? $path : base_path($path);
@@ -284,18 +287,11 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @param  ?class-string<PaperModel>  $modelClass
+     * @param  class-string<PaperModel>  $modelClass
      */
-    public static function forgetCache(?string $modelClass = null): void
+    public static function forgetCache(string $modelClass): void
     {
-        if ($modelClass === null) {
-            self::$resolved = [];
-            self::$fakes = [];
-
-            return;
-        }
-
-        unset(self::$resolved[$modelClass], self::$fakes[$modelClass]);
+        unset(self::$resolved[$modelClass]);
     }
 
     /**
@@ -348,32 +344,44 @@ final class PaperQueryBuilder
         return $relation;
     }
 
-    /**
-     * Rejects slugs that would escape the content directory or be hidden from listings.
-     */
     public static function guardSlug(string $slug): void
     {
+        $segments = explode('/', $slug);
+
         $malformed = $slug === ''
             || str_contains($slug, '\\')
             || str_contains($slug, "\0")
             || str_starts_with($slug, '/')
             || str_ends_with($slug, '/')
-            || str_contains($slug, '//');
+            || str_contains($slug, '//')
+            || array_any($segments, fn (string $segment): bool => str_starts_with($segment, '.'));
 
-        if ($malformed || self::hasDotSegment($slug)) {
+        if ($malformed) {
             throw InvalidSlugException::forSlug($slug);
         }
     }
 
-    private static function hasDotSegment(string $slug): bool
+    public static function guardWritableSlug(string $slug, bool $nested): void
     {
-        foreach (explode('/', $slug) as $segment) {
-            if (str_starts_with($segment, '.')) {
-                return true;
-            }
+        self::guardSlug($slug);
+
+        if (! $nested && str_contains($slug, '/')) {
+            throw InvalidSlugException::requiresNesting($slug);
         }
 
-        return false;
+        if (PHP_OS_FAMILY !== 'Windows') {
+            return;
+        }
+
+        $segments = explode('/', $slug);
+
+        $unsupported = preg_match('/[<>:"|?*\x01-\x1F]/', $slug) === 1
+            || array_any($segments, fn (string $segment): bool => preg_match(self::WINDOWS_RESERVED_NAME, $segment) === 1)
+            || array_any($segments, fn (string $segment): bool => str_ends_with($segment, '.') || str_ends_with($segment, ' '));
+
+        if ($unsupported) {
+            throw InvalidSlugException::forWindows($slug);
+        }
     }
 
     /**
@@ -435,9 +443,13 @@ final class PaperQueryBuilder
             self::guardSlug($slug);
         }
 
-        $entries = $this->readManifest(
-            fn (): array => $this->manifest->recordsFor($this->adapter, $this->driver, $this->contentPath, $slugs, $this->nested())
-        );
+        $entries = $this->readManifest(fn (): array => $this->manifest->recordsFor(
+            $this->adapter,
+            $this->driver,
+            $this->contentPath,
+            $slugs,
+            $this->nested(),
+        ));
 
         $models = array_map($this->hydrate(...), array_values($entries));
 
@@ -451,8 +463,12 @@ final class PaperQueryBuilder
     /**
      * @param  (Closure(static): mixed)|string|array<array-key, mixed>  $column
      */
-    public function where(array|Closure|string $column, null|bool|float|int|string $operator = null, null|bool|float|int|string $value = null, string $boolean = 'and'): static
-    {
+    public function where(
+        array|Closure|string $column,
+        null|bool|float|int|string $operator = null,
+        null|bool|float|int|string $value = null,
+        string $boolean = 'and',
+    ): static {
         if (is_array($column)) {
             return $this->addArrayOfWheres($column, $boolean);
         }
@@ -574,8 +590,11 @@ final class PaperQueryBuilder
     /**
      * @param  (Closure(static): mixed)|string|array<array-key, mixed>  $column
      */
-    public function orWhere(array|Closure|string $column, null|bool|float|int|string $operator = null, null|bool|float|int|string $value = null): static
-    {
+    public function orWhere(
+        array|Closure|string $column,
+        null|bool|float|int|string $operator = null,
+        null|bool|float|int|string $value = null,
+    ): static {
         [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 2);
 
         return $this->where($column, $operator, $value, 'or');
@@ -674,8 +693,13 @@ final class PaperQueryBuilder
         return $this;
     }
 
-    public function has(string $relation, string $operator = '>=', int $count = 1, string $boolean = 'and', ?Closure $constraint = null): static
-    {
+    public function has(
+        string $relation,
+        string $operator = '>=',
+        int $count = 1,
+        string $boolean = 'and',
+        ?Closure $constraint = null,
+    ): static {
         return $this->addHasWhere($relation, $constraint, $operator, $count, $boolean);
     }
 
@@ -694,13 +718,22 @@ final class PaperQueryBuilder
         return $this->addHasWhere($relation, null, '<', 1, 'or');
     }
 
-    public function whereHas(string $relation, ?Closure $constraint = null, string $operator = '>=', int $count = 1, string $boolean = 'and'): static
-    {
+    public function whereHas(
+        string $relation,
+        ?Closure $constraint = null,
+        string $operator = '>=',
+        int $count = 1,
+        string $boolean = 'and',
+    ): static {
         return $this->addHasWhere($relation, $constraint, $operator, $count, $boolean);
     }
 
-    public function orWhereHas(string $relation, ?Closure $constraint = null, string $operator = '>=', int $count = 1): static
-    {
+    public function orWhereHas(
+        string $relation,
+        ?Closure $constraint = null,
+        string $operator = '>=',
+        int $count = 1,
+    ): static {
         return $this->addHasWhere($relation, $constraint, $operator, $count, 'or');
     }
 
@@ -718,31 +751,51 @@ final class PaperQueryBuilder
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      */
-    public function whereRelation(string $relation, string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
-    {
+    public function whereRelation(
+        string $relation,
+        string $column,
+        mixed $operator = null,
+        mixed $value = null,
+        string $boolean = 'and',
+    ): static {
         [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 3);
 
-        return $this->addHasWhere($relation, fn (self $query): mixed => $query->where($column, $operator, $value), '>=', 1, $boolean);
+        $constraint = fn (self $query): mixed => $query->where($column, $operator, $value);
+
+        return $this->addHasWhere($relation, $constraint, '>=', 1, $boolean);
     }
 
     /**
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      */
-    public function orWhereRelation(string $relation, string $column, mixed $operator = null, mixed $value = null): static
-    {
+    public function orWhereRelation(
+        string $relation,
+        string $column,
+        mixed $operator = null,
+        mixed $value = null,
+    ): static {
         [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 3);
 
         return $this->whereRelation($relation, $column, $operator, $value, 'or');
     }
 
-    private function addHasWhere(string $relation, ?Closure $constraint, string $operator, int $count, string $boolean): static
-    {
+    private function addHasWhere(
+        string $relation,
+        ?Closure $constraint,
+        string $operator,
+        int $count,
+        string $boolean,
+    ): static {
         if (str_contains($relation, '.')) {
             throw new InvalidArgumentException(
                 sprintf('Nested relation "%s" is not supported; constrain it with a closure instead.', $relation)
             );
         }
+
+        $this->guardOperator($operator);
+
+        self::relationFor($this->model(), $relation);
 
         $this->wheres[] = [
             'type' => 'has',
@@ -802,9 +855,6 @@ final class PaperQueryBuilder
         return $this->whereNotIn($column, $values, 'or');
     }
 
-    /**
-     * Matches rows where the array field includes the given value.
-     */
     public function whereContains(string $column, bool|float|int|string $value, string $boolean = 'and'): static
     {
         $this->wheres[] = [
@@ -822,8 +872,12 @@ final class PaperQueryBuilder
         return $this->whereContains($column, $value, 'or');
     }
 
-    public function whereLike(string $column, string $value, bool $caseSensitive = false, string $boolean = 'and'): static
-    {
+    public function whereLike(
+        string $column,
+        string $value,
+        bool $caseSensitive = false,
+        string $boolean = 'and',
+    ): static {
         $this->wheres[] = [
             'type' => 'like',
             'column' => $column,
@@ -840,8 +894,12 @@ final class PaperQueryBuilder
         return $this->whereLike($column, $value, $caseSensitive, 'or');
     }
 
-    public function whereNotLike(string $column, string $value, bool $caseSensitive = false, string $boolean = 'and'): static
-    {
+    public function whereNotLike(
+        string $column,
+        string $value,
+        bool $caseSensitive = false,
+        string $boolean = 'and',
+    ): static {
         $this->wheres[] = [
             'type' => 'notLike',
             'column' => $column,
@@ -894,8 +952,12 @@ final class PaperQueryBuilder
         return $this;
     }
 
-    public function whereColumn(string $first, string $operator, ?string $second = null, string $boolean = 'and'): static
-    {
+    public function whereColumn(
+        string $first,
+        string $operator,
+        ?string $second = null,
+        string $boolean = 'and',
+    ): static {
         if ($second === null) {
             $second = $operator;
             $operator = '=';
@@ -934,8 +996,12 @@ final class PaperQueryBuilder
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      */
-    public function whereAny(array $columns, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
-    {
+    public function whereAny(
+        array $columns,
+        mixed $operator = null,
+        mixed $value = null,
+        string $boolean = 'and',
+    ): static {
         [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 2);
 
         return $this->where(function (self $query) use ($columns, $operator, $value): void {
@@ -962,8 +1028,12 @@ final class PaperQueryBuilder
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      */
-    public function whereAll(array $columns, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
-    {
+    public function whereAll(
+        array $columns,
+        mixed $operator = null,
+        mixed $value = null,
+        string $boolean = 'and',
+    ): static {
         [$operator, $value] = $this->resolveOperator($operator, $value, func_num_args() === 2);
 
         return $this->where(function (self $query) use ($columns, $operator, $value): void {
@@ -1340,8 +1410,6 @@ final class PaperQueryBuilder
     }
 
     /**
-     * Spans the whole content directory on purpose; query state like wheres and limits does not apply.
-     *
      * @return array{checked: int, failures: list<array{path: string, error: string}>}
      */
     public function validateFiles(): array
@@ -1428,8 +1496,6 @@ final class PaperQueryBuilder
     }
 
     /**
-     * Saves each matching record in turn, so a mid-loop failure leaves earlier writes applied.
-     *
      * @param  array<string, mixed>  $values
      */
     public function update(array $values): int
@@ -1452,11 +1518,17 @@ final class PaperQueryBuilder
      */
     public function pluck(string $column, ?string $key = null): Collection
     {
-        if ($key === null && $this->isUnconstrained() && $this->columnSafe($column)) {
+        $unconstrained = $this->allWheres() === []
+            && $this->allOrders() === []
+            && ! $this->randomOrder
+            && $this->limitValue === null
+            && $this->offsetValue === 0;
+
+        if ($key === null && $unconstrained && $this->columnSafe($column)) {
             return $this->records()->map(function (array $record) use ($column): mixed {
                 $row = ['slug' => $record['slug']] + $record['data'];
 
-                return data_get($row, $column);
+                return $this->rowValue($row, $column);
             });
         }
 
@@ -1464,15 +1536,6 @@ final class PaperQueryBuilder
         $keyBy = $key === null ? null : fn (Model $model): mixed => $this->attribute($model, $key);
 
         return $this->getModels()->pluck($value, $keyBy);
-    }
-
-    private function isUnconstrained(): bool
-    {
-        return $this->allWheres() === []
-            && $this->allOrders() === []
-            && ! $this->randomOrder
-            && $this->limitValue === null
-            && $this->offsetValue === 0;
     }
 
     /**
@@ -1646,15 +1709,8 @@ final class PaperQueryBuilder
     {
         $wheres = $this->allWheres();
 
-        return $wheres !== [] && $this->canPushDown($wheres);
-    }
-
-    /**
-     * @param  list<array<string, mixed>>  $wheres
-     */
-    private function canPushDown(array $wheres): bool
-    {
-        return ! $this->hasRelationWhere($wheres)
+        return $wheres !== []
+            && ! $this->hasRelationWhere($wheres)
             && array_all($this->whereColumns($wheres), $this->columnSafe(...));
     }
 
@@ -1735,8 +1791,6 @@ final class PaperQueryBuilder
     }
 
     /**
-     * Ignores orders, limits and offsets so aggregates span every matching record.
-     *
      * @return list<mixed>
      */
     private function columnValues(string $column): array
@@ -1760,7 +1814,6 @@ final class PaperQueryBuilder
         }
 
         return new LazyCollection(function () use ($chunkSize): Generator {
-            // Without relations there is nothing to batch, so models are released as they come.
             if ($this->with === []) {
                 foreach ($this->yieldModels() as $model) {
                     $this->fireRetrieved($model);
@@ -1896,7 +1949,28 @@ final class PaperQueryBuilder
             );
         }
 
+        $before = count($this->wheres);
+
         $scope->invoke($this->model(), $this, ...$parameters);
+
+        $existing = array_slice($this->wheres, 0, $before);
+        $added = array_slice($this->wheres, $before);
+
+        if ($added === []) {
+            return $this;
+        }
+
+        $this->wheres = [];
+
+        foreach ([$existing, $added] as $slice) {
+            $hasOr = array_any($slice, fn (array $where): bool => $where['boolean'] === 'or');
+
+            if ($hasOr) {
+                $this->wheres[] = ['type' => 'group', 'wheres' => $slice, 'boolean' => $slice[0]['boolean']];
+            } else {
+                array_push($this->wheres, ...$slice);
+            }
+        }
 
         return $this;
     }
@@ -2003,7 +2077,8 @@ final class PaperQueryBuilder
 
         $ordered = array_all(
             $orders,
-            fn (array $order): bool => in_array($order['column'], ['slug', $updatedAt], true) || $this->columnSafe($order['column'])
+            fn (array $order): bool => in_array($order['column'], ['slug', $updatedAt], true)
+                || $this->columnSafe($order['column']),
         );
 
         if (! $ordered) {
@@ -2021,14 +2096,11 @@ final class PaperQueryBuilder
         }
 
         if ($updatedAt !== null && array_any($orders, fn (array $order): bool => $order['column'] === $updatedAt)) {
-            // The mtime only stands in for the timestamp column while no file supplies it, the rule
-            // hydrate() follows. Once one does, the sort has to read the hydrated, cast value.
             if ($records->contains(fn (array $record): bool => array_key_exists($updatedAt, $record['data']))) {
                 return null;
             }
         }
 
-        // Must sort identically to applyOrdersAndLimits, which reads the same columns off a hydrated model.
         foreach (array_reverse($orders) as $order) {
             $records = $records->sortBy(
                 fn (array $record): mixed => $order['column'] === $updatedAt
@@ -2109,9 +2181,6 @@ final class PaperQueryBuilder
         }
     }
 
-    /**
-     * Fires the retrieved event via a bound closure, matching Eloquent's newFromBuilder approach.
-     */
     private function fireRetrieved(Model $model): void
     {
         (function (): void {
@@ -2156,6 +2225,21 @@ final class PaperQueryBuilder
 
         foreach ($this->with as $name => $constraint) {
             $relation = self::relationFor($first, $name);
+
+            if ($constraint !== null && count($models) > 1) {
+                $unlimited = $constraint;
+
+                $constraint = function (self $query) use ($unlimited, $name): void {
+                    $unlimited($query);
+
+                    if ($query->limitValue !== null || $query->offsetValue !== 0) {
+                        throw new InvalidArgumentException(sprintf(
+                            'The eager load constraint for %s sets a limit or offset, which would apply across every parent at once. Load it per model instead.',
+                            $name,
+                        ));
+                    }
+                };
+            }
 
             $relation->eagerLoad($parents, $name, $constraint);
         }
@@ -2205,7 +2289,6 @@ final class PaperQueryBuilder
 
         [$key] = explode('.', $column, 2);
 
-        // Eloquent calls a method of that name as a relation, and a column can come from a request.
         $callsMethod = method_exists($model, $key)
             && ! array_key_exists($key, $attributes)
             && ! $this->hasCastOrMutator($model, $key);
@@ -2265,48 +2348,42 @@ final class PaperQueryBuilder
         }
 
         if ($where['type'] === 'has') {
-            return $model !== null && $this->evaluateHas($model, $where);
+            if ($model === null) {
+                return false;
+            }
+
+            $relation = $where['relation'] ?? '';
+            $constraint = $where['constraint'] ?? null;
+            $counterKey = $constraint === null ? 'r:'.$relation : 'c:'.$relation.':'.spl_object_id($constraint);
+            $counter = $this->hasCounters[$counterKey] ??= self::relationFor($model, $relation)->counter($constraint);
+
+            return $this->evaluateCondition($counter($model), $where['operator'] ?? '>=', $where['count'] ?? 1);
         }
 
         $column = $where['column'] ?? '';
         $value = $resolve($column);
+        $operator = $where['operator'] ?? '=';
+        $expected = $where['value'] ?? null;
+        $values = $where['values'] ?? [];
+        $pattern = (string) ($expected ?? '');
+        $caseSensitive = $where['caseSensitive'] ?? false;
 
         return match ($where['type']) {
-            'in' => $value !== null && $this->evaluateIn($value, $where['values'] ?? []),
-            'notIn' => $value !== null && ! $this->evaluateIn($value, $where['values'] ?? []),
-            'contains' => is_array($value) && in_array($where['value'] ?? null, $value, true),
-            'like' => is_string($value) && $this->evaluateLike($value, (string) ($where['value'] ?? ''), $where['caseSensitive'] ?? false),
-            'notLike' => is_string($value) && ! $this->evaluateLike($value, (string) ($where['value'] ?? ''), $where['caseSensitive'] ?? false),
-            'regexp' => is_string($value) && preg_match((string) ($where['value'] ?? ''), $value) === 1,
-            'notRegexp' => is_string($value) && preg_match((string) ($where['value'] ?? ''), $value) === 0,
+            'in' => $value !== null && $this->evaluateIn($value, $values),
+            'notIn' => $value !== null && ! $this->evaluateIn($value, $values),
+            'contains' => is_array($value) && in_array($expected, $value, true),
+            'like' => is_string($value) && $this->evaluateLike($value, $pattern, $caseSensitive),
+            'notLike' => is_string($value) && ! $this->evaluateLike($value, $pattern, $caseSensitive),
+            'regexp' => is_string($value) && preg_match($pattern, $value) === 1,
+            'notRegexp' => is_string($value) && preg_match($pattern, $value) === 0,
             'null' => $value === null,
             'notNull' => $value !== null,
-            'between' => $value !== null && $this->evaluateBetween($value, $where['values'] ?? []),
-            'notBetween' => $value !== null && ! $this->evaluateBetween($value, $where['values'] ?? []),
-            'date', 'year', 'month', 'day' => $this->evaluateDate($value, $where['type'], $where['operator'] ?? '=', $where['value'] ?? null),
-            'column' => $this->evaluateCondition($value, $where['operator'] ?? '=', $resolve($where['second'] ?? '')),
-            default => $this->evaluateCondition($value, $where['operator'] ?? '=', $where['value'] ?? null),
+            'between' => $value !== null && $this->evaluateBetween($value, $values),
+            'notBetween' => $value !== null && ! $this->evaluateBetween($value, $values),
+            'date', 'year', 'month', 'day' => $this->evaluateDate($value, $where['type'], $operator, $expected),
+            'column' => $this->evaluateCondition($value, $operator, $resolve($where['second'] ?? '')),
+            default => $this->evaluateCondition($value, $operator, $expected),
         };
-    }
-
-    /**
-     * @param  array{relation?: string, constraint?: ?Closure, operator?: string, count?: int}  $where
-     */
-    private function evaluateHas(Model $model, array $where): bool
-    {
-        $counter = $this->hasCounter($model, $where['relation'] ?? '', $where['constraint'] ?? null);
-
-        return $this->evaluateCondition($counter($model), $where['operator'] ?? '>=', $where['count'] ?? 1);
-    }
-
-    /**
-     * @return callable(Model): int
-     */
-    private function hasCounter(Model $model, string $relation, ?Closure $constraint): callable
-    {
-        $key = $constraint === null ? 'r:'.$relation : 'c:'.$relation.':'.spl_object_id($constraint);
-
-        return $this->hasCounters[$key] ??= self::relationFor($model, $relation)->counter($constraint);
     }
 
     private function evaluateDate(mixed $value, string $part, string $operator, mixed $expected): bool
@@ -2320,7 +2397,11 @@ final class PaperQueryBuilder
         if ($part === 'date') {
             $bound = $this->toDate($expected);
 
-            return $bound !== null && $this->evaluateCondition($date->format('Y-m-d'), $operator, $bound->format('Y-m-d'));
+            if ($bound === null) {
+                return false;
+            }
+
+            return $this->evaluateCondition($date->format('Y-m-d'), $operator, $bound->format('Y-m-d'));
         }
 
         $actual = match ($part) {

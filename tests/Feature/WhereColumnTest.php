@@ -19,11 +19,14 @@ it('compares two fields, with a default operator and an or variant', function ()
     $adapter->seed('blog/c.md', "---\nmin: 8\nmax: 3\n---\n", 3_000);
 
     $manifest = new PaperManifest(new Repository(new ArrayStore), 60, 10, true);
-    $build = fn (): PaperQueryBuilder => new PaperQueryBuilder($adapter, new MarkdownDriver, $manifest, 'blog', RawModel::class);
+    $build = fn (): PaperQueryBuilder => new PaperQueryBuilder(
+        $adapter, new MarkdownDriver, $manifest, 'blog', RawModel::class,
+    );
 
     expect($build()->whereColumn('min', '<', 'max')->get()->pluck('slug')->all())->toBe(['a'])
         ->and($build()->whereColumn('min', 'max')->get()->pluck('slug')->all())->toBe(['b'])
-        ->and($build()->whereColumn('min', '>', 'max')->orWhereColumn('min', 'max')->get()->pluck('slug')->all())->toBe(['b', 'c']);
+        ->and($build()->whereColumn('min', '>', 'max')->orWhereColumn('min', 'max')->get()->pluck('slug')->all())
+        ->toBe(['b', 'c']);
 });
 
 it('rejects comparing a cast column with an uncast one, but allows two cast columns', function (): void {

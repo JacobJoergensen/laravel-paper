@@ -6,7 +6,9 @@ namespace JacobJoergensen\LaravelPaper\Console;
 
 use JacobJoergensen\LaravelPaper\Exceptions\PaperException;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'paper:validate')]
 final class ValidateCommand extends PaperCommand
 {
     protected $signature = 'paper:validate
@@ -51,10 +53,13 @@ final class ValidateCommand extends PaperCommand
             return;
         }
 
-        // Reporting the count keeps a content path that matched nothing from reading as a pass.
-        $this->info($result['checked'] === 0
-            ? sprintf('%s: no content files found.', $model)
-            : sprintf('%s: %d files valid.', $model, $result['checked']));
+        if ($result['checked'] === 0) {
+            $this->warn(sprintf('%s: no content files found.', $model));
+
+            return;
+        }
+
+        $this->info(sprintf('%s: %d files valid.', $model, $result['checked']));
     }
 
     private function record(string $model, ?string $path, string $error): void

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Support\Facades\Validator;
 use JacobJoergensen\LaravelPaper\Rules\PaperRule;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
@@ -49,6 +50,18 @@ it('rejects a value another record already has', function (): void {
     expect($validator->fails())->toBeTrue()
         ->and($validator->errors()->first('slug'))->toBe('The slug has already been taken.');
 });
+
+it('rejects a list of values instead of erroring on it', function (ValidationRule $rule): void {
+    $validator = Validator::make(
+        ['slug' => ['hello-world']],
+        ['slug' => $rule]
+    );
+
+    expect($validator->fails())->toBeTrue();
+})->with([
+    'exists' => fn (): ValidationRule => PaperRule::exists(Post::class),
+    'unique' => fn (): ValidationRule => PaperRule::unique(Post::class),
+]);
 
 it('ignores the given record but still conflicts with a different existing one', function (): void {
     $ignored = Validator::make(

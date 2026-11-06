@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Cache\ArrayStore;
 use Illuminate\Cache\Repository;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Exceptions;
@@ -66,7 +67,7 @@ it('reads only the requested file on a cold find, then serves it warm', function
         ->and($this->adapter->counts['read'])->toBe(0);
 });
 
-it('serves a compiled manifest without the cache store or the disk, only while opcache serves it', function (bool $opcache, int $reads): void {
+it('serves a compiled manifest from opcache without the cache or disk', function (bool $opcache, int $reads): void {
     $compiledPath = sys_get_temp_dir().'/paper-compiled-'.getmypid();
 
     try {
@@ -106,6 +107,37 @@ it('removes the compiled manifest on a write, so it is never served stale', func
         File::deleteDirectory($compiledPath);
     }
 });
+
+it('reports a compiled manifest it cannot remove on a write', function (): void {
+    Exceptions::fake();
+
+    $compiledPath = sys_get_temp_dir().'/paper-compiled-'.getmypid();
+
+    try {
+        $manifest = new PaperManifest(new Repository(new ArrayStore), 60, 10, false, '', $compiledPath, true);
+        $manifest->compile($this->adapter, new MarkdownDriver, 'blog');
+
+        foreach (glob($compiledPath.'/*.php') ?: [] as $compiled) {
+            chmod($compiled, 0444);
+        }
+
+        chmod($compiledPath, 0555);
+
+        $manifest->forget($this->adapter, new MarkdownDriver, 'blog', 'post-1');
+
+        $undeletable = fn (ManifestCacheException $e): bool => str_contains($e->getMessage(), 'could not delete');
+
+        Exceptions::assertReported($undeletable);
+    } finally {
+        @chmod($compiledPath, 0755);
+
+        foreach (glob($compiledPath.'/*.php') ?: [] as $compiled) {
+            chmod($compiled, 0644);
+        }
+
+        File::deleteDirectory($compiledPath);
+    }
+})->skip(function_exists('posix_geteuid') && posix_geteuid() === 0, 'Root ignores file permissions.');
 
 it('reports a manifest the cache store refuses and still answers from the files', function (): void {
     Exceptions::fake();
@@ -172,16 +204,65 @@ it('re-reads only the file whose mtime differs from the cached entry', function 
     'restored from backup, so older' => 500,
 ]);
 
-it('sees a second edit within the second that keeps the same modification time', function (): void {
-    $current = time() + 60;
+it('sees a second edit to a file whose modification time is ahead of the clock', function (): void {
+    $ahead = time() + 60;
 
-    $this->adapter->seed('blog/post-3.md', "---\nstatus: draft\n---\nfirst", $current);
+    $this->adapter->seed('blog/post-3.md', "---\nstatus: draft\n---\nfirst", $ahead);
     ($this->build)()->get();
 
-    $this->adapter->seed('blog/post-3.md', "---\nstatus: archived\n---\nsecond", $current);
+    $this->adapter->seed('blog/post-3.md', "---\nstatus: archived\n---\nsecond", $ahead);
     $models = ($this->build)()->get();
 
     expect($models->firstWhere('slug', 'post-3')->status)->toBe('archived');
+});
+
+it('sees an edit made within the second the file was read, once that second has passed', function (): void {
+    $this->travelTo(Carbon::createFromTimestamp(5_000));
+
+    $this->adapter->seed('blog/post-3.md', "---\nstatus: draft\n---\nfirst", 5_000);
+    ($this->build)()->get();
+
+    $this->adapter->seed('blog/post-3.md', "---\nstatus: archived\n---\nsecond", 5_000);
+    $this->travel(1)->seconds();
+
+    $models = ($this->build)()->get();
+
+    expect($models->firstWhere('slug', 'post-3')->status)->toBe('archived');
+});
+
+it('drops a file deleted while the query reads the directory', function (): void {
+    $this->adapter->duringNextRead(fn () => $this->adapter->remove('blog/post-2.md'));
+
+    $slugs = ($this->build)()->get()->pluck('slug')->all();
+
+    expect($slugs)->toBe(['post-1', 'post-3', 'post-4', 'post-5']);
+});
+
+it('returns every record to a trusting process after a watching one cached a single find', function (): void {
+    $cache = new Repository(new ArrayStore);
+
+    $build = fn (bool $watch): PaperQueryBuilder => new PaperQueryBuilder(
+        $this->adapter, new MarkdownDriver, new PaperManifest($cache, 60, 10, $watch), 'blog', Post::class,
+    );
+
+    $build(true)->find('post-3');
+
+    expect($build(false)->get())->toHaveCount(5);
+});
+
+it('runs queries when the lock timing is set in the environment', function (): void {
+    putenv('PAPER_LOCK_TTL=30');
+    putenv('PAPER_LOCK_WAIT=5');
+
+    try {
+        config(['paper' => require __DIR__.'/../../config/paper.php']);
+        $this->app->forgetScopedInstances();
+
+        expect(Post::find('hello-world'))->not->toBeNull();
+    } finally {
+        putenv('PAPER_LOCK_TTL');
+        putenv('PAPER_LOCK_WAIT');
+    }
 });
 
 it('drops a deleted file from results without reading anything', function (): void {

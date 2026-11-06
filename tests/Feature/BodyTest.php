@@ -78,6 +78,21 @@ it('leaves a content field alone for a format without a body', function (): void
     expect(Page::find('home')->getAttributes())->toHaveKey('content', 'Home body');
 });
 
+it('reads the body from the new file after refresh when the extension changed', function (): void {
+    config(['paper.watch' => true]);
+    app()->forgetInstance(PaperManifest::class);
+
+    $path = PaperQueryBuilder::contentPathFor(Post::class);
+    $post = Post::find('a');
+
+    $this->adapter->remove("$path/a.md");
+    $this->adapter->seed("$path/a.markdown", "---\ntitle: Alpha\n---\nMoved body", 3_000);
+
+    $post->refresh();
+
+    expect($post->content)->toBe('Moved body');
+});
+
 it('carries the body into a replicated model', function (): void {
     $copy = Post::find('a')->replicate();
 

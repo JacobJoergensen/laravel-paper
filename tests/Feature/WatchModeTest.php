@@ -88,7 +88,7 @@ it('reconciles against the disk even when the manifest is trusted', function ():
         ->and($this->manifest->reconcile($adapter, $this->driver, 'blog'))->toHaveCount(2);
 });
 
-it('keeps a trusted manifest current through every write, without reading the disk again', function (string $write): void {
+it('keeps a trusted manifest current through every write without rereading the disk', function (string $write): void {
     config(['paper.watch' => false]);
     app()->forgetInstance(PaperManifest::class);
 

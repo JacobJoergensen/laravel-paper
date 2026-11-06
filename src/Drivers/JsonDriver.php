@@ -10,6 +10,8 @@ use JacobJoergensen\LaravelPaper\Exceptions\FileSerializeException;
 
 final readonly class JsonDriver implements DriverContract
 {
+    private const string BYTE_ORDER_MARK = "\xEF\xBB\xBF";
+
     /**
      * @return list<string>
      */
@@ -33,6 +35,14 @@ final readonly class JsonDriver implements DriverContract
      */
     public function parse(string $contents): array
     {
+        $contents = str_starts_with($contents, self::BYTE_ORDER_MARK)
+            ? substr($contents, strlen(self::BYTE_ORDER_MARK))
+            : $contents;
+
+        if (trim($contents) === '') {
+            return [];
+        }
+
         $data = json_decode($contents, true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
@@ -53,6 +63,10 @@ final readonly class JsonDriver implements DriverContract
     public function serialize(array $data): string
     {
         unset($data['slug']);
+
+        if ($data === []) {
+            return "{}\n";
+        }
 
         $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 

@@ -10,20 +10,14 @@ use JacobJoergensen\LaravelPaper\StorageAdapters\LocalAdapter;
 
 beforeEach(function (): void {
     $this->files = new Filesystem;
-    $this->adapter = new LocalAdapter($this->files);
     $this->dir = sys_get_temp_dir().'/paper_local_adapter_'.uniqid();
-    $this->locks = glob(sys_get_temp_dir().'/paper-*.lock') ?: [];
+    $this->locks = $this->dir.'/.locks';
+    $this->adapter = new LocalAdapter($this->files, $this->locks);
     mkdir($this->dir);
 });
 
 afterEach(function (): void {
     $this->files->deleteDirectory($this->dir);
-
-    $locks = glob(sys_get_temp_dir().'/paper-*.lock') ?: [];
-
-    foreach (array_diff($locks, $this->locks) as $lock) {
-        @unlink($lock);
-    }
 });
 
 it('returns null when reading a missing file', function (): void {
@@ -88,12 +82,16 @@ it('moves a record only when the source matches and the destination is free', fu
 
     $this->adapter->write($to, 'taken');
 
-    expect($this->adapter->moveIf($from, $to, 'body', PaperVersion::of('body'))->status)->toBe(ConditionalWriteStatus::Taken)
+    $taken = $this->adapter->moveIf($from, $to, 'body', PaperVersion::of('body'));
+
+    expect($taken->status)->toBe(ConditionalWriteStatus::Taken)
         ->and(file_get_contents($to))->toBe('taken');
 
     unlink($to);
 
-    expect($this->adapter->moveIf($from, $to, 'body', PaperVersion::of('body'))->status)->toBe(ConditionalWriteStatus::Written)
+    $moved = $this->adapter->moveIf($from, $to, 'body', PaperVersion::of('body'));
+
+    expect($moved->status)->toBe(ConditionalWriteStatus::Written)
         ->and(file_exists($from))->toBeFalse()
         ->and(file_get_contents($to))->toBe('body');
 });
@@ -115,9 +113,14 @@ it('takes one lock per record, whichever extension the file has', function (): v
     $this->adapter->createIfMissing($this->dir.'/post.markdown', 'two', [$this->dir.'/post.md']);
     $this->adapter->createIfMissing($this->dir.'/other.md', 'three');
 
-    $created = array_diff(glob(sys_get_temp_dir().'/paper-*.lock') ?: [], $this->locks);
+    expect(glob($this->locks.'/*.lock'))->toHaveCount(2);
+});
 
-    expect($created)->toHaveCount(2);
+it('takes one lock for records that differ only in case', function (): void {
+    $this->adapter->createIfMissing($this->dir.'/post.md', 'one');
+    $this->adapter->createIfMissing($this->dir.'/POST.md', 'two');
+
+    expect(glob($this->locks.'/*.lock'))->toHaveCount(1);
 });
 
 it('lists matching files with their modification times', function (): void {
@@ -138,6 +141,15 @@ it('skips dotfiles so hidden entries never become records', function (): void {
     touch($this->dir.'/.hidden.md');
 
     expect(array_keys($this->adapter->listing($this->dir, ['md'])))->toBe([$this->dir.'/visible.md']);
+});
+
+it('walks into a directory named with a driver extension instead of listing it', function (): void {
+    mkdir($this->dir.'/guides.md');
+    touch($this->dir.'/guides.md/inside.md');
+
+    $paths = array_keys($this->adapter->listing($this->dir, ['md'], nested: true));
+
+    expect($paths)->toBe([$this->dir.'/guides.md/inside.md']);
 });
 
 it('reports lastModified for a file it wrote and null for a missing one', function (): void {

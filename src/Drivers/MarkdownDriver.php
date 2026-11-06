@@ -12,7 +12,7 @@ final readonly class MarkdownDriver implements DriverContract
 {
     private const string BYTE_ORDER_MARK = "\xEF\xBB\xBF";
 
-    private const string FRONTMATTER = '/\A\s*---\h*\R(?<matter>.*?)^---\h*$\R?/ms';
+    private const string FRONTMATTER = '/\A\s*---\h*\R(?<matter>.*?)^---\h*(?:\R|\z)/ms';
 
     /**
      * @return list<string>
@@ -42,13 +42,13 @@ final readonly class MarkdownDriver implements DriverContract
             : $contents;
 
         if (preg_match(self::FRONTMATTER, $contents, $match) !== 1) {
-            return ['content' => rtrim(ltrim($contents, "\r\n"))];
+            return [$this->bodyColumn() => rtrim(ltrim($contents, "\r\n"))];
         }
 
         $data = new YamlDriver()->parse($match['matter']);
         $body = substr($contents, strlen($match[0]));
 
-        $data['content'] = rtrim(ltrim($body, "\r\n"));
+        $data[$this->bodyColumn()] = rtrim(ltrim($body, "\r\n"));
 
         return $data;
     }
@@ -58,8 +58,8 @@ final readonly class MarkdownDriver implements DriverContract
      */
     public function serialize(array $data): string
     {
-        $content = $data['content'] ?? '';
-        unset($data['content'], $data['slug']);
+        $content = $data[$this->bodyColumn()] ?? '';
+        unset($data[$this->bodyColumn()], $data['slug']);
 
         if (! is_scalar($content) && ! $content instanceof Stringable) {
             throw FileSerializeException::invalidContent(get_debug_type($content));

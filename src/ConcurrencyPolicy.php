@@ -14,10 +14,11 @@ enum ConcurrencyPolicy: string
 
     public static function fromConfig(mixed $policy): self
     {
-        if (! is_string($policy)) {
-            return self::BestEffort;
-        }
-
-        return self::tryFrom($policy) ?? throw UnsupportedConcurrencyException::forPolicy($policy);
+        return match (true) {
+            $policy instanceof self => $policy,
+            $policy === null => self::BestEffort,
+            is_string($policy) => self::tryFrom($policy) ?? throw UnsupportedConcurrencyException::forPolicy($policy),
+            default => throw UnsupportedConcurrencyException::forPolicy(var_export($policy, true)),
+        };
     }
 }

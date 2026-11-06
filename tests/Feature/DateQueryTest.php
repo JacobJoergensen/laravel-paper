@@ -22,8 +22,12 @@ beforeEach(function (): void {
     $adapter->seed('blog/june.md', "---\ndate: '2025-06-20'\n---\n", 2_000);
 
     $this->adapter = $adapter;
-    $this->raw = fn (): PaperQueryBuilder => new PaperQueryBuilder($adapter, new MarkdownDriver, $manifest, 'blog', RawModel::class);
-    $this->cast = fn (): PaperQueryBuilder => new PaperQueryBuilder($adapter, new MarkdownDriver, $manifest, 'blog', DateModel::class);
+    $this->raw = fn (): PaperQueryBuilder => new PaperQueryBuilder(
+        $adapter, new MarkdownDriver, $manifest, 'blog', RawModel::class,
+    );
+    $this->cast = fn (): PaperQueryBuilder => new PaperQueryBuilder(
+        $adapter, new MarkdownDriver, $manifest, 'blog', DateModel::class,
+    );
 });
 
 afterEach(function (): void {
@@ -40,7 +44,8 @@ it('filters by year, month, day, and date', function (): void {
 
 it('accepts a Carbon value', function (): void {
     expect(($this->raw)()->whereDate('date', Carbon::parse('2024-03-15'))->get()->pluck('slug')->all())->toBe(['march'])
-        ->and(($this->raw)()->whereYear('date', Carbon::parse('2025-01-01'))->get()->pluck('slug')->all())->toBe(['june']);
+        ->and(($this->raw)()->whereYear('date', Carbon::parse('2025-01-01'))->get()->pluck('slug')->all())
+        ->toBe(['june']);
 });
 
 it('gives the same answer whether the date column is cast or raw', function (): void {

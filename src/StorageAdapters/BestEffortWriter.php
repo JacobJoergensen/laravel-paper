@@ -8,10 +8,6 @@ use JacobJoergensen\LaravelPaper\Contracts\ConditionalWriteContract;
 use JacobJoergensen\LaravelPaper\Contracts\StorageAdapterContract;
 use JacobJoergensen\LaravelPaper\PaperVersion;
 
-/**
- * Conditional writes for storage that cannot apply them atomically. It rejects a record that is
- * already stale, but nothing stops another write from landing between the check and the replace.
- */
 final readonly class BestEffortWriter implements ConditionalWriteContract
 {
     public function __construct(
@@ -47,7 +43,7 @@ final readonly class BestEffortWriter implements ConditionalWriteContract
         return $taken ?? $this->write($path, $contents);
     }
 
-    public function replaceIf(string $path, string $contents, string $version): ConditionalWriteResult
+    public function replaceIf(string $path, string $contents, ?string $version): ConditionalWriteResult
     {
         $mismatch = $this->verify($path, $version);
 
@@ -57,7 +53,7 @@ final readonly class BestEffortWriter implements ConditionalWriteContract
     /**
      * @param  list<string>  $conflicts
      */
-    public function moveIf(string $from, string $to, string $contents, string $version, array $conflicts = []): ConditionalWriteResult
+    public function moveIf(string $from, string $to, string $contents, ?string $version, array $conflicts = []): ConditionalWriteResult
     {
         $mismatch = $this->verify($from, $version);
 
@@ -75,13 +71,12 @@ final readonly class BestEffortWriter implements ConditionalWriteContract
             return $written;
         }
 
-        // Only the file this call wrote is rolled back, never whatever stands there now.
-        $this->deleteIf($to, (string) $written->version);
+        $this->deleteIf($to, $written->version);
 
         return ConditionalWriteResult::failed();
     }
 
-    public function deleteIf(string $path, string $version): ConditionalWriteResult
+    public function deleteIf(string $path, ?string $version): ConditionalWriteResult
     {
         $mismatch = $this->verify($path, $version);
 
@@ -108,8 +103,12 @@ final readonly class BestEffortWriter implements ConditionalWriteContract
         return null;
     }
 
-    private function verify(string $path, string $version): ?ConditionalWriteResult
+    private function verify(string $path, ?string $version): ?ConditionalWriteResult
     {
+        if ($version === null) {
+            return null;
+        }
+
         $current = $this->readVersioned($path);
 
         if ($current === null) {

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\MultipleRecordsFoundException;
 use Illuminate\Pagination\Paginator;
@@ -165,11 +166,13 @@ it('rejects an Eloquent query method Paper has no equivalent for', function (): 
 it('refuses to hand out a database query builder', function (): void {
     $post = Post::find('hello-world');
 
-    expect(fn () => $post->newQuery())->toThrow(UnsupportedDatabaseQueryException::class)
-        ->and(fn () => $post->newModelQuery())->toThrow(UnsupportedDatabaseQueryException::class)
-        ->and(fn () => $post->newQueryWithoutRelationships())->toThrow(UnsupportedDatabaseQueryException::class)
-        ->and(fn () => $post->newQueryForRestoration(['hello-world']))->toThrow(UnsupportedDatabaseQueryException::class)
-        ->and(fn () => Post::on('mysql'))->toThrow(UnsupportedDatabaseQueryException::class);
+    $unsupported = UnsupportedDatabaseQueryException::class;
+
+    expect(fn () => $post->newQuery())->toThrow($unsupported)
+        ->and(fn () => $post->newModelQuery())->toThrow($unsupported)
+        ->and(fn () => $post->newQueryWithoutRelationships())->toThrow($unsupported)
+        ->and(fn () => $post->newQueryForRestoration(['hello-world']))->toThrow($unsupported)
+        ->and(fn () => Post::on('mysql'))->toThrow($unsupported);
 });
 
 it('uses slug as primary key', function (): void {
@@ -223,6 +226,21 @@ it('resolves protected scopes declared with the #[Scope] attribute', function ()
         ->and($posts->first()->slug)->toBe('second-post');
 });
 
+it('keeps the or inside a local scope from reaching the conditions before it, like Eloquent', function (): void {
+    $model = new class extends Post
+    {
+        #[Scope]
+        protected function firstOrThird(PaperQueryBuilder $query): void
+        {
+            $query->where('order', 1)->orWhere('order', 3);
+        }
+    };
+
+    $slugs = $model::query()->where('published', true)->firstOrThird()->pluck('slug')->all();
+
+    expect($slugs)->toBe(['hello-world']);
+});
+
 it('counts all posts', function (): void {
     expect(Post::count())->toBe(3);
 });
@@ -242,7 +260,7 @@ it('checks existence past the offset and within the limit', function (): void {
         ->and(Post::query()->limit(0)->exists())->toBeFalse();
 });
 
-it('returns true for doesntExist when no posts match', function (): void {
+it('reports that no posts match a condition nothing meets', function (): void {
     $result = Post::where('slug', 'does-not-exist')->doesntExist();
 
     expect($result)->toBeTrue();
@@ -364,9 +382,12 @@ it('leaves a record out of whereNotRegexp when the pattern fails to run on it', 
 });
 
 it('runs the callback when truthy and the default when falsy', function (): void {
-    $whenTrue = Post::query()->when(true, fn ($q) => $q->where('published', true))->count();
-    $whenFalse = Post::query()->when(false, fn ($q) => $q->where('published', true))->count();
-    $withDefault = Post::query()->when(false, fn ($q) => $q->where('published', true), fn ($q) => $q->where('published', false))->count();
+    $published = fn ($q) => $q->where('published', true);
+    $drafts = fn ($q) => $q->where('published', false);
+
+    $whenTrue = Post::query()->when(true, $published)->count();
+    $whenFalse = Post::query()->when(false, $published)->count();
+    $withDefault = Post::query()->when(false, $published, $drafts)->count();
 
     expect($whenTrue)->toBe(2)
         ->and($whenFalse)->toBe(3)
@@ -374,9 +395,12 @@ it('runs the callback when truthy and the default when falsy', function (): void
 });
 
 it('runs the callback when falsy and the default when truthy with unless', function (): void {
-    $unlessFalse = Post::query()->unless(false, fn ($q) => $q->where('published', true))->count();
-    $unlessTrue = Post::query()->unless(true, fn ($q) => $q->where('published', true))->count();
-    $withDefault = Post::query()->unless(true, fn ($q) => $q->where('published', true), fn ($q) => $q->where('published', false))->count();
+    $published = fn ($q) => $q->where('published', true);
+    $drafts = fn ($q) => $q->where('published', false);
+
+    $unlessFalse = Post::query()->unless(false, $published)->count();
+    $unlessTrue = Post::query()->unless(true, $published)->count();
+    $withDefault = Post::query()->unless(true, $published, $drafts)->count();
 
     expect($unlessFalse)->toBe(2)
         ->and($unlessTrue)->toBe(3)

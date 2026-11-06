@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
+use JacobJoergensen\LaravelPaper\PaperModel;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\ExtendedPost;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\TenantPost;
@@ -28,6 +30,12 @@ it('uses an absolute content path as is', function (): void {
     $post = TenantPost::find('hello');
 
     expect($post->getFilePath())->toBe(dirname(__DIR__).'/content/tenants/a/hello.md');
+});
+
+it('reads a content path declared with a trailing slash', function (): void {
+    $model = new #[ContentPath('tests/content/posts/')] class extends PaperModel {};
+
+    expect($model::find('hello-world')?->slug)->toBe('hello-world');
 });
 
 it('reports the file extension the record was loaded with', function (): void {

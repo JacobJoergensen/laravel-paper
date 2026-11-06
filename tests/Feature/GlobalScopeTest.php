@@ -37,7 +37,8 @@ it('resolves no route binding for a record a global scope excludes', function ()
 
 it('removes a single global scope by name or class', function (): void {
     expect(ScopedPost::withoutGlobalScope('later')->get()->pluck('slug')->all())->toBe(['hello-world', 'second-post'])
-        ->and(ScopedPost::withoutGlobalScope(PublishedScope::class)->get()->pluck('slug')->all())->toBe(['draft-post', 'second-post']);
+        ->and(ScopedPost::withoutGlobalScope(PublishedScope::class)->get()->pluck('slug')->all())
+        ->toBe(['draft-post', 'second-post']);
 });
 
 it('removes every global scope', function (): void {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper\Testing;
 
+use Illuminate\Support\Str;
 use JacobJoergensen\LaravelPaper\Contracts\ConditionalWriteContract;
 use JacobJoergensen\LaravelPaper\Contracts\StorageAdapterContract;
 use JacobJoergensen\LaravelPaper\StorageAdapters\BestEffortWriter;
@@ -14,17 +15,22 @@ final class FakeAdapter implements ConditionalWriteContract, StorageAdapterContr
     /** @var array<string, array{contents: string, mtime: int}> */
     private array $files = [];
 
-    // Nothing lands in memory between the check and the write, so the best effort is atomic here.
+    private int $clock = PaperFake::BASE_MTIME;
+
+    private readonly string $id;
+
     private readonly BestEffortWriter $writer;
 
     public function __construct()
     {
+        $this->id = Str::random(16);
         $this->writer = new BestEffortWriter($this);
     }
 
     public function seed(string $path, string $contents, int $mtime): void
     {
         $this->files[$path] = ['contents' => $contents, 'mtime' => $mtime];
+        $this->clock = max($this->clock, $mtime);
     }
 
     public function read(string $path): ?string
@@ -34,8 +40,7 @@ final class FakeAdapter implements ConditionalWriteContract, StorageAdapterContr
 
     public function write(string $path, string $contents): bool
     {
-        $mtime = ($this->files[$path]['mtime'] ?? 0) + 1;
-        $this->files[$path] = ['contents' => $contents, 'mtime' => $mtime];
+        $this->files[$path] = ['contents' => $contents, 'mtime' => ++$this->clock];
 
         return true;
     }
@@ -73,7 +78,7 @@ final class FakeAdapter implements ConditionalWriteContract, StorageAdapterContr
         return $this->writer->createIfMissing($path, $contents, $conflicts);
     }
 
-    public function replaceIf(string $path, string $contents, string $version): ConditionalWriteResult
+    public function replaceIf(string $path, string $contents, ?string $version): ConditionalWriteResult
     {
         return $this->writer->replaceIf($path, $contents, $version);
     }
@@ -81,19 +86,24 @@ final class FakeAdapter implements ConditionalWriteContract, StorageAdapterContr
     /**
      * @param  list<string>  $conflicts
      */
-    public function moveIf(string $from, string $to, string $contents, string $version, array $conflicts = []): ConditionalWriteResult
-    {
+    public function moveIf(
+        string $from,
+        string $to,
+        string $contents,
+        ?string $version,
+        array $conflicts = [],
+    ): ConditionalWriteResult {
         return $this->writer->moveIf($from, $to, $contents, $version, $conflicts);
     }
 
-    public function deleteIf(string $path, string $version): ConditionalWriteResult
+    public function deleteIf(string $path, ?string $version): ConditionalWriteResult
     {
         return $this->writer->deleteIf($path, $version);
     }
 
     public function cacheKey(string $path): string
     {
-        return 'fake:'.spl_object_id($this).':'.$path;
+        return 'fake:'.$this->id.':'.$path;
     }
 
     public function ensureDirectoryExists(string $path): void {}
@@ -105,14 +115,19 @@ final class FakeAdapter implements ConditionalWriteContract, StorageAdapterContr
     public function listing(string $directory, array $extensions, bool $nested = false): array
     {
         $allowed = array_flip($extensions);
+        $prefix = $directory.'/';
         $matches = [];
 
         foreach ($this->files as $path => $file) {
-            $inDirectory = $nested
-                ? str_starts_with($path, $directory.'/')
-                : pathinfo($path, PATHINFO_DIRNAME) === $directory;
+            if (! str_starts_with($path, $prefix)) {
+                continue;
+            }
 
-            if ($inDirectory && isset($allowed[pathinfo($path, PATHINFO_EXTENSION)])) {
+            $relative = substr($path, strlen($prefix));
+            $hidden = str_starts_with($relative, '.') || str_contains($relative, '/.');
+            $outOfReach = ! $nested && str_contains($relative, '/');
+
+            if (! $hidden && ! $outOfReach && isset($allowed[pathinfo($path, PATHINFO_EXTENSION)])) {
                 $matches[$path] = $file['mtime'];
             }
         }

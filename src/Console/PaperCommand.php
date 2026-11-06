@@ -112,7 +112,7 @@ abstract class PaperCommand extends Command
 
             $class = $this->classFromFile($files, $file->getPathname());
 
-            if ($class !== null && $this->isPaperModel($class) && new ReflectionClass($class)->isInstantiable()) {
+            if ($class !== null && $this->isPaperModel($class)) {
                 $models[] = $class;
             }
         }
@@ -136,6 +136,6 @@ abstract class PaperCommand extends Command
      */
     private function isPaperModel(string $model): bool
     {
-        return is_subclass_of($model, PaperModel::class);
+        return is_subclass_of($model, PaperModel::class) && new ReflectionClass($model)->isInstantiable();
     }
 }

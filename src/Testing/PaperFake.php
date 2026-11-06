@@ -4,19 +4,18 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper\Testing;
 
+use Illuminate\Database\Eloquent\Model;
 use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
+use JacobJoergensen\LaravelPaper\PaperCasts;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 
 final class PaperFake
 {
-    /**
-     * Fixed base so faked updated_at values are reproducible across runs, never time().
-     */
     public const int BASE_MTIME = 1_700_000_000;
 
     /**
-     * @param  class-string<PaperModel>  $modelClass
-     * @param  array<string, array<string, mixed>>  $content  Slug to attributes.
+     * @param  class-string<Model&PaperModel>  $modelClass
+     * @param  array<string, array<string, mixed>>  $content
      */
     public static function fake(string $modelClass, array $content = []): FakeAdapter
     {
@@ -26,12 +25,20 @@ final class PaperFake
         $extension = $driver->extensions()[0];
 
         $adapter = new FakeAdapter;
-        $index = 0;
+        $mtime = self::BASE_MTIME;
 
         foreach ($content as $slug => $attributes) {
+            $slug = (string) $slug;
+
+            PaperQueryBuilder::guardWritableSlug($slug, $resolved['nested']);
+
+            $model = new $modelClass;
+            $model->forceFill($attributes);
+
+            $stored = PaperCasts::toStorage($model, $model->getAttributes());
             $path = $contentPath.'/'.$slug.'.'.$extension;
-            $adapter->seed($path, $driver->serialize($attributes), self::BASE_MTIME + $index);
-            $index++;
+
+            $adapter->seed($path, $driver->serialize($stored), $mtime++);
         }
 
         PaperQueryBuilder::fake($modelClass, $adapter);

@@ -25,8 +25,6 @@ abstract readonly class PaperRelation
     ) {}
 
     /**
-     * The related records this relation covers, as a query the caller can constrain further.
-     *
      * @return PaperQueryBuilder<TRelated>
      */
     abstract public function query(): PaperQueryBuilder;
@@ -34,7 +32,7 @@ abstract readonly class PaperRelation
     /**
      * @return Collection<int, TRelated>|TRelated|null
      */
-    abstract public function getResults(): mixed;
+    abstract public function getResults(): null|Collection|Model;
 
     /**
      * @param  Collection<int, Model>  $parents

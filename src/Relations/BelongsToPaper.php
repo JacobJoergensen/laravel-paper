@@ -33,14 +33,7 @@ final readonly class BelongsToPaper extends PaperRelation
      */
     public function getResults(): ?Model
     {
-        $key = $this->keyOf($this->parent, $this->foreignKey);
-
-        if ($key === null) {
-            return null;
-        }
-
-        // Resolved by key rather than scanned, which the query's own constraint then agrees with.
-        return $this->query()->find((string) $key);
+        return $this->query()->first();
     }
 
     /**
@@ -94,13 +87,21 @@ final readonly class BelongsToPaper extends PaperRelation
             $constraint($query);
         }
 
-        $related = $query->get();
+        $byKey = [];
 
-        $map = $this->indexBy($related, $relatedKey);
+        foreach ($query->get() as $model) {
+            $key = $this->keyOf($model, $relatedKey);
+
+            if ($key !== null) {
+                $byKey[$key] = $model;
+            }
+        }
 
         foreach ($parents as $parent) {
             $key = $this->keyOf($parent, $this->foreignKey);
-            $parent->setRelation($relationName, $key !== null ? ($map[$key] ?? null) : null);
+            $related = $key === null ? null : ($byKey[$key] ?? null);
+
+            $parent->setRelation($relationName, $related);
         }
     }
 
@@ -109,24 +110,5 @@ final readonly class BelongsToPaper extends PaperRelation
         $relatedClass = $this->relatedClass;
 
         return new $relatedClass()->getKeyName();
-    }
-
-    /**
-     * @param  Collection<int, TRelated>  $models
-     * @return array<int|string, TRelated>
-     */
-    private function indexBy(Collection $models, string $column): array
-    {
-        $map = [];
-
-        foreach ($models as $model) {
-            $key = $this->keyOf($model, $column);
-
-            if ($key !== null) {
-                $map[$key] = $model;
-            }
-        }
-
-        return $map;
     }
 }

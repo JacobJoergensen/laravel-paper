@@ -6,11 +6,6 @@ namespace JacobJoergensen\LaravelPaper\Contracts;
 
 use JacobJoergensen\LaravelPaper\StorageAdapters\ConditionalWriteResult;
 
-/**
- * A storage backend that applies a condition and its write as one atomic step. Version tokens are
- * opaque and belong to the implementation, so a backend can hand back its own (an ETag, a revision).
- * A write that lands reports Written with the new token; only a delete succeeds without one.
- */
 interface ConditionalWriteContract
 {
     /**
@@ -19,16 +14,29 @@ interface ConditionalWriteContract
     public function readVersioned(string $path): ?array;
 
     /**
-     * @param  list<string>  $conflicts  Paths that must be free as well, checked under the same lock.
+     * @param  list<string>  $conflicts
      */
     public function createIfMissing(string $path, string $contents, array $conflicts = []): ConditionalWriteResult;
 
-    public function replaceIf(string $path, string $contents, string $version): ConditionalWriteResult;
+    /**
+     * @param  ?string  $version  null writes without checking
+     */
+    public function replaceIf(string $path, string $contents, ?string $version): ConditionalWriteResult;
 
     /**
-     * @param  list<string>  $conflicts  Paths that must be free as well, checked under the same lock.
+     * @param  ?string  $version  null moves without checking
+     * @param  list<string>  $conflicts
      */
-    public function moveIf(string $from, string $to, string $contents, string $version, array $conflicts = []): ConditionalWriteResult;
+    public function moveIf(
+        string $from,
+        string $to,
+        string $contents,
+        ?string $version,
+        array $conflicts = [],
+    ): ConditionalWriteResult;
 
-    public function deleteIf(string $path, string $version): ConditionalWriteResult;
+    /**
+     * @param  ?string  $version  null deletes without checking
+     */
+    public function deleteIf(string $path, ?string $version): ConditionalWriteResult;
 }

@@ -85,36 +85,23 @@ final readonly class HasManyPaper extends PaperRelation
             $constraint($query);
         }
 
-        $related = $query->get();
+        $grouped = [];
 
-        $grouped = $this->groupBy($related, $this->foreignKey);
+        foreach ($query->get() as $model) {
+            $key = $this->keyOf($model, $this->foreignKey);
+
+            if ($key !== null) {
+                $grouped[$key] ??= $this->newCollection();
+                $grouped[$key]->push($model);
+            }
+        }
 
         foreach ($parents as $parent) {
             $key = $this->keyOf($parent, $parentKeyName);
-            $parent->setRelation($relationName, $key !== null ? ($grouped[$key] ?? $this->newCollection()) : $this->newCollection());
+            $related = $key === null ? null : ($grouped[$key] ?? null);
+
+            $parent->setRelation($relationName, $related ?? $this->newCollection());
         }
-    }
-
-    /**
-     * @param  Collection<int, TRelated>  $models
-     * @return array<int|string, Collection<int, TRelated>>
-     */
-    private function groupBy(Collection $models, string $column): array
-    {
-        $groups = [];
-
-        foreach ($models as $model) {
-            $key = $this->keyOf($model, $column);
-
-            if ($key === null) {
-                continue;
-            }
-
-            $groups[$key] ??= $this->newCollection();
-            $groups[$key]->push($model);
-        }
-
-        return $groups;
     }
 
     /**

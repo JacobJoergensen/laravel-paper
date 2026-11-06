@@ -19,7 +19,9 @@ beforeEach(function (): void {
     $adapter->seed('blog/c.md', "---\ncategory: archive\n---\n", 3_000);
     $adapter->seed('blog/d.md', "---\nseo:\n  keywords: [a, b]\n---\n", 4_000);
 
-    $this->build = fn (): PaperQueryBuilder => new PaperQueryBuilder($adapter, new MarkdownDriver, $manifest, 'blog', RawModel::class);
+    $this->build = fn (): PaperQueryBuilder => new PaperQueryBuilder(
+        $adapter, new MarkdownDriver, $manifest, 'blog', RawModel::class,
+    );
 });
 
 it('flattens an array column and skips records missing the field', function (): void {

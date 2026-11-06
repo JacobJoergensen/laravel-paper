@@ -3,9 +3,12 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\File;
+use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
+use JacobJoergensen\LaravelPaper\Attributes\Timestamps;
 use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
 use JacobJoergensen\LaravelPaper\Exceptions\DuplicateSlugException;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
+use JacobJoergensen\LaravelPaper\PaperModel;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\CountingAdapter;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Draft;
@@ -260,9 +263,19 @@ it('renames a record when only the case of its slug changes', function (): void 
         ->and(Post::find('__save_test__CASE')->title)->toBe('Case');
 });
 
-it('rejects a slug Windows cannot store as a filename when saving on Windows', function (): void {
-    Post::create(['slug' => '__save_test__a:b', 'title' => 'Nope']);
-})->throws(InvalidSlugException::class)->skip(PHP_OS_FAMILY !== 'Windows', 'Only Windows rejects these characters.');
+it('renames a record when its slug only changes the case of a non-ASCII letter', function (): void {
+    $dir = __DIR__.'/../content/posts';
+    file_put_contents($dir.'/__save_test__Æble.md', "---\ntitle: Apple\n---\n");
+
+    Post::resetPaperState();
+
+    $post = Post::find('__save_test__Æble');
+    $post->slug = '__save_test__æble';
+
+    expect($post->save())->toBeTrue()
+        ->and(glob($dir.'/__save_test__*'))->toBe([$dir.'/__save_test__æble.md'])
+        ->and(Post::find('__save_test__æble')?->title)->toBe('Apple');
+});
 
 it('rejects a slug that escapes or hides from the content directory when saving', function (string $slug): void {
     $post = new Post;
@@ -313,6 +326,23 @@ it('saves a model whose slug is "0"', function (): void {
 
     expect($draft->save())->toBeTrue()
         ->and(Draft::find('0'))->not->toBeNull();
+});
+
+it('creates the content directory for the first record of a model with timestamps', function (): void {
+    $dir = __DIR__.'/../content/__timestamped__';
+    File::deleteDirectory($dir);
+
+    $model = new #[Timestamps, ContentPath('tests/content/__timestamped__')] class extends PaperModel
+    {
+        protected $guarded = [];
+    };
+
+    try {
+        expect(new $model(['slug' => 'first', 'title' => 'First'])->save())->toBeTrue()
+            ->and($model::find('first')?->updated_at)->not->toBeNull();
+    } finally {
+        File::deleteDirectory($dir);
+    }
 });
 
 it('creates the content directory when it does not exist', function (): void {

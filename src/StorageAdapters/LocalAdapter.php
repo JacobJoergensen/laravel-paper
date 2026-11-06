@@ -10,9 +10,6 @@ use JacobJoergensen\LaravelPaper\Contracts\ConditionalWriteContract;
 use JacobJoergensen\LaravelPaper\Contracts\StorageAdapterContract;
 use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
 
-/**
- * The lock is advisory and only holds between Paper processes; an editor writing the file ignores it.
- */
 final readonly class LocalAdapter implements ConditionalWriteContract, StorageAdapterContract
 {
     private const string TEMP_PREFIX = '.paper-';
@@ -21,6 +18,7 @@ final readonly class LocalAdapter implements ConditionalWriteContract, StorageAd
 
     public function __construct(
         private Filesystem $files,
+        private string $lockDirectory,
     ) {
         $this->writer = new BestEffortWriter($this);
     }
@@ -76,7 +74,7 @@ final readonly class LocalAdapter implements ConditionalWriteContract, StorageAd
         );
     }
 
-    public function replaceIf(string $path, string $contents, string $version): ConditionalWriteResult
+    public function replaceIf(string $path, string $contents, ?string $version): ConditionalWriteResult
     {
         return $this->locked(
             [$path],
@@ -87,14 +85,14 @@ final readonly class LocalAdapter implements ConditionalWriteContract, StorageAd
     /**
      * @param  list<string>  $conflicts
      */
-    public function moveIf(string $from, string $to, string $contents, string $version, array $conflicts = []): ConditionalWriteResult
+    public function moveIf(string $from, string $to, string $contents, ?string $version, array $conflicts = []): ConditionalWriteResult
     {
         return $this->locked([$from, $to, ...$conflicts], function () use ($from, $to, $contents, $version, $conflicts): ConditionalWriteResult {
-            // A case-insensitive filesystem finds the record itself under a slug that only changes case.
-            $changesCase = strcasecmp($from, $to) === 0
-                && $this->exists($from)
-                && $this->exists($to)
-                && fileinode($from) === fileinode($to);
+            $fromInode = @fileinode($from);
+
+            $changesCase = mb_strtolower($from) === mb_strtolower($to)
+                && $fromInode !== false
+                && $fromInode === @fileinode($to);
 
             if (! $changesCase) {
                 return $this->writer->moveIf($from, $to, $contents, $version, $conflicts);
@@ -106,7 +104,7 @@ final readonly class LocalAdapter implements ConditionalWriteContract, StorageAd
                 return ConditionalWriteResult::missing();
             }
 
-            if ($current['version'] !== $version) {
+            if ($version !== null && $current['version'] !== $version) {
                 return ConditionalWriteResult::mismatch();
             }
 
@@ -130,7 +128,7 @@ final readonly class LocalAdapter implements ConditionalWriteContract, StorageAd
         });
     }
 
-    public function deleteIf(string $path, string $version): ConditionalWriteResult
+    public function deleteIf(string $path, ?string $version): ConditionalWriteResult
     {
         return $this->locked(
             [$path],
@@ -139,23 +137,21 @@ final readonly class LocalAdapter implements ConditionalWriteContract, StorageAd
     }
 
     /**
-     * Locks the records, not the filenames, so the same slug under another extension waits too.
-     *
      * @param  list<string>  $paths
      * @param  Closure(): ConditionalWriteResult  $work
      */
     private function locked(array $paths, Closure $work): ConditionalWriteResult
     {
-        $keys = array_unique(array_map($this->lockFile(...), $paths));
+        $this->files->ensureDirectoryExists($this->lockDirectory);
 
-        // Sorted, so two renames crossing each other cannot each hold what the other waits for.
-        sort($keys);
+        $lockOrder = array_unique(array_map($this->lockFile(...), $paths));
+        sort($lockOrder);
 
         $handles = [];
 
         try {
-            foreach ($keys as $key) {
-                $handle = @fopen($key, 'c');
+            foreach ($lockOrder as $lockFile) {
+                $handle = @fopen($lockFile, 'c');
 
                 if ($handle === false || ! flock($handle, LOCK_EX)) {
                     if ($handle !== false) {
@@ -183,7 +179,7 @@ final readonly class LocalAdapter implements ConditionalWriteContract, StorageAd
         $extension = pathinfo($normalized, PATHINFO_EXTENSION);
         $record = $extension === '' ? $normalized : substr($normalized, 0, -(strlen($extension) + 1));
 
-        return sys_get_temp_dir().'/paper-'.hash('sha256', $record).'.lock';
+        return $this->lockDirectory.'/'.hash('sha256', mb_strtolower($record)).'.lock';
     }
 
     public function exists(string $path): bool
@@ -233,7 +229,6 @@ final readonly class LocalAdapter implements ConditionalWriteContract, StorageAd
      */
     private function collect(string $directory, array $allowed, bool $nested, array &$matches, array &$visited): void
     {
-        // Resolved rather than checked with is_link, which reports false for a Windows junction.
         $resolved = realpath($directory);
 
         if ($resolved === false || isset($visited[$resolved])) {
@@ -251,15 +246,17 @@ final readonly class LocalAdapter implements ConditionalWriteContract, StorageAd
 
             $path = $directory.'/'.$entry;
 
-            if (isset($allowed[pathinfo($entry, PATHINFO_EXTENSION)])) {
-                $mtime = @filemtime($path);
-                $matches[$path] = $mtime === false ? 0 : $mtime;
+            if (is_dir($path)) {
+                if ($nested && ! is_link($path)) {
+                    $this->collect($path, $allowed, $nested, $matches, $visited);
+                }
 
                 continue;
             }
 
-            if ($nested && ! is_link($path) && is_dir($path)) {
-                $this->collect($path, $allowed, $nested, $matches, $visited);
+            if (isset($allowed[pathinfo($entry, PATHINFO_EXTENSION)])) {
+                $mtime = @filemtime($path);
+                $matches[$path] = $mtime === false ? 0 : $mtime;
             }
         }
     }

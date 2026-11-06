@@ -21,7 +21,7 @@ afterEach(function (): void {
     }
 });
 
-it('returns zero for sum and null for min, max and avg when no numeric values match', function (Closure $query, string $column): void {
+it('returns zero for sum and null for other aggregates on no numbers', function (Closure $query, string $column): void {
     $builder = $query();
 
     expect($builder->sum($column))->toBe(0)

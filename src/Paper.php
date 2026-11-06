@@ -16,7 +16,6 @@ use Illuminate\Support\LazyCollection;
 use Illuminate\Support\Str;
 use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
 use JacobJoergensen\LaravelPaper\Contracts\ConditionalWriteContract;
-use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
 use JacobJoergensen\LaravelPaper\Contracts\ScopeContract;
 use JacobJoergensen\LaravelPaper\Contracts\StorageAdapterContract;
@@ -32,7 +31,6 @@ use JacobJoergensen\LaravelPaper\Relations\HasManyPaper;
 use JacobJoergensen\LaravelPaper\Relations\PaperRelation;
 use JacobJoergensen\LaravelPaper\StorageAdapters\BestEffortWriter;
 use JacobJoergensen\LaravelPaper\StorageAdapters\ConditionalWriteStatus;
-use JacobJoergensen\LaravelPaper\StorageAdapters\UncheckedWriter;
 use ReflectionClass;
 use ReflectionMethod;
 use ReflectionNamedType;
@@ -59,7 +57,13 @@ trait Paper
      */
     public static function addGlobalScope($scope, $implementation = null): void
     {
-        $resolved = self::resolveGlobalScope($implementation ?? $scope);
+        $candidate = $implementation ?? $scope;
+
+        $resolved = match (true) {
+            is_string($candidate) && is_subclass_of($candidate, ScopeContract::class) => new $candidate,
+            $candidate instanceof Closure, $candidate instanceof ScopeContract => $candidate,
+            default => throw UnsupportedScopeException::forScope($candidate),
+        };
 
         $identifier = match (true) {
             is_string($scope) => $scope,
@@ -101,7 +105,7 @@ trait Paper
     }
 
     /**
-     * @param  array<int, string>|string  $columns  Ignored, kept for Eloquent parity.
+     * @param  array<int, string>|string  $columns
      * @return Collection<int, static>
      */
     public static function all($columns = ['*']): Collection
@@ -110,7 +114,7 @@ trait Paper
     }
 
     /**
-     * @param  array<int, string>|string  $columns  Ignored, kept for Eloquent parity.
+     * @param  array<int, string>|string  $columns
      */
     public static function find(mixed $id, $columns = ['*']): ?static
     {
@@ -122,7 +126,7 @@ trait Paper
     }
 
     /**
-     * @param  array<int, string>|string  $columns  Ignored, kept for Eloquent parity.
+     * @param  array<int, string>|string  $columns
      */
     public static function findOrFail(mixed $id, $columns = ['*']): static
     {
@@ -159,8 +163,11 @@ trait Paper
      * @param  (Closure(PaperQueryBuilder<static>): mixed)|string|array<array-key, mixed>  $column
      * @return PaperQueryBuilder<static>
      */
-    public static function where(array|Closure|string $column, null|bool|float|int|string $operator = null, null|bool|float|int|string $value = null): PaperQueryBuilder
-    {
+    public static function where(
+        array|Closure|string $column,
+        null|bool|float|int|string $operator = null,
+        null|bool|float|int|string $value = null,
+    ): PaperQueryBuilder {
         [$operator, $value] = func_num_args() === 2 ? ['=', $operator] : [$operator, $value];
 
         return static::query()->where($column, $operator, $value);
@@ -170,8 +177,11 @@ trait Paper
      * @param  (Closure(PaperQueryBuilder<static>): mixed)|string|array<array-key, mixed>  $column
      * @return PaperQueryBuilder<static>
      */
-    public static function orWhere(array|Closure|string $column, null|bool|float|int|string $operator = null, null|bool|float|int|string $value = null): PaperQueryBuilder
-    {
+    public static function orWhere(
+        array|Closure|string $column,
+        null|bool|float|int|string $operator = null,
+        null|bool|float|int|string $value = null,
+    ): PaperQueryBuilder {
         [$operator, $value] = func_num_args() === 2 ? ['=', $operator] : [$operator, $value];
 
         return static::query()->orWhere($column, $operator, $value);
@@ -192,8 +202,11 @@ trait Paper
      * @param  (callable(PaperQueryBuilder<static>, mixed): mixed)|null  $default
      * @return PaperQueryBuilder<static>
      */
-    public static function unless(mixed $value, ?callable $callback = null, ?callable $default = null): PaperQueryBuilder
-    {
+    public static function unless(
+        mixed $value,
+        ?callable $callback = null,
+        ?callable $default = null,
+    ): PaperQueryBuilder {
         return static::query()->unless($value, $callback, $default);
     }
 
@@ -402,8 +415,12 @@ trait Paper
     /**
      * @return PaperQueryBuilder<static>
      */
-    public static function has(string $relation, string $operator = '>=', int $count = 1, ?Closure $constraint = null): PaperQueryBuilder
-    {
+    public static function has(
+        string $relation,
+        string $operator = '>=',
+        int $count = 1,
+        ?Closure $constraint = null,
+    ): PaperQueryBuilder {
         return static::query()->has($relation, $operator, $count, 'and', $constraint);
     }
 
@@ -434,16 +451,24 @@ trait Paper
     /**
      * @return PaperQueryBuilder<static>
      */
-    public static function whereHas(string $relation, ?Closure $constraint = null, string $operator = '>=', int $count = 1): PaperQueryBuilder
-    {
+    public static function whereHas(
+        string $relation,
+        ?Closure $constraint = null,
+        string $operator = '>=',
+        int $count = 1,
+    ): PaperQueryBuilder {
         return static::query()->whereHas($relation, $constraint, $operator, $count);
     }
 
     /**
      * @return PaperQueryBuilder<static>
      */
-    public static function orWhereHas(string $relation, ?Closure $constraint = null, string $operator = '>=', int $count = 1): PaperQueryBuilder
-    {
+    public static function orWhereHas(
+        string $relation,
+        ?Closure $constraint = null,
+        string $operator = '>=',
+        int $count = 1,
+    ): PaperQueryBuilder {
         return static::query()->orWhereHas($relation, $constraint, $operator, $count);
     }
 
@@ -468,8 +493,12 @@ trait Paper
      * @param  ?scalar  $value
      * @return PaperQueryBuilder<static>
      */
-    public static function whereRelation(string $relation, string $column, mixed $operator = null, mixed $value = null): PaperQueryBuilder
-    {
+    public static function whereRelation(
+        string $relation,
+        string $column,
+        mixed $operator = null,
+        mixed $value = null,
+    ): PaperQueryBuilder {
         [$operator, $value] = func_num_args() === 3 ? ['=', $operator] : [$operator, $value];
 
         return static::query()->whereRelation($relation, $column, $operator, $value);
@@ -480,8 +509,12 @@ trait Paper
      * @param  ?scalar  $value
      * @return PaperQueryBuilder<static>
      */
-    public static function orWhereRelation(string $relation, string $column, mixed $operator = null, mixed $value = null): PaperQueryBuilder
-    {
+    public static function orWhereRelation(
+        string $relation,
+        string $column,
+        mixed $operator = null,
+        mixed $value = null,
+    ): PaperQueryBuilder {
         [$operator, $value] = func_num_args() === 3 ? ['=', $operator] : [$operator, $value];
 
         return static::query()->orWhereRelation($relation, $column, $operator, $value);
@@ -637,8 +670,11 @@ trait Paper
      * @param  ?scalar  $operator
      * @param  ?scalar  $value
      */
-    public static function firstWhere(array|Closure|string $column, mixed $operator = null, mixed $value = null): ?static
-    {
+    public static function firstWhere(
+        array|Closure|string $column,
+        mixed $operator = null,
+        mixed $value = null,
+    ): ?static {
         [$operator, $value] = func_num_args() === 2 ? ['=', $operator] : [$operator, $value];
 
         return static::query()->firstWhere($column, $operator, $value);
@@ -773,11 +809,12 @@ trait Paper
     public function newCollection(array $models = []): PaperCollection
     {
         $class = $this->resolveCollectionFromAttribute() ?? PaperCollection::class;
-        $collection = new $class($models);
 
-        if (! $collection instanceof PaperCollection) {
-            throw InvalidCollectionException::forCollection($collection::class, static::class);
+        if (! is_a($class, PaperCollection::class, true)) {
+            throw InvalidCollectionException::forCollection($class, static::class);
         }
+
+        $collection = new $class($models);
 
         $autoloads = method_exists(Model::class, 'isAutomaticallyEagerLoadingRelationships')
             && Model::isAutomaticallyEagerLoadingRelationships();
@@ -942,25 +979,19 @@ trait Paper
 
         $directory = PaperQueryBuilder::contentPathFor(static::class);
 
-        return $directory.'/'.$slug.'.'.$this->storedExtension();
-    }
+        if ($this->paperExtension === null) {
+            $resolved = PaperQueryBuilder::resolveFor(static::class);
+            $driver = $resolved['driver'];
+            $manifest = app(PaperManifest::class);
 
-    private function storedExtension(): string
-    {
-        if ($this->paperExtension !== null) {
-            return $this->paperExtension;
+            $record = $this->exists
+                ? $manifest->record($resolved['adapter'], $driver, $directory, $this->storedSlug(), $resolved['nested'])
+                : null;
+
+            $this->paperExtension = $record['ext'] ?? $driver->extensions()[0];
         }
 
-        $resolved = PaperQueryBuilder::resolveFor(static::class);
-        $driver = $resolved['driver'];
-        $directory = PaperQueryBuilder::contentPathFor(static::class);
-
-        $record = $this->exists
-            ? app(PaperManifest::class)->record($resolved['adapter'], $driver, $directory, $this->storedSlug(), $resolved['nested'])
-            : null;
-
-        // Held on the model so a renamed record keeps its format and a deleted one can still name its file.
-        return $this->paperExtension = $record['ext'] ?? $driver->extensions()[0];
+        return $directory.'/'.$slug.'.'.$this->paperExtension;
     }
 
     /**
@@ -1073,22 +1104,13 @@ trait Paper
             return false;
         }
 
-        // Read after the events, because a listener may have set the slug or rewritten it.
         $slug = self::keyToString($this->getKey());
 
         if ($slug === '') {
             return false;
         }
 
-        PaperQueryBuilder::guardSlug($slug);
-
-        if (! $resolved['nested'] && str_contains($slug, '/')) {
-            throw InvalidSlugException::requiresNesting($slug);
-        }
-
-        if (PHP_OS_FAMILY === 'Windows' && preg_match('/[<>:"|?*\x01-\x1F]/', $slug) === 1) {
-            throw InvalidSlugException::forWindows($slug);
-        }
+        PaperQueryBuilder::guardWritableSlug($slug, $resolved['nested']);
 
         $filepath = $this->getFilePath();
         $original = self::keyToString($this->getRawOriginal($this->getKeyName()));
@@ -1100,7 +1122,9 @@ trait Paper
 
         if ($this->usesTimestamps()) {
             $updatedAt = $this->getUpdatedAtColumn();
-            $stored = $manifest->record($adapter, $driver, $path, $this->storedSlug(), $resolved['nested']);
+            $stored = $isCreating
+                ? null
+                : $manifest->record($adapter, $driver, $path, $this->storedSlug(), $resolved['nested']);
 
             if ($updatedAt !== null && ($stored === null || ! array_key_exists($updatedAt, $stored['data']))) {
                 unset($attributes[$updatedAt]);
@@ -1112,11 +1136,16 @@ trait Paper
 
         $adapter->ensureDirectoryExists(dirname($filepath));
 
-        // A changed slug moves the record, like Eloquent updating a row by its original key.
         $isRenaming = $original !== '' && $original !== $slug;
+        $conflicts = [];
 
-        // Checked with the write, so the slug cannot be taken under another extension in between.
-        $conflicts = self::siblingPaths($driver, $path, $slug, $filepath);
+        foreach ($driver->extensions() as $extension) {
+            $sibling = $path.'/'.$slug.'.'.$extension;
+
+            if ($sibling !== $filepath) {
+                $conflicts[] = $sibling;
+            }
+        }
 
         $result = match (true) {
             $isCreating => self::writer($adapter)->createIfMissing($filepath, $content, $conflicts),
@@ -1146,7 +1175,9 @@ trait Paper
         $this->exists = true;
         $this->paperVersion = $result->version;
 
-        $manifest->put($adapter, $driver, $path, $slug, $filepath, $driver->parse($content), $result->version, $resolved['nested']);
+        $written = $driver->parse($content);
+
+        $manifest->put($adapter, $driver, $path, $slug, $filepath, $written, $result->version, $resolved['nested']);
 
         if ($isRenaming) {
             $manifest->forget($adapter, $driver, $path, $original, $resolved['nested']);
@@ -1170,38 +1201,13 @@ trait Paper
         return true;
     }
 
-    /**
-     * The paths the same slug would take under the driver's other extensions.
-     *
-     * @return list<string>
-     */
-    private static function siblingPaths(DriverContract $driver, string $path, string $slug, string $filepath): array
-    {
-        $siblings = [];
-
-        foreach ($driver->extensions() as $extension) {
-            $candidate = $path.'/'.$slug.'.'.$extension;
-
-            if ($candidate !== $filepath) {
-                $siblings[] = $candidate;
-            }
-        }
-
-        return $siblings;
-    }
-
-    /**
-     * The token the record was loaded with, which the write is checked against.
-     */
-    private function writeVersion(): string
+    private function writeVersion(): ?string
     {
         if (self::concurrency() === ConcurrencyPolicy::Off) {
-            return '';
+            return null;
         }
 
-        return $this->paperVersion ?? throw StaleRecordException::unverifiable(
-            self::keyToString($this->getKey())
-        );
+        return $this->paperVersion ?? throw StaleRecordException::unverifiable($this->storedSlug());
     }
 
     private static function concurrency(): ConcurrencyPolicy
@@ -1211,17 +1217,11 @@ trait Paper
 
     private static function writer(StorageAdapterContract $adapter): ConditionalWriteContract
     {
-        $policy = self::concurrency();
-
-        if ($policy === ConcurrencyPolicy::Off) {
-            return new UncheckedWriter($adapter);
-        }
-
         if ($adapter instanceof ConditionalWriteContract) {
             return $adapter;
         }
 
-        if ($policy === ConcurrencyPolicy::Strict) {
+        if (self::concurrency() === ConcurrencyPolicy::Strict) {
             throw UnsupportedConcurrencyException::forAdapter($adapter::class);
         }
 
@@ -1262,6 +1262,7 @@ trait Paper
         $fresh = $this->fresh() ?? throw new ModelNotFoundException()->setModel(static::class, [$slug]);
         $this->setRawAttributes($fresh->getAttributes(), true);
         $this->paperVersion = $fresh->paperVersion;
+        $this->paperExtension = $fresh->paperExtension;
 
         $loaded = array_keys($this->relations);
 
@@ -1347,8 +1348,6 @@ trait Paper
         $adapter = $resolved['adapter'];
         $path = PaperQueryBuilder::contentPathFor(static::class);
 
-        // A record is deleted by the key it was loaded under, like Eloquent, so a slug changed
-        // in a listener or left dirty on the model cannot point the delete at another record.
         $slug = $this->storedSlug();
         $filepath = $this->filePathFor($slug);
 
@@ -1391,8 +1390,6 @@ trait Paper
     }
 
     /**
-     * The one Eloquent builder Paper still hands out: a factory reads the connection name off it.
-     *
      * @return Builder<static>
      */
     public function newQueryWithoutScopes(): Builder
@@ -1406,7 +1403,6 @@ trait Paper
      */
     public function __call($method, $parameters): mixed
     {
-        // Eloquent would forward this to a database builder, and a Paper record has no table.
         return static::query()->{$method}(...$parameters);
     }
 
@@ -1446,22 +1442,6 @@ trait Paper
     private static function keyToString(mixed $key): string
     {
         return is_scalar($key) ? (string) $key : '';
-    }
-
-    /**
-     * @return Closure|ScopeContract<static>
-     */
-    private static function resolveGlobalScope(mixed $scope): Closure|ScopeContract
-    {
-        if (is_string($scope) && is_subclass_of($scope, ScopeContract::class)) {
-            return new $scope;
-        }
-
-        if ($scope instanceof Closure || $scope instanceof ScopeContract) {
-            return $scope;
-        }
-
-        throw UnsupportedScopeException::forScope($scope);
     }
 
     /**

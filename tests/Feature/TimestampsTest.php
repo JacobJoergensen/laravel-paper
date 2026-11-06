@@ -72,7 +72,6 @@ it('orders an authored timestamp column by its frontmatter value, keeping ties i
     $dir = PaperQueryBuilder::contentPathFor(DatedPost::class);
     $adapter = PaperFake::fake(DatedPost::class);
 
-    // The mtimes run against the expected order, so sorting by mtime cannot pass by accident.
     $adapter->seed("$dir/hello-world.md", "---\ndate: 2024-01-15\n---\n", 1_700_000_300);
     $adapter->seed("$dir/draft-post.markdown", "---\ndate: 2024-01-20\n---\n", 1_700_000_200);
     $adapter->seed("$dir/second-post.md", "---\ndate: 2024-01-20\n---\n", 1_700_000_100);

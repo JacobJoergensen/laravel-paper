@@ -14,6 +14,8 @@ use Symfony\Component\Yaml\Yaml;
 
 final readonly class YamlDriver implements DriverContract
 {
+    private const string BYTE_ORDER_MARK = "\xEF\xBB\xBF";
+
     /**
      * @return list<string>
      */
@@ -37,6 +39,10 @@ final readonly class YamlDriver implements DriverContract
      */
     public function parse(string $contents): array
     {
+        $contents = str_starts_with($contents, self::BYTE_ORDER_MARK)
+            ? substr($contents, strlen(self::BYTE_ORDER_MARK))
+            : $contents;
+
         try {
             $data = Yaml::parse($contents, Yaml::PARSE_DATETIME);
         } catch (ParseException $e) {
@@ -53,10 +59,12 @@ final readonly class YamlDriver implements DriverContract
 
         array_walk_recursive($data, function (mixed &$value): void {
             if ($value instanceof DateTimeInterface) {
+                $seconds = $value->format('u') === '000000' ? 's' : 's.u';
+
                 $format = match (true) {
-                    $value->format('H:i:s') === '00:00:00' && $value->getOffset() === 0 => 'Y-m-d',
-                    $value->getOffset() === 0 => 'Y-m-d H:i:s',
-                    default => 'Y-m-d H:i:sP',
+                    $value->format('H:i:s.u') === '00:00:00.000000' && $value->getOffset() === 0 => 'Y-m-d',
+                    $value->getOffset() === 0 => "Y-m-d H:i:$seconds",
+                    default => "Y-m-d H:i:{$seconds}P",
                 };
 
                 $value = $value->format($format);
@@ -87,7 +95,6 @@ final readonly class YamlDriver implements DriverContract
             throw FileSerializeException::invalidYaml($e->getMessage());
         }
 
-        // Symfony omits the final newline when the last value is a stripped literal block.
         return str_ends_with($yaml, "\n") ? $yaml : $yaml."\n";
     }
 }

@@ -18,7 +18,9 @@ beforeEach(function (): void {
     $adapter->seed('blog/b.md', "---\ntitle: Second Post\n---\n", 2_000);
     $adapter->seed('blog/c.md', "---\nsummary: no title here\n---\n", 3_000);
 
-    $this->build = fn (): PaperQueryBuilder => new PaperQueryBuilder($adapter, new MarkdownDriver, $manifest, 'blog', RawModel::class);
+    $this->build = fn (): PaperQueryBuilder => new PaperQueryBuilder(
+        $adapter, new MarkdownDriver, $manifest, 'blog', RawModel::class,
+    );
 });
 
 it('excludes matches and missing fields with whereNotLike', function (): void {
@@ -32,10 +34,13 @@ it('filters with whereRegexp and whereNotRegexp', function (): void {
 });
 
 it('ors each like and regexp variant onto an existing filter', function (): void {
-    expect(($this->build)()->where('slug', 'c')->orWhereLike('title', '%Hello%')->get()->pluck('slug')->all())->toBe(['a', 'c'])
-        ->and(($this->build)()->where('slug', 'a')->orWhereNotLike('title', '%Hello%')->get()->pluck('slug')->all())->toBe(['a', 'b'])
-        ->and(($this->build)()->where('slug', 'c')->orWhereRegexp('title', '/^Second/')->get()->pluck('slug')->all())->toBe(['b', 'c'])
-        ->and(($this->build)()->where('slug', 'b')->orWhereNotRegexp('title', '/^Second/')->get()->pluck('slug')->all())->toBe(['a', 'b']);
+    $slugs = fn (PaperQueryBuilder $query): array => $query->get()->pluck('slug')->all();
+    $build = $this->build;
+
+    expect($slugs($build()->where('slug', 'c')->orWhereLike('title', '%Hello%')))->toBe(['a', 'c'])
+        ->and($slugs($build()->where('slug', 'a')->orWhereNotLike('title', '%Hello%')))->toBe(['a', 'b'])
+        ->and($slugs($build()->where('slug', 'c')->orWhereRegexp('title', '/^Second/')))->toBe(['b', 'c'])
+        ->and($slugs($build()->where('slug', 'b')->orWhereNotRegexp('title', '/^Second/')))->toBe(['a', 'b']);
 });
 
 it('throws on an invalid regex pattern at build time', function (): void {

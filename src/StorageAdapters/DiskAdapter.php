@@ -17,15 +17,15 @@ final readonly class DiskAdapter implements StorageAdapterContract
         private string $name,
     ) {}
 
-    /**
-     * Flysystem failures are swallowed throughout, because a disk configured with 'throw' => true
-     * would otherwise break the nullable and boolean returns this contract promises.
-     */
     public function read(string $path): ?string
     {
         try {
             $contents = $this->disk->get($path);
-        } catch (FilesystemException) {
+        } catch (FilesystemException $exception) {
+            if ($this->exists($path)) {
+                throw $exception;
+            }
+
             return null;
         }
 
@@ -52,11 +52,7 @@ final readonly class DiskAdapter implements StorageAdapterContract
 
     public function exists(string $path): bool
     {
-        try {
-            return $this->disk->exists($path);
-        } catch (FilesystemException) {
-            return false;
-        }
+        return $this->disk->exists($path);
     }
 
     public function lastModified(string $path): ?int
@@ -85,32 +81,28 @@ final readonly class DiskAdapter implements StorageAdapterContract
     public function listing(string $directory, array $extensions, bool $nested = false): array
     {
         $allowed = array_flip($extensions);
-        $matches = [];
+        $prefix = rtrim($directory, '/').'/';
+        $found = [];
 
         if ($this->disk instanceof FilesystemAdapter) {
             foreach ($this->disk->getDriver()->listContents($directory, $nested) as $attributes) {
-                if (! $attributes instanceof FileAttributes) {
-                    continue;
-                }
-
-                $path = $attributes->path();
-                $ext = pathinfo($path, PATHINFO_EXTENSION);
-
-                if (isset($allowed[$ext])) {
-                    $matches[$path] = $attributes->lastModified() ?? 0;
+                if ($attributes instanceof FileAttributes) {
+                    $found[$attributes->path()] = $attributes->lastModified();
                 }
             }
-
-            return $matches;
+        } else {
+            $files = $nested ? $this->disk->allFiles($directory) : $this->disk->files($directory);
+            $found = array_fill_keys($files, null);
         }
 
-        $files = $nested ? $this->disk->allFiles($directory) : $this->disk->files($directory);
+        $matches = [];
 
-        foreach ($files as $file) {
-            $ext = pathinfo($file, PATHINFO_EXTENSION);
+        foreach ($found as $path => $mtime) {
+            $relative = str_starts_with($path, $prefix) ? substr($path, strlen($prefix)) : $path;
+            $hidden = str_starts_with($relative, '.') || str_contains($relative, '/.');
 
-            if (isset($allowed[$ext])) {
-                $matches[$file] = $this->lastModified($file) ?? 0;
+            if (! $hidden && isset($allowed[pathinfo($path, PATHINFO_EXTENSION)])) {
+                $matches[$path] = $mtime ?? $this->lastModified($path) ?? 0;
             }
         }
 

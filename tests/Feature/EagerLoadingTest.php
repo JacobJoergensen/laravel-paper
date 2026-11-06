@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
+use JacobJoergensen\LaravelPaper\Testing\PaperFake;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Author;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\PostCollection;
@@ -126,20 +127,44 @@ it('eager loads children into the collection the related model declares', functi
 });
 
 it('applies a constraint given with the relation to a hasMany eager load', function (): void {
-    $authors = Author::with(['posts' => fn (PaperQueryBuilder $query): PaperQueryBuilder => $query->where('published', false)])->get();
+    $drafts = fn (PaperQueryBuilder $query): PaperQueryBuilder => $query->where('published', false);
+    $authors = Author::with(['posts' => $drafts])->get();
 
     expect($authors->firstWhere('slug', 'john-doe')->posts)->toHaveCount(0);
 });
 
 it('applies a constraint given with the relation to a belongsTo eager load', function (): void {
-    $posts = Post::with(['author' => fn (PaperQueryBuilder $query): PaperQueryBuilder => $query->where('name', 'Jane Doe')])->get();
+    $jane = fn (PaperQueryBuilder $query): PaperQueryBuilder => $query->where('name', 'Jane Doe');
+    $posts = Post::with(['author' => $jane])->get();
 
     expect($posts->firstWhere('slug', 'hello-world')->author)->toBeNull()
         ->and($posts->firstWhere('slug', 'hello-world')->relationLoaded('author'))->toBeTrue();
 });
 
+it('refuses an eager load constraint that limits the results, since it would span every parent', function (): void {
+    $limited = fn (PaperQueryBuilder $query): PaperQueryBuilder => $query->limit(1);
+
+    Author::with(['posts' => $limited])->get();
+})->throws(InvalidArgumentException::class, 'sets a limit or offset');
+
+it('applies an offset in an eager load constraint for a single model', function (): void {
+    PaperFake::fake(Author::class, ['jo' => ['name' => 'Jo']]);
+    PaperFake::fake(Post::class, [
+        'first' => ['title' => 'First', 'author_slug' => 'jo'],
+        'second' => ['title' => 'Second', 'author_slug' => 'jo'],
+    ]);
+
+    $author = Author::find('jo');
+    $skipped = fn (PaperQueryBuilder $query): PaperQueryBuilder => $query->orderBy('slug')->offset(1);
+
+    $author->load(['posts' => $skipped]);
+
+    expect($author->posts->pluck('slug')->all())->toBe(['second']);
+});
+
 it('applies a constraint passed as the second argument, like Eloquent', function (): void {
-    $authors = Author::with('posts', fn (PaperQueryBuilder $query): PaperQueryBuilder => $query->where('published', false))->get();
+    $drafts = fn (PaperQueryBuilder $query): PaperQueryBuilder => $query->where('published', false);
+    $authors = Author::with('posts', $drafts)->get();
 
     expect($authors->firstWhere('slug', 'john-doe')->posts)->toHaveCount(0);
 });

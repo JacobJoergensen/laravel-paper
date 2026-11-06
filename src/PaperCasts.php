@@ -23,7 +23,6 @@ final class PaperCasts
             if (is_string($value) && $model->hasCast($key, self::JSON_CASTS)) {
                 $decoded = json_decode($value, true);
 
-                // A value the cast cannot read is left alone, so saving never overwrites what it could not parse.
                 if (json_last_error() === JSON_ERROR_NONE) {
                     $attributes[$key] = $decoded;
                 }

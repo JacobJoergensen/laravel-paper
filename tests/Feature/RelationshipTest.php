@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use JacobJoergensen\LaravelPaper\Testing\PaperFake;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Author;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 
@@ -15,6 +16,13 @@ it('returns null for belongsTo when foreign key is null', function (): void {
     $author = $post->author()->getResults();
 
     expect($author)->toBeNull();
+});
+
+it('loads no parent for an empty foreign key, lazily or eagerly', function (): void {
+    PaperFake::fake(Post::class, ['orphan' => ['title' => 'Orphan', 'author_slug' => '']]);
+
+    expect(Post::find('orphan')->author)->toBeNull()
+        ->and(Post::with('author')->find('orphan')->author)->toBeNull();
 });
 
 it('queries a belongsTo relation, constrained to the record it points at', function (): void {

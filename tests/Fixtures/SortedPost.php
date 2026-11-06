@@ -15,6 +15,8 @@ final class SortedPost extends PaperModel
 {
     protected static function booted(): void
     {
-        self::addGlobalScope('sorted', fn (PaperQueryBuilder $query): PaperQueryBuilder => $query->orderByDesc('order'));
+        $sorted = fn (PaperQueryBuilder $query): PaperQueryBuilder => $query->orderByDesc('order');
+
+        self::addGlobalScope('sorted', $sorted);
     }
 }

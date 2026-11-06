@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use JacobJoergensen\LaravelPaper\PaperModel;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\BrokenModel;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\CountingAdapter;
@@ -84,10 +85,27 @@ it('reports a malformed file instead of failing with an unhandled exception', fu
         ->expectsOutputToContain('broken-yaml.md');
 });
 
-it('rejects the whole run when one argument is not a Paper model', function (): void {
-    $this->artisan('paper:warm', ['model' => [Post::class, stdClass::class]])
+it('rejects the whole run when one argument is not a Paper model', function (string $model): void {
+    $this->artisan('paper:warm', ['model' => [Post::class, $model]])
         ->assertExitCode(2)
         ->expectsOutputToContain('is not a Paper model');
+})->with([
+    'any other class' => stdClass::class,
+    'the abstract base class' => PaperModel::class,
+]);
+
+it('clears the manifest of the current request, not the one the console app was built in', function (): void {
+    $adapter = fakePostAdapter();
+
+    $this->artisan('paper:warm', ['model' => [Post::class]])->assertSuccessful();
+    $this->app->forgetScopedInstances();
+    Post::all();
+
+    $this->artisan('paper:clear', ['model' => [Post::class]])->assertSuccessful();
+    $adapter->reset();
+    Post::all();
+
+    expect($adapter->counts['read'])->toBeGreaterThan(0);
 });
 
 it('fails instead of silently passing when the app has no Paper models', function (): void {

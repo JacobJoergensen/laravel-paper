@@ -123,6 +123,12 @@ it('keeps the indentation of the first body line', function (): void {
     expect($data['content'])->toBe("    indented code\n    second line");
 });
 
+it('reads the frontmatter of a file saved with Windows line endings', function (): void {
+    $data = new MarkdownDriver()->parse("---\r\ntitle: Windows\r\n---\r\n\r\nBody\r\n");
+
+    expect($data)->toBe(['title' => 'Windows', 'content' => 'Body']);
+});
+
 it('reads the frontmatter of a file saved with a byte order mark', function (): void {
     $data = new MarkdownDriver()->parse("\xEF\xBB\xBF---\ntitle: Notepad\n---\n\nBody\n");
 

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace JacobJoergensen\LaravelPaper\Cache;
 
 use Closure;
-use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Contracts\Cache\LockProvider;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Contracts\Cache\Repository;
@@ -20,7 +19,7 @@ use JacobJoergensen\LaravelPaper\StorageAdapters\BestEffortWriter;
 /**
  * @internal
  *
- * @phpstan-type ManifestEntry array{mtime: int, ext: string, data: array<string, mixed>, version: string}
+ * @phpstan-type ManifestEntry array{mtime: int, parsed: int, ext: string, data: array<string, mixed>, version: string}
  * @phpstan-type ManifestRecord array{slug: string, mtime: int, ext: string, data: array<string, mixed>, version: string}
  * @phpstan-type ManifestFile array{path: string, mtime: int, ext: string}
  */
@@ -46,20 +45,26 @@ final class PaperManifest
     /**
      * @return array<string, ManifestEntry>
      */
-    public function records(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, bool $nested = false): array
-    {
+    public function records(
+        StorageAdapterContract $adapter,
+        DriverContract $driver,
+        string $contentPath,
+        bool $nested = false,
+    ): array {
         $trusted = $this->trusted($this->key($adapter, $driver, $contentPath, $nested));
 
         return $trusted ?? $this->reconcile($adapter, $driver, $contentPath, $nested);
     }
 
     /**
-     * Skips the trusted cache, so paper:warm reflects the disk even with the watcher off.
-     *
      * @return array<string, ManifestEntry>
      */
-    public function reconcile(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, bool $nested = false): array
-    {
+    public function reconcile(
+        StorageAdapterContract $adapter,
+        DriverContract $driver,
+        string $contentPath,
+        bool $nested = false,
+    ): array {
         $key = $this->key($adapter, $driver, $contentPath, $nested);
         $revision = $this->revision($key);
         $index = $this->files($adapter, $driver, $contentPath, $nested);
@@ -69,9 +74,22 @@ final class PaperManifest
             return $cached;
         }
 
-        $rebuilt = $this->locked($key, fn (): array => $this->build($adapter, $driver, $contentPath, $index, $key, $revision));
+        $rebuild = function () use ($adapter, $driver, $contentPath, $index, $key, $revision): array {
+            $shared = $this->shared($key);
 
-        // Another process is rebuilding: serve this request from disk and leave its manifest alone.
+            if ($shared !== null && $this->current($shared, $index)) {
+                return $shared;
+            }
+
+            $entries = $this->entries($adapter, $driver, $contentPath, $index, $shared ?? []);
+
+            $this->store($key, $entries, $revision);
+
+            return $entries;
+        };
+
+        $rebuilt = $this->locked($key, $rebuild);
+
         return $rebuilt ?? $this->entries($adapter, $driver, $contentPath, $index, $cached ?? []);
     }
 
@@ -84,26 +102,11 @@ final class PaperManifest
             return null;
         }
 
-        return $this->compiled($key) ?? $this->read($key);
-    }
-
-    /**
-     * Only read while opcache serves it, because compiling the file each time costs more than unserializing.
-     *
-     * @return array<string, ManifestEntry>|null
-     */
-    private function compiled(string $key): ?array
-    {
         $file = $this->compiledFile($key);
-
-        if ($file === null || ! $this->opcache || ! is_file($file)) {
-            return null;
-        }
-
-        $compiled = require $file;
+        $compiled = $file !== null && $this->opcache && is_file($file) ? require $file : null;
 
         if (! is_array($compiled)) {
-            return null;
+            return $this->read($key);
         }
 
         /** @var array<string, ManifestEntry> $compiled */
@@ -115,8 +118,12 @@ final class PaperManifest
     /**
      * @return array<string, ManifestEntry>
      */
-    public function compile(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, bool $nested = false): array
-    {
+    public function compile(
+        StorageAdapterContract $adapter,
+        DriverContract $driver,
+        string $contentPath,
+        bool $nested = false,
+    ): array {
         $entries = $this->reconcile($adapter, $driver, $contentPath, $nested);
         $file = $this->compiledFile($this->key($adapter, $driver, $contentPath, $nested));
 
@@ -135,9 +142,6 @@ final class PaperManifest
         return $entries;
     }
 
-    /**
-     * Only this server's file is removed, so other servers serve theirs until paper:warm --compile runs there.
-     */
     private function forgetCompiled(string $key): void
     {
         $file = $this->compiledFile($key);
@@ -146,7 +150,9 @@ final class PaperManifest
             return;
         }
 
-        @unlink($file);
+        if (! @unlink($file) && is_file($file)) {
+            report(ManifestCacheException::undeletable($file));
+        }
 
         if (function_exists('opcache_invalidate')) {
             opcache_invalidate($file, true);
@@ -176,8 +182,6 @@ final class PaperManifest
     }
 
     /**
-     * The mtime is compared exactly, not with >=, so a file restored to an older mtime still reparses.
-     *
      * @param  ManifestEntry|null  $existing
      * @param  array{mtime: int, ext: string}  $info
      *
@@ -185,12 +189,10 @@ final class PaperManifest
      */
     private function fresh(?array $existing, array $info): bool
     {
-        // A second write within the same second keeps this mtime, so it would never be seen.
-        if ($existing === null || $info['mtime'] >= time()) {
-            return false;
-        }
-
-        return $existing['mtime'] === $info['mtime'] && $existing['ext'] === $info['ext'];
+        return $existing !== null
+            && $existing['parsed'] > $existing['mtime']
+            && $existing['mtime'] === $info['mtime']
+            && $existing['ext'] === $info['ext'];
     }
 
     /**
@@ -201,11 +203,13 @@ final class PaperManifest
      */
     private function locked(string $key, Closure $work): mixed
     {
-        $lock = $this->lock($key);
+        $store = $this->cache->getStore();
 
-        if ($lock === null) {
+        if (! $store instanceof LockProvider) {
             return $work();
         }
+
+        $lock = $store->lock($key.':lock', $this->lockTtl);
 
         try {
             $lock->block($this->lockWait);
@@ -221,56 +225,45 @@ final class PaperManifest
     }
 
     /**
-     * Reads the cache again inside the lock, because another process may have rebuilt it meanwhile.
-     *
-     * @param  array<string, ManifestFile>  $index
-     * @return array<string, ManifestEntry>
-     */
-    private function build(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, array $index, string $key, ?string $revision): array
-    {
-        $cached = $this->shared($key);
-
-        if ($cached !== null && $this->current($cached, $index)) {
-            return $cached;
-        }
-
-        $entries = $this->entries($adapter, $driver, $contentPath, $index, $cached ?? []);
-
-        $this->store($key, $entries, $revision);
-
-        return $entries;
-    }
-
-    /**
-     * An entry the listing missed is kept when its file is still there.
-     *
      * @param  array<string, ManifestFile>  $index
      * @param  array<string, ManifestEntry>  $cached
      * @return array<string, ManifestEntry>
      */
-    private function entries(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, array $index, array $cached): array
-    {
+    private function entries(
+        StorageAdapterContract $adapter,
+        DriverContract $driver,
+        string $contentPath,
+        array $index,
+        array $cached,
+    ): array {
         $entries = [];
 
         foreach ($index as $slug => $info) {
-            $entries[$slug] = $this->entryFor($adapter, $driver, $cached[$slug] ?? null, $info);
+            $entry = $this->entryFor($adapter, $driver, $cached[$slug] ?? null, $info);
+
+            if ($entry !== null) {
+                $entries[$slug] = $entry;
+            }
         }
 
-        foreach ($cached as $slug => $entry) {
+        foreach ($cached as $slug => $cachedEntry) {
             if (isset($entries[$slug])) {
                 continue;
             }
 
-            $path = $contentPath.'/'.$slug.'.'.$entry['ext'];
+            $path = $contentPath.'/'.$slug.'.'.$cachedEntry['ext'];
             $mtime = $adapter->lastModified($path);
 
             if ($mtime === null) {
                 continue;
             }
 
-            $info = ['path' => $path, 'mtime' => $mtime, 'ext' => $entry['ext']];
+            $info = ['path' => $path, 'mtime' => $mtime, 'ext' => $cachedEntry['ext']];
+            $entry = $this->entryFor($adapter, $driver, $cachedEntry, $info);
 
-            $entries[$slug] = $this->entryFor($adapter, $driver, $entry, $info);
+            if ($entry !== null) {
+                $entries[$slug] = $entry;
+            }
         }
 
         ksort($entries, SORT_STRING);
@@ -281,18 +274,26 @@ final class PaperManifest
     /**
      * @param  ManifestEntry|null  $existing
      * @param  ManifestFile  $info
-     * @return ManifestEntry
+     * @return ManifestEntry|null
      */
-    private function entryFor(StorageAdapterContract $adapter, DriverContract $driver, ?array $existing, array $info): array
-    {
+    private function entryFor(
+        StorageAdapterContract $adapter,
+        DriverContract $driver,
+        ?array $existing,
+        array $info,
+    ): ?array {
         if ($this->fresh($existing, $info)) {
             return $existing;
         }
 
         $read = BestEffortWriter::of($adapter)->readVersioned($info['path']);
 
-        if ($read === null) {
+        if ($read === null && $adapter->exists($info['path'])) {
             throw FileParseException::unreadable($info['path']);
+        }
+
+        if ($read === null) {
+            return null;
         }
 
         $data = $this->parse($driver, $info['path'], $read['contents']);
@@ -315,8 +316,13 @@ final class PaperManifest
     /**
      * @return ManifestRecord|null
      */
-    public function record(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, string $slug, bool $nested = false): ?array
-    {
+    public function record(
+        StorageAdapterContract $adapter,
+        DriverContract $driver,
+        string $contentPath,
+        string $slug,
+        bool $nested = false,
+    ): ?array {
         return $this->recordsFor($adapter, $driver, $contentPath, [$slug], $nested)[$slug] ?? null;
     }
 
@@ -324,8 +330,13 @@ final class PaperManifest
      * @param  list<string>  $slugs
      * @return array<string, ManifestRecord>
      */
-    public function recordsFor(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, array $slugs, bool $nested = false): array
-    {
+    public function recordsFor(
+        StorageAdapterContract $adapter,
+        DriverContract $driver,
+        string $contentPath,
+        array $slugs,
+        bool $nested = false,
+    ): array {
         $found = [];
 
         if (! $this->watch) {
@@ -356,7 +367,13 @@ final class PaperManifest
             $existing = $cached[$slug] ?? null;
 
             if (! $this->fresh($existing, $info)) {
-                $existing = $parsed[$slug] = $this->entryFor($adapter, $driver, $existing, $info);
+                $existing = $this->entryFor($adapter, $driver, $existing, $info);
+
+                if ($existing === null) {
+                    continue;
+                }
+
+                $parsed[$slug] = $existing;
             }
 
             $found[$slug] = ['slug' => $slug, ...$existing];
@@ -366,7 +383,6 @@ final class PaperManifest
             return $found;
         }
 
-        // The lock protects caching the entries, not the records, so a timeout only costs the next reader a parse.
         $this->locked($key, function () use ($key, $parsed, $revision): void {
             $entries = array_replace($this->shared($key) ?? [], $parsed);
 
@@ -378,9 +394,6 @@ final class PaperManifest
         return $found;
     }
 
-    /**
-     * Read straight from the file, because the manifest carries frontmatter only.
-     */
     public function body(StorageAdapterContract $adapter, DriverContract $driver, string $path): mixed
     {
         $column = $driver->bodyColumn();
@@ -403,33 +416,40 @@ final class PaperManifest
     /**
      * @return list<string>
      */
-    public function slugs(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, bool $nested = false): array
-    {
+    public function slugs(
+        StorageAdapterContract $adapter,
+        DriverContract $driver,
+        string $contentPath,
+        bool $nested = false,
+    ): array {
         $key = $this->key($adapter, $driver, $contentPath, $nested);
+        $entries = $this->trusted($key) ?? $this->files($adapter, $driver, $contentPath, $nested);
 
-        $trusted = $this->trusted($key);
-
-        if ($trusted !== null) {
-            return array_map(strval(...), array_keys($trusted));
-        }
-
-        $index = $this->files($adapter, $driver, $contentPath, $nested);
-
-        return array_map(strval(...), array_keys($index));
+        return array_map(strval(...), array_keys($entries));
     }
 
     /**
      * @param  array<string, mixed>  $data
      */
-    public function put(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, string $slug, string $path, array $data, string $version, bool $nested = false): void
-    {
+    public function put(
+        StorageAdapterContract $adapter,
+        DriverContract $driver,
+        string $contentPath,
+        string $slug,
+        string $path,
+        array $data,
+        string $version,
+        bool $nested = false,
+    ): void {
         $info = [
             'path' => $path,
             'mtime' => $adapter->lastModified($path) ?? 0,
             'ext' => pathinfo($path, PATHINFO_EXTENSION),
         ];
 
-        $this->mutate($this->key($adapter, $driver, $contentPath, $nested), function (array $entries) use ($driver, $slug, $info, $data, $version): array {
+        $key = $this->key($adapter, $driver, $contentPath, $nested);
+
+        $this->mutate($key, function (array $entries) use ($driver, $slug, $info, $data, $version): array {
             $entries[$slug] = $this->entry($driver, $info, $data, $version);
 
             ksort($entries, SORT_STRING);
@@ -451,27 +471,41 @@ final class PaperManifest
             unset($data[$column]);
         }
 
-        return ['mtime' => $info['mtime'], 'ext' => $info['ext'], 'data' => $data, 'version' => $version];
+        return [
+            'mtime' => $info['mtime'],
+            'parsed' => now()->getTimestamp(),
+            'ext' => $info['ext'],
+            'data' => $data,
+            'version' => $version,
+        ];
     }
 
-    public function forget(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, string $slug, bool $nested = false): void
-    {
-        $this->mutate($this->key($adapter, $driver, $contentPath, $nested), function (array $entries) use ($slug): array {
+    public function forget(
+        StorageAdapterContract $adapter,
+        DriverContract $driver,
+        string $contentPath,
+        string $slug,
+        bool $nested = false,
+    ): void {
+        $key = $this->key($adapter, $driver, $contentPath, $nested);
+
+        $this->mutate($key, function (array $entries) use ($slug): array {
             unset($entries[$slug]);
 
             return $entries;
         });
     }
 
-    public function flush(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, bool $nested = false): void
-    {
+    public function flush(
+        StorageAdapterContract $adapter,
+        DriverContract $driver,
+        string $contentPath,
+        bool $nested = false,
+    ): void {
         $this->invalidate($this->key($adapter, $driver, $contentPath, $nested));
     }
 
     /**
-     * A manifest that could not be locked is dropped instead of merged into, because an unlocked
-     * read-modify-write would bury what another process wrote.
-     *
      * @param  Closure(array<string, ManifestEntry>): array<string, ManifestEntry>  $change
      */
     private function mutate(string $key, Closure $change): void
@@ -498,9 +532,6 @@ final class PaperManifest
         }
     }
 
-    /**
-     * The revision moves first, so a rebuild under way cannot pass its check and bury this invalidation.
-     */
     private function invalidate(string $key): void
     {
         $this->forgetCompiled($key);
@@ -527,13 +558,19 @@ final class PaperManifest
     /**
      * @return array<string, ManifestFile>
      */
-    public function files(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, bool $nested = false): array
-    {
+    public function files(
+        StorageAdapterContract $adapter,
+        DriverContract $driver,
+        string $contentPath,
+        bool $nested = false,
+    ): array {
         $priority = array_flip($driver->extensions());
+        $root = rtrim(str_replace('\\', '/', $contentPath), '/').'/';
         $byslug = [];
 
         foreach ($adapter->listing($contentPath, $driver->extensions(), $nested) as $path => $mtime) {
-            $relative = $this->relativePath($path, $contentPath);
+            $normalized = str_replace('\\', '/', $path);
+            $relative = str_starts_with($normalized, $root) ? substr($normalized, strlen($root)) : $normalized;
             $extension = pathinfo($relative, PATHINFO_EXTENSION);
             $slug = substr($relative, 0, -(strlen($extension) + 1));
             $rank = $priority[$extension] ?? PHP_INT_MAX;
@@ -547,18 +584,11 @@ final class PaperManifest
 
         ksort($byslug, SORT_STRING);
 
-        return array_map(
-            static fn (array $info): array => ['path' => $info['path'], 'mtime' => $info['mtime'], 'ext' => $info['ext']],
-            $byslug,
-        );
-    }
-
-    private function relativePath(string $path, string $contentPath): string
-    {
-        $normalized = str_replace('\\', '/', $path);
-        $root = rtrim(str_replace('\\', '/', $contentPath), '/').'/';
-
-        return str_starts_with($normalized, $root) ? substr($normalized, strlen($root)) : $normalized;
+        return array_map(static fn (array $info): array => [
+            'path' => $info['path'],
+            'mtime' => $info['mtime'],
+            'ext' => $info['ext'],
+        ], $byslug);
     }
 
     /**
@@ -570,8 +600,6 @@ final class PaperManifest
     }
 
     /**
-     * Reads past the memo, so a rebuild sees what other processes stored.
-     *
      * @return array<string, ManifestEntry>|null
      */
     private function shared(string $key): ?array
@@ -591,8 +619,6 @@ final class PaperManifest
     }
 
     /**
-     * The revision is checked on both sides of the write, because the cache has no compare-and-set.
-     *
      * @param  array<string, ManifestEntry>  $entries
      */
     private function store(string $key, array $entries, ?string $revision): void
@@ -614,21 +640,20 @@ final class PaperManifest
         }
     }
 
-    private function key(StorageAdapterContract $adapter, DriverContract $driver, string $contentPath, bool $nested): string
-    {
-        $scope = $this->version.':'.$adapter->cacheKey($contentPath).':'.$driver::class.':'.($nested ? 'nested' : 'flat');
+    private function key(
+        StorageAdapterContract $adapter,
+        DriverContract $driver,
+        string $contentPath,
+        bool $nested,
+    ): string {
+        $scope = implode(':', [
+            $this->version,
+            $adapter->cacheKey($contentPath),
+            $driver::class,
+            $nested ? 'nested' : 'flat',
+            $this->watch ? 'watched' : 'trusted',
+        ]);
 
         return self::PREFIX.md5($scope);
-    }
-
-    private function lock(string $key): ?Lock
-    {
-        $store = $this->cache->getStore();
-
-        if (! $store instanceof LockProvider) {
-            return null;
-        }
-
-        return $store->lock($key.':lock', $this->lockTtl);
     }
 }

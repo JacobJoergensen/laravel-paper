@@ -42,7 +42,13 @@ final class PaperUniqueRule implements ValidationRule
      */
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
+        if ($value === null) {
+            return;
+        }
+
         if (! is_scalar($value)) {
+            $fail('validation.unique')->translate();
+
             return;
         }
 

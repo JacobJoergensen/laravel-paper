@@ -123,7 +123,6 @@ function hotStats(string $shape): array
 {
     flushStore();
 
-    // The first process builds and persists the manifest, the measured ones only read it.
     sample($shape, 'hot');
 
     $samples = [];
@@ -139,7 +138,6 @@ function flushStore(): void
 {
     $data = dirname(__DIR__).'/storage/framework/cache/data';
 
-    // Drops the shard directories too, like cache:clear, so a cold run pays for recreating them.
     foreach (['/*/*/*', '/*/*', '/*'] as $depth) {
         foreach (glob($data.$depth) ?: [] as $entry) {
             is_dir($entry) ? rmdir($entry) : unlink($entry);
@@ -171,8 +169,6 @@ function sample(string $shape, string $mode): array
  */
 function run(string $arguments): array
 {
-    // A shared opcache file cache keeps bytecode warm across the fresh cold processes,
-    // so cold runs measure an empty application cache, not PHP recompiling Laravel each time.
     $flags = '-d opcache.enable_cli=1 -d '.escapeshellarg('opcache.file_cache='.__DIR__.'/.opcache');
 
     $output = [];
@@ -300,6 +296,7 @@ function machineBlock(int $seed, array $counts): string
 {
     $jitSetting = (string) ini_get('opcache.jit');
     $jit = $jitSetting === '' || $jitSetting === '0' || $jitSetting === 'disable' ? 'off' : 'on';
+    $fileCounts = implode(' / ', array_map(static fn (int $c): string => number_format($c), $counts));
 
     $lines = [
         '- PHP '.PHP_VERSION." (opcache: on via shared file cache, jit: $jit)",
@@ -308,7 +305,7 @@ function machineBlock(int $seed, array $counts): string
         '- Storage '.(getenv('BENCH_STORAGE') ?: 'unspecified'),
         '- RAM '.(getenv('BENCH_RAM') ?: 'unspecified'),
         '- Fixture seed '.$seed.', cold samples '.COLD_SAMPLES.', warm samples '.WARM_SAMPLES,
-        '- File counts '.implode(' / ', array_map(static fn (int $c): string => number_format($c), $counts)).' (+ 10,000 cold and hot)',
+        '- File counts '.$fileCounts.' (+ 10,000 cold and hot)',
     ];
 
     return implode("\n", $lines)."\n";

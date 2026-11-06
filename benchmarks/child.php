@@ -33,11 +33,8 @@ $run = match ($shape) {
 
 BenchmarkPost::query();
 
-// A real request boots Carbon early; without this the file store's expiry check pays for it inside the timer.
 Carbon::now();
 
-// Cold and hot are both single-shot; they differ only in whether the caller left a
-// manifest behind in a store that outlives the process.
 if ($mode !== 'warm') {
     $start = hrtime(true);
     $run();

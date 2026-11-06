@@ -29,7 +29,10 @@ mt_srand($seed);
 
 /** @var list<string> $words */
 $words = explode(' ', 'lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua enim ad minim veniam quis nostrud exercitation ullamco laboris');
-$tags = ['laravel', 'php', 'markdown', 'content', 'flat-file', 'eloquent', 'testing', 'design', 'performance', 'release'];
+$tags = [
+    'laravel', 'php', 'markdown', 'content', 'flat-file',
+    'eloquent', 'testing', 'design', 'performance', 'release',
+];
 $authors = ['jane-doe', 'john-smith', 'alex-lee', 'sam-ray'];
 $ratings = ['low', 'medium', 'high'];
 $modifiedAt = time() - 60;
@@ -63,7 +66,6 @@ for ($i = 1; $i <= $count; $i++) {
 
     file_put_contents($path, implode("\n", $lines)."\n");
 
-    // Paper does not cache a file modified in the current second, so a fresh fixture would skip the store.
     touch($path, $modifiedAt);
 }
 

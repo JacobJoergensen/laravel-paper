@@ -38,8 +38,6 @@ class PaperCollection extends Collection
     }
 
     /**
-     * Paper has no nested relations, so there is no dot path to walk like Eloquent does.
-     *
      * @param  array<int|string, string|Closure>|string  $relations
      */
     public function loadMissing(mixed $relations, string ...$more): static
@@ -100,19 +98,28 @@ class PaperCollection extends Collection
 
         $names = is_string($with) ? [$with, ...$more] : $with;
         $keyName = $first->getKeyName();
+        $storedKeys = [];
+
+        foreach ($this as $model) {
+            $key = $model->getRawOriginal($keyName) ?? $model->getAttribute($keyName);
+
+            if ($model->exists && (is_string($key) || is_int($key))) {
+                $storedKeys[] = $key;
+            }
+        }
 
         $refreshed = PaperQueryBuilder::forModel($first::class)
+            ->withoutGlobalScopes()
             ->with($names)
-            ->whereIn($keyName, $this->modelKeys())
+            ->whereIn($keyName, $storedKeys)
             ->get()
             ->keyBy($keyName);
 
         /** @var list<TModel> $surviving */
         $surviving = [];
 
-        foreach ($this as $model) {
-            $key = $model->getAttribute($keyName);
-            $fresh = is_string($key) || is_int($key) ? $refreshed->get($key) : null;
+        foreach ($storedKeys as $key) {
+            $fresh = $refreshed->get($key);
 
             if ($fresh !== null) {
                 $surviving[] = $fresh;

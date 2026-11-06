@@ -6,7 +6,9 @@ namespace JacobJoergensen\LaravelPaper\Console;
 
 use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'paper:warm')]
 final class WarmCommand extends PaperCommand
 {
     protected $signature = 'paper:warm
@@ -15,19 +17,15 @@ final class WarmCommand extends PaperCommand
 
     protected $description = 'Build the manifest ahead of the first request';
 
-    public function __construct(private readonly PaperManifest $manifest)
-    {
-        parent::__construct();
-    }
-
     protected function runFor(string $model): void
     {
         $resolved = PaperQueryBuilder::resolveFor($model);
         $path = PaperQueryBuilder::contentPathFor($model);
+        $manifest = app(PaperManifest::class);
 
         $records = $this->option('compile') === true
-            ? $this->manifest->compile($resolved['adapter'], $resolved['driver'], $path, $resolved['nested'])
-            : $this->manifest->reconcile($resolved['adapter'], $resolved['driver'], $path, $resolved['nested']);
+            ? $manifest->compile($resolved['adapter'], $resolved['driver'], $path, $resolved['nested'])
+            : $manifest->reconcile($resolved['adapter'], $resolved['driver'], $path, $resolved['nested']);
 
         $this->info(sprintf('%s: warmed %d records.', $model, count($records)));
     }

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\File;
+use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Doc;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\FlatDoc;
 
@@ -41,6 +42,24 @@ it('creates the directory when saving a record to a new subdirectory', function 
         ->and(File::exists(__DIR__.'/../content/docs/__nested_test__/deep/page.md'))->toBeTrue()
         ->and(Doc::find('__nested_test__/deep/page')?->title)->toBe('Deep');
 });
+
+it('rejects a slug Windows cannot store when saving', function (string $slug): void {
+    Doc::create(['slug' => "__nested_test__/$slug", 'title' => 'Nope']);
+})->throws(InvalidSlugException::class, 'not a valid filename on Windows')->with([
+    'illegal character' => 'a:b',
+    'reserved name' => 'con',
+    'reserved name with extension' => 'nul.backup',
+    'reserved superscript name' => 'lpt¹',
+    'reserved directory' => 'com1/intro',
+    'directory ending with a dot' => 'guides./intro',
+    'directory ending with a space' => 'guides /intro',
+])->onlyOnWindows();
+
+it('saves a slug that only starts with a reserved Windows name', function (): void {
+    $doc = Doc::create(['slug' => '__nested_test__/console/com10', 'title' => 'Allowed']);
+
+    expect($doc->exists)->toBeTrue();
+})->onlyOnWindows();
 
 it('deletes a record from a subdirectory', function (): void {
     $doc = Doc::create([

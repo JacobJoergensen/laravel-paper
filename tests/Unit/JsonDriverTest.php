@@ -46,6 +46,18 @@ it('serializes without the slug and without escaping unicode or slashes', functi
         ->and($json)->toContain('/downloads/press');
 });
 
+it('writes a record without fields as an object', function (): void {
+    expect(new JsonDriver()->serialize(['slug' => 'empty']))->toBe("{}\n");
+});
+
+it('reads a file saved with a byte order mark', function (): void {
+    expect(new JsonDriver()->parse("\xEF\xBB\xBF{\"title\": \"Notepad\"}"))->toBe(['title' => 'Notepad']);
+});
+
+it('treats an empty file as a record with no fields', function (): void {
+    expect(new JsonDriver()->parse(''))->toBe([]);
+});
+
 it('throws exception for invalid json', function (): void {
     $driver = new JsonDriver;
     $driver->parse('{ invalid json }');

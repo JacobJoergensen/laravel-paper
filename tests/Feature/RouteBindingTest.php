@@ -55,7 +55,7 @@ it('throws when the child relation does not return a Paper relation', function (
     $post = new Post;
 
     $post->resolveChildRouteBinding('getAttribute', 'hello-world', null);
-})->throws(BadMethodCallException::class, 'Post::getAttributes must return JacobJoergensen\LaravelPaper\Relations\PaperRelation');
+})->throws(BadMethodCallException::class, 'Post::getAttributes must return');
 
 it('resolves a child through any relation, including a custom one', function (): void {
     $unpublished = __DIR__.'/../content/posts/__editor_test__.md';

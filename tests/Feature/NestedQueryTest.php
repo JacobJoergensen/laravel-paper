@@ -18,8 +18,12 @@ beforeEach(function (): void {
     $adapter->seed('blog/alpha.md', "---\nseo:\n  title: Alpha\n  meta:\n    robots: index\n---\n", 1_000);
     $adapter->seed('blog/beta.md', "---\nseo:\n  title: Beta\n  meta:\n    robots: noindex\n---\n", 2_000);
 
-    $this->raw = fn (): PaperQueryBuilder => new PaperQueryBuilder($adapter, new MarkdownDriver, $manifest, 'blog', RawModel::class);
-    $this->cast = fn (): PaperQueryBuilder => new PaperQueryBuilder($adapter, new MarkdownDriver, $manifest, 'blog', NestedModel::class);
+    $this->raw = fn (): PaperQueryBuilder => new PaperQueryBuilder(
+        $adapter, new MarkdownDriver, $manifest, 'blog', RawModel::class,
+    );
+    $this->cast = fn (): PaperQueryBuilder => new PaperQueryBuilder(
+        $adapter, new MarkdownDriver, $manifest, 'blog', NestedModel::class,
+    );
 });
 
 it('queries into nested frontmatter with dot-notation', function (): void {
@@ -35,9 +39,12 @@ it('prefers a literal flat key over a nested lookup', function (): void {
     $adapter = new CountingAdapter;
     $adapter->seed('flat/doc.md', "---\n'seo.title': Flat\n---\n", 1_000);
 
-    $query = new PaperQueryBuilder($adapter, new MarkdownDriver, $manifest, 'flat', RawModel::class);
+    $query = fn (): PaperQueryBuilder => new PaperQueryBuilder(
+        $adapter, new MarkdownDriver, $manifest, 'flat', RawModel::class,
+    );
 
-    expect($query->where('seo.title', 'Flat')->get()->pluck('slug')->all())->toBe(['doc']);
+    expect($query()->where('seo.title', 'Flat')->get()->pluck('slug')->all())->toBe(['doc'])
+        ->and($query()->pluck('seo.title')->all())->toBe(['Flat']);
 });
 
 it('filters a dotted flat key on its cast value', function (): void {

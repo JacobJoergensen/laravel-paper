@@ -2,8 +2,11 @@
 
 declare(strict_types=1);
 
+use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Storage;
 use JacobJoergensen\LaravelPaper\StorageAdapters\DiskAdapter;
+use League\Flysystem\UnableToCheckExistence;
+use League\Flysystem\UnableToReadFile;
 
 beforeEach(function (): void {
     Storage::fake('paper');
@@ -19,6 +22,18 @@ it('still returns null rather than throwing on a disk configured to throw', func
     $adapter = new DiskAdapter(Storage::disk('strict'), 'strict');
 
     expect($adapter->read('missing.md'))->toBeNull();
+});
+
+it('reports a failed storage check instead of reading it as a missing file', function (): void {
+    $disk = Mockery::mock(Filesystem::class);
+    $disk->allows('exists')->with('unreachable.md')->andThrow(UnableToCheckExistence::forLocation('unreachable.md'));
+    $disk->allows('exists')->with('unreadable.md')->andReturn(true);
+    $disk->allows('get')->with('unreadable.md')->andThrow(UnableToReadFile::fromLocation('unreadable.md'));
+
+    $adapter = new DiskAdapter($disk, 'flaky');
+
+    expect(fn (): bool => $adapter->exists('unreachable.md'))->toThrow(UnableToCheckExistence::class)
+        ->and(fn (): ?string => $adapter->read('unreadable.md'))->toThrow(UnableToReadFile::class);
 });
 
 it('round-trips contents through write and read', function (): void {
@@ -37,6 +52,14 @@ it('lists matching files with their modification times', function (): void {
 
     expect($paths)->toBe(['articles/one.md', 'articles/two.markdown'])
         ->and($listing)->each->toBeGreaterThan(0);
+});
+
+it('leaves hidden files and folders out of the listing, like local storage', function (): void {
+    Storage::disk('paper')->put('articles/one.md', '');
+    Storage::disk('paper')->put('articles/.draft.md', '');
+    Storage::disk('paper')->put('articles/.obsidian/notes.md', '');
+
+    expect(array_keys($this->adapter->listing('articles', ['md'], nested: true)))->toBe(['articles/one.md']);
 });
 
 it('returns an empty list for a missing directory instead of throwing', function (): void {

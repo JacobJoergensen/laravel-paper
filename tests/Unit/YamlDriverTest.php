@@ -56,13 +56,23 @@ it('serializes multi-line strings as literal blocks and drops the slug', functio
 it('reads an unquoted date as the date it states and writes it back as that date', function (): void {
     $driver = new YamlDriver;
 
-    $data = $driver->parse("day: 2024-01-15\nmoment: 2024-01-15 10:30:00\nzoned: 2024-01-15T10:30:00+02:00\n");
+    $data = $driver->parse(implode("\n", [
+        'day: 2024-01-15',
+        'moment: 2024-01-15 10:30:00',
+        'precise: 2024-01-15 10:30:00.25',
+        'zoned: 2024-01-15T10:30:00+02:00',
+    ]));
 
     expect($data)->toBe([
         'day' => '2024-01-15',
         'moment' => '2024-01-15 10:30:00',
+        'precise' => '2024-01-15 10:30:00.250000',
         'zoned' => '2024-01-15 10:30:00+02:00',
     ])->and($driver->parse($driver->serialize($data)))->toBe($data);
+});
+
+it('reads a file saved with a byte order mark', function (): void {
+    expect(new YamlDriver()->parse("\xEF\xBB\xBFtitle: Notepad\n"))->toBe(['title' => 'Notepad']);
 });
 
 it('writes an empty list as a list', function (): void {
