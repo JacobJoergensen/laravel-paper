@@ -13,7 +13,7 @@ beforeEach(function (): void {
 });
 
 afterEach(function (): void {
-    File::deleteDirectory(__DIR__.'/../content/docs/__nested_test__');
+    File::deleteDirectory(base_path('tests/content/docs/__nested_test__'));
 });
 
 it('resolves a record from a multi-segment slug', function (): void {
@@ -39,7 +39,7 @@ it('creates the directory when saving a record to a new subdirectory', function 
     ]);
 
     expect($doc->exists)->toBeTrue()
-        ->and(File::exists(__DIR__.'/../content/docs/__nested_test__/deep/page.md'))->toBeTrue()
+        ->and(File::exists(base_path('tests/content/docs/__nested_test__/deep/page.md')))->toBeTrue()
         ->and(Doc::find('__nested_test__/deep/page')?->title)->toBe('Deep');
 });
 
@@ -55,11 +55,15 @@ it('rejects a slug Windows cannot store when saving', function (string $slug): v
     'directory ending with a space' => 'guides /intro',
 ])->onlyOnWindows();
 
-it('saves a slug that only starts with a reserved Windows name', function (): void {
-    $doc = Doc::create(['slug' => '__nested_test__/console/com10', 'title' => 'Allowed']);
+it('saves a slug that looks like a reserved Windows name but is not one', function (string $slug): void {
+    $doc = Doc::create(['slug' => "__nested_test__/$slug", 'title' => 'Allowed']);
 
     expect($doc->exists)->toBeTrue();
-})->onlyOnWindows();
+})->with([
+    'reserved name as a prefix' => 'console/com10',
+    'serial port zero' => 'com0',
+    'printer port zero' => 'lpt0',
+])->onlyOnWindows();
 
 it('deletes a record from a subdirectory', function (): void {
     $doc = Doc::create([

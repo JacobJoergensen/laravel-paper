@@ -1,12 +1,14 @@
 # Changelog
 
 ## Unreleased
-* Added `config/paper.php` to give the manifest its own cache store that survives `cache:clear`
+* Added `increment`, `decrement`, `incrementEach` and `decrementEach` on models and queries, with `*Quietly` variants on models
+* Added `config/paper.php` to let the manifest use a dedicated cache store that survives `cache:clear`
 * Added `paper.watch` to skip the directory scan on each request; on locally and off in production by default
 * Added `has`, `whereHas`, `whereRelation` and their `doesntHave` and `or` variants, with counts like `has('posts', '>=', 3)`
 * Added a `PaperModel` interface and base class; a relation to a non-Paper model now fails early
 * Added `PaperRelation` with `BelongsToPaper` and `HasManyPaper`; `query()` filters the records a relation covers
-* Added eager loading with `with`, `load` and `loadMissing`, and lazy loading on property access like `$post->author`
+* Added `belongsToManyPaper` and `hasManyPaperByList` for many-to-many relations stored as a list of slugs
+* Added eager loading with `with`, `load` and `loadMissing`, including nested relations like `author.posts`, and lazy loading on property access like `$post->author`
 * Added `PaperCollection` as the default collection with `load`, `loadMissing` and `fresh`; a `#[CollectedBy]` class must extend it
 * Added a batch size to `lazy` for grouping eager loads
 * Added `paperRelations` to list the relations a model declares

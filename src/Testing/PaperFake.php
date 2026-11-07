@@ -19,9 +19,8 @@ final class PaperFake
      */
     public static function fake(string $modelClass, array $content = []): FakeAdapter
     {
-        $resolved = PaperQueryBuilder::resolveFor($modelClass);
-        $driver = $resolved['driver'];
-        $contentPath = PaperQueryBuilder::contentPathFor($modelClass);
+        $source = PaperQueryBuilder::sourceFor($modelClass);
+        $driver = $source->driver;
         $extension = $driver->extensions()[0];
 
         $adapter = new FakeAdapter;
@@ -30,13 +29,13 @@ final class PaperFake
         foreach ($content as $slug => $attributes) {
             $slug = (string) $slug;
 
-            PaperQueryBuilder::guardWritableSlug($slug, $resolved['nested']);
+            PaperQueryBuilder::guardWritableSlug($slug, $source->nested);
 
             $model = new $modelClass;
             $model->forceFill($attributes);
 
             $stored = PaperCasts::toStorage($model, $model->getAttributes());
-            $path = $contentPath.'/'.$slug.'.'.$extension;
+            $path = $source->path.'/'.$slug.'.'.$extension;
 
             $adapter->seed($path, $driver->serialize($stored), $mtime++);
         }

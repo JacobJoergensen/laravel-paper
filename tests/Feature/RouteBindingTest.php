@@ -58,7 +58,7 @@ it('throws when the child relation does not return a Paper relation', function (
 })->throws(BadMethodCallException::class, 'Post::getAttributes must return');
 
 it('resolves a child through any relation, including a custom one', function (): void {
-    $unpublished = __DIR__.'/../content/posts/__editor_test__.md';
+    $unpublished = base_path('tests/content/posts/__editor_test__.md');
     File::put($unpublished, "---\ntitle: Hidden\npublished: false\nauthor_slug: john-doe\n---\n");
 
     try {

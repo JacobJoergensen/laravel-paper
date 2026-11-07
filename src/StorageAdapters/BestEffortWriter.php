@@ -6,7 +6,6 @@ namespace JacobJoergensen\LaravelPaper\StorageAdapters;
 
 use JacobJoergensen\LaravelPaper\Contracts\ConditionalWriteContract;
 use JacobJoergensen\LaravelPaper\Contracts\StorageAdapterContract;
-use JacobJoergensen\LaravelPaper\PaperVersion;
 
 final readonly class BestEffortWriter implements ConditionalWriteContract
 {
@@ -30,7 +29,7 @@ final readonly class BestEffortWriter implements ConditionalWriteContract
             return null;
         }
 
-        return ['contents' => $contents, 'version' => PaperVersion::of($contents)];
+        return ['contents' => $contents, 'version' => $this->version($contents)];
     }
 
     /**
@@ -121,7 +120,12 @@ final readonly class BestEffortWriter implements ConditionalWriteContract
     private function write(string $path, string $contents): ConditionalWriteResult
     {
         return $this->adapter->write($path, $contents)
-            ? ConditionalWriteResult::written(PaperVersion::of($contents))
+            ? ConditionalWriteResult::written($this->version($contents))
             : ConditionalWriteResult::failed();
+    }
+
+    private function version(string $contents): string
+    {
+        return hash('sha256', $contents);
     }
 }

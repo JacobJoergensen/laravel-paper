@@ -35,6 +35,7 @@ use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
 use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
 use JacobJoergensen\LaravelPaper\Relations\PaperRelation;
+use JacobJoergensen\LaravelPaper\StorageAdapters\BestEffortWriter;
 use JacobJoergensen\LaravelPaper\StorageAdapters\DiskAdapter;
 use JacobJoergensen\LaravelPaper\StorageAdapters\LocalAdapter;
 use ReflectionClass;
@@ -43,6 +44,8 @@ use Throwable;
 
 /**
  * @template TModel of Model&PaperModel
+ *
+ * @phpstan-type Where array{type: string, boolean: string, column?: string, second?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, wheres?: list<array{type: string, boolean: string}>, relation?: string, count?: int, constraint?: ?Closure}
  *
  * @phpstan-import-type ManifestRecord from PaperManifest
  * @phpstan-import-type ManifestFile from PaperManifest
@@ -53,13 +56,13 @@ final class PaperQueryBuilder
 
     private const array EQUALITY_OPERATORS = ['=', '==', '===', '!=', '<>', '!=='];
 
-    private const string WINDOWS_RESERVED_NAME = '/^(CON|PRN|AUX|NUL|COM[0-9¹²³]|LPT[0-9¹²³]) *(\.|$)/iu';
+    private const string WINDOWS_RESERVED_NAME = '/^(CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³]) *(\.|$)/iu';
 
-    /** @var list<array{type: string, column?: string, second?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, wheres?: list<array<string, mixed>>, relation?: string, count?: int, constraint?: ?Closure, boolean: string}> */
+    /** @var list<Where> */
     private array $wheres = [];
 
     /**
-     * @var array<string, list<array{type: string, column?: string, second?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, wheres?: list<array<string, mixed>>, relation?: string, count?: int, constraint?: ?Closure, boolean: string}>>
+     * @var array<string, list<Where>>
      */
     private array $scopeWheres = [];
 
@@ -97,17 +100,19 @@ final class PaperQueryBuilder
     private static array $fakes = [];
 
     /**
+     * @internal
+     *
      * @param  class-string<TModel>  $modelClass
      */
     public function __construct(
-        private readonly StorageAdapterContract $adapter,
-        private readonly DriverContract $driver,
+        private readonly ContentSource $source,
         private readonly PaperManifest $manifest,
-        private readonly string $contentPath,
         private readonly string $modelClass,
     ) {}
 
     /**
+     * @internal
+     *
      * @template TTarget of Model&PaperModel
      *
      * @param  class-string<TTarget>  $modelClass
@@ -115,15 +120,7 @@ final class PaperQueryBuilder
      */
     public static function forModel(string $modelClass): self
     {
-        $resolved = self::resolveFor($modelClass);
-
-        $builder = new self(
-            $resolved['adapter'],
-            $resolved['driver'],
-            app(PaperManifest::class),
-            self::contentPathFor($modelClass),
-            $modelClass,
-        );
+        $builder = new self(self::sourceFor($modelClass), app(PaperManifest::class), $modelClass);
 
         $builder->applyGlobalScopes();
 
@@ -190,10 +187,27 @@ final class PaperQueryBuilder
     }
 
     /**
+     * @internal
+     *
+     * @param  class-string<PaperModel>  $modelClass
+     */
+    public static function sourceFor(string $modelClass): ContentSource
+    {
+        $resolved = self::resolveFor($modelClass);
+
+        return new ContentSource(
+            $resolved['adapter'],
+            $resolved['driver'],
+            self::contentPathFor($modelClass),
+            $resolved['nested'],
+        );
+    }
+
+    /**
      * @param  class-string<PaperModel>  $modelClass
      * @return array{driver: DriverContract, adapter: StorageAdapterContract, usesDisk: bool, nested: bool, timestamps: bool, declaredContentPath: string}
      */
-    public static function resolveFor(string $modelClass): array
+    private static function resolveFor(string $modelClass): array
     {
         if (! isset(self::$resolved[$modelClass])) {
             $driver = self::attributeFor($modelClass, Driver::class) ?? new Driver('markdown');
@@ -229,7 +243,7 @@ final class PaperQueryBuilder
     /**
      * @param  class-string<PaperModel>  $modelClass
      */
-    public static function contentPathFor(string $modelClass): string
+    private static function contentPathFor(string $modelClass): string
     {
         $usesDisk = self::resolveFor($modelClass)['usesDisk'];
 
@@ -241,6 +255,8 @@ final class PaperQueryBuilder
     }
 
     /**
+     * @internal
+     *
      * @param  class-string<PaperModel>  $modelClass
      */
     public static function usesTimestamps(string $modelClass): bool
@@ -257,6 +273,8 @@ final class PaperQueryBuilder
     }
 
     /**
+     * @internal
+     *
      * @param  class-string<PaperModel>  $modelClass
      */
     public static function declaredContentPath(string $modelClass): string
@@ -287,6 +305,8 @@ final class PaperQueryBuilder
     }
 
     /**
+     * @internal
+     *
      * @param  class-string<PaperModel>  $modelClass
      */
     public static function forgetCache(string $modelClass): void
@@ -304,6 +324,9 @@ final class PaperQueryBuilder
         self::$fakes[$modelClass] = $adapter;
     }
 
+    /**
+     * @internal
+     */
     public static function forgetFakes(): void
     {
         self::$fakes = [];
@@ -315,11 +338,6 @@ final class PaperQueryBuilder
     private function model(): Model
     {
         return $this->model ??= new $this->modelClass;
-    }
-
-    private function nested(): bool
-    {
-        return self::resolveFor($this->modelClass)['nested'];
     }
 
     /**
@@ -344,6 +362,9 @@ final class PaperQueryBuilder
         return $relation;
     }
 
+    /**
+     * @internal
+     */
     public static function guardSlug(string $slug): void
     {
         $segments = explode('/', $slug);
@@ -361,6 +382,9 @@ final class PaperQueryBuilder
         }
     }
 
+    /**
+     * @internal
+     */
     public static function guardWritableSlug(string $slug, bool $nested): void
     {
         self::guardSlug($slug);
@@ -382,6 +406,91 @@ final class PaperQueryBuilder
         if ($unsupported) {
             throw InvalidSlugException::forWindows($slug);
         }
+    }
+
+    /**
+     * @internal
+     *
+     * @param  array<array-key, mixed>  $columns
+     * @return array<string, float|int>
+     */
+    public static function incrementAmounts(array $columns): array
+    {
+        $amounts = [];
+
+        foreach ($columns as $column => $amount) {
+            if (! is_numeric($amount)) {
+                throw new InvalidArgumentException("Non-numeric value passed as increment amount for column: '$column'.");
+            }
+
+            if (! is_string($column)) {
+                throw new InvalidArgumentException('Non-associative array passed to incrementEach method.');
+            }
+
+            $amounts[$column] = $amount + 0;
+        }
+
+        return $amounts;
+    }
+
+    /**
+     * @param  float|int  $amount
+     * @param  array<string, mixed>  $extra
+     */
+    public function increment(string $column, mixed $amount = 1, array $extra = []): int
+    {
+        return $this->incrementEach([$column => $amount], $extra);
+    }
+
+    /**
+     * @param  float|int  $amount
+     * @param  array<string, mixed>  $extra
+     */
+    public function decrement(string $column, mixed $amount = 1, array $extra = []): int
+    {
+        return $this->decrementEach([$column => $amount], $extra);
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $columns
+     * @param  array<string, mixed>  $extra
+     */
+    public function incrementEach(array $columns, array $extra = []): int
+    {
+        $amounts = self::incrementAmounts($columns);
+
+        $write = fn (Model&PaperModel $model): bool => $model->incrementEach($amounts, $extra) !== false;
+
+        return $this->writeEach($write);
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $columns
+     * @param  array<string, mixed>  $extra
+     */
+    public function decrementEach(array $columns, array $extra = []): int
+    {
+        $amounts = self::incrementAmounts($columns);
+
+        $write = fn (Model&PaperModel $model): bool => $model->decrementEach($amounts, $extra) !== false;
+
+        return $this->writeEach($write);
+    }
+
+    /**
+     * @param  Closure(TModel): bool  $write
+     */
+    private function writeEach(Closure $write): int
+    {
+        $written = 0;
+
+        foreach ($this->getModels() as $model) {
+            if ($write($model)) {
+                $written++;
+            }
+        }
+
+        return $written;
     }
 
     /**
@@ -443,13 +552,7 @@ final class PaperQueryBuilder
             self::guardSlug($slug);
         }
 
-        $entries = $this->readManifest(fn (): array => $this->manifest->recordsFor(
-            $this->adapter,
-            $this->driver,
-            $this->contentPath,
-            $slugs,
-            $this->nested(),
-        ));
+        $entries = $this->readManifest(fn (): array => $this->manifest->recordsFor($this->source, $slugs));
 
         $models = array_map($this->hydrate(...), array_values($entries));
 
@@ -602,7 +705,7 @@ final class PaperQueryBuilder
 
     private function whereGroup(callable $callback, string $boolean): static
     {
-        $nested = new self($this->adapter, $this->driver, $this->manifest, $this->contentPath, $this->modelClass);
+        $nested = new self($this->source, $this->manifest, $this->modelClass);
         $callback($nested);
 
         $this->wheres[] = [
@@ -1410,21 +1513,27 @@ final class PaperQueryBuilder
     }
 
     /**
+     * @internal
+     *
      * @return array{checked: int, failures: list<array{path: string, error: string}>}
      */
     public function validateFiles(): array
     {
-        $files = $this->readManifest(
-            fn (): array => $this->manifest->files($this->adapter, $this->driver, $this->contentPath, $this->nested())
+        $source = $this->source;
+
+        $listing = $this->readManifest(
+            fn (): array => $source->adapter->listing($source->path, $source->driver->extensions(), $source->nested)
         );
 
-        $failures = $this->ignoredFiles($files);
+        $files = $this->manifest->index($source, $listing);
+        $failures = $this->ignoredFiles($listing, $files);
+        $reader = BestEffortWriter::of($source->adapter);
 
         foreach ($files as $slug => $info) {
             try {
-                $contents = $this->adapter->read($info['path']);
+                $read = $reader->readVersioned($info['path']);
 
-                if ($contents === null) {
+                if ($read === null) {
                     throw FileParseException::unreadable($info['path']);
                 }
 
@@ -1432,8 +1541,8 @@ final class PaperQueryBuilder
                     'slug' => $slug,
                     'mtime' => $info['mtime'],
                     'ext' => $info['ext'],
-                    'data' => $this->driver->parse($contents),
-                    'version' => PaperVersion::of($contents),
+                    'data' => $source->driver->parse($read['contents']),
+                    'version' => $read['version'],
                 ]);
                 $model->toArray();
             } catch (Throwable $e) {
@@ -1445,12 +1554,12 @@ final class PaperQueryBuilder
     }
 
     /**
+     * @param  array<string, int>  $listing
      * @param  array<string, ManifestFile>  $files
      * @return list<array{path: string, error: string}>
      */
-    private function ignoredFiles(array $files): array
+    private function ignoredFiles(array $listing, array $files): array
     {
-        $listing = $this->adapter->listing($this->contentPath, $this->driver->extensions(), $this->nested());
         $read = [];
 
         foreach ($files as $info) {
@@ -1484,15 +1593,7 @@ final class PaperQueryBuilder
 
     public function delete(): int
     {
-        $deleted = 0;
-
-        foreach ($this->getModels() as $model) {
-            if ($model->delete()) {
-                $deleted++;
-            }
-        }
-
-        return $deleted;
+        return $this->writeEach(fn (Model&PaperModel $model): bool => $model->delete() === true);
     }
 
     /**
@@ -1500,17 +1601,7 @@ final class PaperQueryBuilder
      */
     public function update(array $values): int
     {
-        $updated = 0;
-
-        foreach ($this->getModels() as $model) {
-            $model->forceFill($values);
-
-            if ($model->save()) {
-                $updated++;
-            }
-        }
-
-        return $updated;
+        return $this->writeEach(fn (Model&PaperModel $model): bool => $model->forceFill($values)->save());
     }
 
     /**
@@ -1539,7 +1630,7 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @return list<array<string, mixed>>
+     * @return list<Where>
      */
     private function allWheres(): array
     {
@@ -1744,7 +1835,7 @@ final class PaperQueryBuilder
         $root = explode('.', $column, 2)[0];
 
         return $root !== $this->updatedAtColumn()
-            && $root !== $this->driver->bodyColumn()
+            && $root !== $this->source->driver->bodyColumn()
             && ! method_exists($model, $root)
             && ! $this->hasCastOrMutator($model, $column)
             && ! $this->hasCastOrMutator($model, $root);
@@ -2143,9 +2234,7 @@ final class PaperQueryBuilder
      */
     private function records(): Collection
     {
-        $entries = $this->readManifest(
-            fn (): array => $this->manifest->records($this->adapter, $this->driver, $this->contentPath, $this->nested())
-        );
+        $entries = $this->readManifest(fn (): array => $this->manifest->records($this->source));
 
         $records = [];
 
@@ -2161,9 +2250,7 @@ final class PaperQueryBuilder
      */
     private function scanSlugs(): array
     {
-        return $this->readManifest(
-            fn (): array => $this->manifest->slugs($this->adapter, $this->driver, $this->contentPath, $this->nested())
-        );
+        return $this->readManifest(fn (): array => $this->manifest->slugs($this->source));
     }
 
     /**
@@ -2177,7 +2264,7 @@ final class PaperQueryBuilder
         try {
             return $read();
         } catch (ContentPathNotFoundException) {
-            throw ContentPathNotFoundException::forPath($this->contentPath, $this->modelClass);
+            throw ContentPathNotFoundException::forPath($this->source->path, $this->modelClass);
         }
     }
 
@@ -2207,6 +2294,8 @@ final class PaperQueryBuilder
     }
 
     /**
+     * @internal
+     *
      * @param  array<int, Model>  $models
      * @return array<int, Model>
      */
@@ -2223,8 +2312,38 @@ final class PaperQueryBuilder
             return $models;
         }
 
-        foreach ($this->with as $name => $constraint) {
+        $roots = [];
+
+        foreach ($this->with as $path => $constraint) {
+            $segments = explode('.', $path, 2);
+            $root = $segments[0];
+            $rest = $segments[1] ?? null;
+
+            $roots[$root] ??= ['constraint' => null, 'nested' => []];
+
+            if ($rest === null) {
+                $roots[$root]['constraint'] = $constraint;
+            } elseif ($constraint === null) {
+                $roots[$root]['nested'][] = $rest;
+            } else {
+                $roots[$root]['nested'][$rest] = $constraint;
+            }
+        }
+
+        foreach ($roots as $name => ['constraint' => $constraint, 'nested' => $nested]) {
             $relation = self::relationFor($first, $name);
+
+            if ($nested !== []) {
+                $own = $constraint;
+
+                $constraint = function (self $query) use ($own, $nested): void {
+                    if ($own !== null) {
+                        $own($query);
+                    }
+
+                    $query->with($nested);
+                };
+            }
 
             if ($constraint !== null && count($models) > 1) {
                 $unlimited = $constraint;
@@ -2314,7 +2433,7 @@ final class PaperQueryBuilder
 
     /**
      * @param  Closure(string): mixed  $resolve
-     * @param  array<int, array{type: string, boolean: string, column?: string, second?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, relation?: string, count?: int, constraint?: ?Closure}>  $wheres
+     * @param  list<Where>  $wheres
      */
     private function matches(Closure $resolve, array $wheres, ?Model $model): bool
     {
@@ -2339,7 +2458,7 @@ final class PaperQueryBuilder
 
     /**
      * @param  Closure(string): mixed  $resolve
-     * @param  array{type: string, boolean: string, column?: string, second?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, relation?: string, count?: int, constraint?: ?Closure, wheres?: array<int, array{type: string, boolean: string, column?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>}>}  $where
+     * @param  Where  $where
      */
     private function evaluateWhere(Closure $resolve, array $where, ?Model $model): bool
     {
@@ -2371,7 +2490,8 @@ final class PaperQueryBuilder
         return match ($where['type']) {
             'in' => $value !== null && $this->evaluateIn($value, $values),
             'notIn' => $value !== null && ! $this->evaluateIn($value, $values),
-            'contains' => is_array($value) && in_array($expected, $value, true),
+            'contains' => is_array($value)
+                && array_any($value, fn (mixed $item): bool => $this->evaluateCondition($item, '=', $expected)),
             'like' => is_string($value) && $this->evaluateLike($value, $pattern, $caseSensitive),
             'notLike' => is_string($value) && ! $this->evaluateLike($value, $pattern, $caseSensitive),
             'regexp' => is_string($value) && preg_match($pattern, $value) === 1,

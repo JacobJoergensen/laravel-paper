@@ -93,7 +93,7 @@ it('rejects a seeded slug Windows cannot store as a filename on Windows', functi
 
 it('leaves hidden files out, like real storage', function (): void {
     $adapter = PaperFake::fake(Post::class, ['a' => ['title' => 'Alpha']]);
-    $adapter->seed(PaperQueryBuilder::contentPathFor(Post::class).'/.hidden.md', "---\ntitle: Hidden\n---\n", 1);
+    $adapter->seed(PaperQueryBuilder::sourceFor(Post::class)->path.'/.hidden.md', "---\ntitle: Hidden\n---\n", 1);
 
     expect(Post::pluck('slug')->all())->toBe(['a']);
 });

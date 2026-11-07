@@ -14,6 +14,7 @@ use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\LazyCollection;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
 use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
 use JacobJoergensen\LaravelPaper\Contracts\ConditionalWriteContract;
 use JacobJoergensen\LaravelPaper\Contracts\PaperModel;
@@ -26,8 +27,10 @@ use JacobJoergensen\LaravelPaper\Exceptions\StaleRecordException;
 use JacobJoergensen\LaravelPaper\Exceptions\UnsupportedConcurrencyException;
 use JacobJoergensen\LaravelPaper\Exceptions\UnsupportedDatabaseQueryException;
 use JacobJoergensen\LaravelPaper\Exceptions\UnsupportedScopeException;
+use JacobJoergensen\LaravelPaper\Relations\BelongsToManyPaper;
 use JacobJoergensen\LaravelPaper\Relations\BelongsToPaper;
 use JacobJoergensen\LaravelPaper\Relations\HasManyPaper;
+use JacobJoergensen\LaravelPaper\Relations\HasManyPaperByList;
 use JacobJoergensen\LaravelPaper\Relations\PaperRelation;
 use JacobJoergensen\LaravelPaper\StorageAdapters\BestEffortWriter;
 use JacobJoergensen\LaravelPaper\StorageAdapters\ConditionalWriteStatus;
@@ -223,9 +226,27 @@ trait Paper
      * @param  array<int, scalar>  $values
      * @return PaperQueryBuilder<static>
      */
+    public static function orWhereIn(string $column, array $values): PaperQueryBuilder
+    {
+        return static::query()->orWhereIn($column, $values);
+    }
+
+    /**
+     * @param  array<int, scalar>  $values
+     * @return PaperQueryBuilder<static>
+     */
     public static function whereNotIn(string $column, array $values): PaperQueryBuilder
     {
         return static::query()->whereNotIn($column, $values);
+    }
+
+    /**
+     * @param  array<int, scalar>  $values
+     * @return PaperQueryBuilder<static>
+     */
+    public static function orWhereNotIn(string $column, array $values): PaperQueryBuilder
+    {
+        return static::query()->orWhereNotIn($column, $values);
     }
 
     /**
@@ -234,6 +255,14 @@ trait Paper
     public static function whereContains(string $column, bool|float|int|string $value): PaperQueryBuilder
     {
         return static::query()->whereContains($column, $value);
+    }
+
+    /**
+     * @return PaperQueryBuilder<static>
+     */
+    public static function orWhereContains(string $column, bool|float|int|string $value): PaperQueryBuilder
+    {
+        return static::query()->orWhereContains($column, $value);
     }
 
     /**
@@ -539,11 +568,37 @@ trait Paper
      * @param  ?scalar  $value
      * @return PaperQueryBuilder<static>
      */
+    public static function orWhereAny(array $columns, mixed $operator = null, mixed $value = null): PaperQueryBuilder
+    {
+        [$operator, $value] = func_num_args() === 2 ? ['=', $operator] : [$operator, $value];
+
+        return static::query()->orWhereAny($columns, $operator, $value);
+    }
+
+    /**
+     * @param  array<int, string>  $columns
+     * @param  ?scalar  $operator
+     * @param  ?scalar  $value
+     * @return PaperQueryBuilder<static>
+     */
     public static function whereAll(array $columns, mixed $operator = null, mixed $value = null): PaperQueryBuilder
     {
         [$operator, $value] = func_num_args() === 2 ? ['=', $operator] : [$operator, $value];
 
         return static::query()->whereAll($columns, $operator, $value);
+    }
+
+    /**
+     * @param  array<int, string>  $columns
+     * @param  ?scalar  $operator
+     * @param  ?scalar  $value
+     * @return PaperQueryBuilder<static>
+     */
+    public static function orWhereAll(array $columns, mixed $operator = null, mixed $value = null): PaperQueryBuilder
+    {
+        [$operator, $value] = func_num_args() === 2 ? ['=', $operator] : [$operator, $value];
+
+        return static::query()->orWhereAll($columns, $operator, $value);
     }
 
     /**
@@ -557,9 +612,25 @@ trait Paper
     /**
      * @return PaperQueryBuilder<static>
      */
+    public static function orWhereNull(string $column): PaperQueryBuilder
+    {
+        return static::query()->orWhereNull($column);
+    }
+
+    /**
+     * @return PaperQueryBuilder<static>
+     */
     public static function whereNotNull(string $column): PaperQueryBuilder
     {
         return static::query()->whereNotNull($column);
+    }
+
+    /**
+     * @return PaperQueryBuilder<static>
+     */
+    public static function orWhereNotNull(string $column): PaperQueryBuilder
+    {
+        return static::query()->orWhereNotNull($column);
     }
 
     /**
@@ -575,9 +646,27 @@ trait Paper
      * @param  array{0: scalar, 1: scalar}  $values
      * @return PaperQueryBuilder<static>
      */
+    public static function orWhereBetween(string $column, array $values): PaperQueryBuilder
+    {
+        return static::query()->orWhereBetween($column, $values);
+    }
+
+    /**
+     * @param  array{0: scalar, 1: scalar}  $values
+     * @return PaperQueryBuilder<static>
+     */
     public static function whereNotBetween(string $column, array $values): PaperQueryBuilder
     {
         return static::query()->whereNotBetween($column, $values);
+    }
+
+    /**
+     * @param  array{0: scalar, 1: scalar}  $values
+     * @return PaperQueryBuilder<static>
+     */
+    public static function orWhereNotBetween(string $column, array $values): PaperQueryBuilder
+    {
+        return static::query()->orWhereNotBetween($column, $values);
     }
 
     /**
@@ -843,18 +932,9 @@ trait Paper
      */
     public function loadMissing($relations, string ...$more): static
     {
-        $names = is_string($relations) ? [$relations, ...$more] : $relations;
-        $missing = [];
+        $this->newCollection([$this])->loadMissing($relations, ...$more);
 
-        foreach ($names as $key => $relation) {
-            $name = is_int($key) ? $relation : $key;
-
-            if (is_string($name) && ! $this->relationLoaded($name)) {
-                $missing[$key] = $relation;
-            }
-        }
-
-        return $missing === [] ? $this : $this->load($missing);
+        return $this;
     }
 
     /**
@@ -977,21 +1057,16 @@ trait Paper
 
         PaperQueryBuilder::guardSlug($slug);
 
-        $directory = PaperQueryBuilder::contentPathFor(static::class);
+        $source = PaperQueryBuilder::sourceFor(static::class);
 
         if ($this->paperExtension === null) {
-            $resolved = PaperQueryBuilder::resolveFor(static::class);
-            $driver = $resolved['driver'];
             $manifest = app(PaperManifest::class);
+            $record = $this->exists ? $manifest->record($source, $this->storedSlug()) : null;
 
-            $record = $this->exists
-                ? $manifest->record($resolved['adapter'], $driver, $directory, $this->storedSlug(), $resolved['nested'])
-                : null;
-
-            $this->paperExtension = $record['ext'] ?? $driver->extensions()[0];
+            $this->paperExtension = $record['ext'] ?? $source->driver->extensions()[0];
         }
 
-        return $directory.'/'.$slug.'.'.$this->paperExtension;
+        return $source->path.'/'.$slug.'.'.$this->paperExtension;
     }
 
     /**
@@ -1079,10 +1154,9 @@ trait Paper
     {
         $manifest = app(PaperManifest::class);
 
-        $resolved = PaperQueryBuilder::resolveFor(static::class);
-        $driver = $resolved['driver'];
-        $path = PaperQueryBuilder::contentPathFor(static::class);
-        $adapter = $resolved['adapter'];
+        $source = PaperQueryBuilder::sourceFor(static::class);
+        $driver = $source->driver;
+        $adapter = $source->adapter;
 
         $isCreating = ! $this->exists;
 
@@ -1110,7 +1184,7 @@ trait Paper
             return false;
         }
 
-        PaperQueryBuilder::guardWritableSlug($slug, $resolved['nested']);
+        PaperQueryBuilder::guardWritableSlug($slug, $source->nested);
 
         $filepath = $this->getFilePath();
         $original = self::keyToString($this->getRawOriginal($this->getKeyName()));
@@ -1122,9 +1196,7 @@ trait Paper
 
         if ($this->usesTimestamps()) {
             $updatedAt = $this->getUpdatedAtColumn();
-            $stored = $isCreating
-                ? null
-                : $manifest->record($adapter, $driver, $path, $this->storedSlug(), $resolved['nested']);
+            $stored = $isCreating ? null : $manifest->record($source, $this->storedSlug());
 
             if ($updatedAt !== null && ($stored === null || ! array_key_exists($updatedAt, $stored['data']))) {
                 unset($attributes[$updatedAt]);
@@ -1140,7 +1212,7 @@ trait Paper
         $conflicts = [];
 
         foreach ($driver->extensions() as $extension) {
-            $sibling = $path.'/'.$slug.'.'.$extension;
+            $sibling = $source->path.'/'.$slug.'.'.$extension;
 
             if ($sibling !== $filepath) {
                 $conflicts[] = $sibling;
@@ -1177,10 +1249,10 @@ trait Paper
 
         $written = $driver->parse($content);
 
-        $manifest->put($adapter, $driver, $path, $slug, $filepath, $written, $result->version, $resolved['nested']);
+        $manifest->put($source, $slug, $filepath, $written, $result->version);
 
         if ($isRenaming) {
-            $manifest->forget($adapter, $driver, $path, $original, $resolved['nested']);
+            $manifest->forget($source, $original);
         }
 
         if ($mtimeColumn !== null) {
@@ -1332,6 +1404,176 @@ trait Paper
         return new HasManyPaper($this, $related, $foreignKey);
     }
 
+    /**
+     * @template TRelated of Model&PaperModel
+     *
+     * @param  class-string<TRelated>  $related
+     * @return BelongsToManyPaper<TRelated>
+     */
+    protected function belongsToManyPaper(string $related, ?string $foreignKey = null): BelongsToManyPaper
+    {
+        $foreignKey ??= Str::snake(class_basename($related)).'_slugs';
+
+        return new BelongsToManyPaper($this, $related, $foreignKey);
+    }
+
+    /**
+     * @template TRelated of Model&PaperModel
+     *
+     * @param  class-string<TRelated>  $related
+     * @return HasManyPaperByList<TRelated>
+     */
+    protected function hasManyPaperByList(string $related, ?string $foreignKey = null): HasManyPaperByList
+    {
+        $foreignKey ??= Str::snake(class_basename(static::class)).'_slugs';
+
+        return new HasManyPaperByList($this, $related, $foreignKey);
+    }
+
+    /**
+     * @param  string  $column
+     * @param  float|int  $amount
+     * @param  array<string, mixed>  $extra
+     */
+    public function increment($column, $amount = 1, array $extra = []): false|int
+    {
+        return $this->incrementOrDecrementColumns([$column => $amount], $extra, 'increment');
+    }
+
+    /**
+     * @param  string  $column
+     * @param  float|int  $amount
+     * @param  array<string, mixed>  $extra
+     */
+    public function decrement($column, $amount = 1, array $extra = []): false|int
+    {
+        return $this->incrementOrDecrementColumns([$column => $amount], $extra, 'decrement');
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $columns
+     * @param  array<string, mixed>  $extra
+     */
+    public function incrementEach(array $columns, array $extra = []): false|int
+    {
+        return $this->incrementOrDecrementColumns($columns, $extra, 'increment');
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $columns
+     * @param  array<string, mixed>  $extra
+     */
+    public function decrementEach(array $columns, array $extra = []): false|int
+    {
+        return $this->incrementOrDecrementColumns($columns, $extra, 'decrement');
+    }
+
+    /**
+     * @param  string  $column
+     * @param  float|int  $amount
+     * @param  array<string, mixed>  $extra
+     */
+    public function incrementQuietly($column, $amount = 1, array $extra = []): false|int
+    {
+        return static::withoutEvents(fn (): false|int => $this->increment($column, $amount, $extra));
+    }
+
+    /**
+     * @param  string  $column
+     * @param  float|int  $amount
+     * @param  array<string, mixed>  $extra
+     */
+    public function decrementQuietly($column, $amount = 1, array $extra = []): false|int
+    {
+        return static::withoutEvents(fn (): false|int => $this->decrement($column, $amount, $extra));
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $columns
+     * @param  array<string, mixed>  $extra
+     */
+    public function incrementEachQuietly(array $columns, array $extra = []): false|int
+    {
+        return static::withoutEvents(fn (): false|int => $this->incrementEach($columns, $extra));
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $columns
+     * @param  array<string, mixed>  $extra
+     */
+    public function decrementEachQuietly(array $columns, array $extra = []): false|int
+    {
+        return static::withoutEvents(fn (): false|int => $this->decrementEach($columns, $extra));
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $columns
+     * @param  array<string, mixed>  $extra
+     */
+    private function incrementOrDecrementColumns(array $columns, array $extra, string $method): false|int
+    {
+        $amounts = PaperQueryBuilder::incrementAmounts($columns);
+
+        if (! $this->exists) {
+            return false;
+        }
+
+        $unsaved = array_diff_key($this->getDirty(), $amounts, $extra);
+
+        foreach ($amounts as $column => $amount) {
+            $this->setAttribute($column, $this->adjustedValue($column, $amount, $method));
+        }
+
+        $this->forceFill($extra);
+
+        if ($this->fireModelEvent('updating') === false) {
+            return false;
+        }
+
+        $previous = array_intersect_key($this->original, $amounts);
+
+        foreach (array_keys($unsaved) as $key) {
+            if (array_key_exists($key, $this->original)) {
+                $this->attributes[$key] = $this->original[$key];
+            } else {
+                unset($this->attributes[$key]);
+            }
+        }
+
+        try {
+            $saved = $this->saveQuietly();
+        } finally {
+            $this->attributes = array_replace($this->attributes, $unsaved);
+        }
+
+        if (! $saved) {
+            return false;
+        }
+
+        $this->original = array_replace($this->original, $previous);
+
+        $this->fireModelEvent('updated', false);
+
+        $this->syncOriginalAttributes(array_keys($amounts));
+
+        return 1;
+    }
+
+    private function adjustedValue(string $column, float|int $amount, string $method): mixed
+    {
+        if ($this->isClassDeviable($column)) {
+            return $this->deviateClassCastableAttribute($method, $column, $amount);
+        }
+
+        $current = $this->getAttribute($column) ?? 0;
+
+        if (! is_numeric($current)) {
+            throw new InvalidArgumentException("The '$column' attribute is not numeric and cannot be {$method}ed.");
+        }
+
+        return $method === 'increment' ? $current + $amount : $current - $amount;
+    }
+
     public function delete(): bool
     {
         if (! $this->exists) {
@@ -1343,15 +1585,12 @@ trait Paper
         }
 
         $manifest = app(PaperManifest::class);
-
-        $resolved = PaperQueryBuilder::resolveFor(static::class);
-        $adapter = $resolved['adapter'];
-        $path = PaperQueryBuilder::contentPathFor(static::class);
+        $source = PaperQueryBuilder::sourceFor(static::class);
 
         $slug = $this->storedSlug();
         $filepath = $this->filePathFor($slug);
 
-        $result = self::writer($adapter)->deleteIf($filepath, $this->writeVersion());
+        $result = self::writer($source->adapter)->deleteIf($filepath, $this->writeVersion());
 
         match ($result->status) {
             ConditionalWriteStatus::Mismatch => throw StaleRecordException::changed($slug),
@@ -1363,7 +1602,7 @@ trait Paper
             return false;
         }
 
-        $manifest->forget($adapter, $resolved['driver'], $path, $slug, $resolved['nested']);
+        $manifest->forget($source, $slug);
         $this->exists = false;
         $this->paperVersion = null;
         $this->fireModelEvent('deleted', false);
@@ -1408,8 +1647,7 @@ trait Paper
 
     private function loadPaperBody(?string $key = null): void
     {
-        $resolved = PaperQueryBuilder::resolveFor(static::class);
-        $column = $resolved['driver']->bodyColumn();
+        $column = PaperQueryBuilder::driverFor(static::class)->bodyColumn();
 
         if ($column === null || ($key !== null && $key !== $column)) {
             return;
@@ -1419,9 +1657,10 @@ trait Paper
             return;
         }
 
+        $source = PaperQueryBuilder::sourceFor(static::class);
         $filepath = $this->filePathFor($this->storedSlug());
 
-        $body = app(PaperManifest::class)->body($resolved['adapter'], $resolved['driver'], $filepath);
+        $body = app(PaperManifest::class)->body($source, $filepath);
         $attributes = PaperCasts::fromStorage($this, [$column => $body]);
 
         $this->attributes[$column] = $attributes[$column];

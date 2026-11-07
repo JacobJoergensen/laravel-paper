@@ -11,6 +11,7 @@ use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
 use JacobJoergensen\LaravelPaper\Exceptions\UnsupportedDatabaseQueryException;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
+use JacobJoergensen\LaravelPaper\Testing\PaperFake;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Author;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Draft;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Page;
@@ -107,8 +108,8 @@ it('treats the first orderBy as primary and later ones as tiebreakers', function
 });
 
 it('returns one model per slug when the same slug exists under multiple extensions', function (): void {
-    $duplicate = __DIR__.'/../content/posts/hello-world.markdown';
-    File::put($duplicate, File::get(__DIR__.'/../content/posts/hello-world.md'));
+    $duplicate = base_path('tests/content/posts/hello-world.markdown');
+    File::put($duplicate, File::get(base_path('tests/content/posts/hello-world.md')));
 
     try {
         $posts = Post::all();
@@ -121,7 +122,7 @@ it('returns one model per slug when the same slug exists under multiple extensio
 });
 
 it('reads the slug from the first driver extension when it exists under several', function (): void {
-    $duplicate = __DIR__.'/../content/posts/hello-world.markdown';
+    $duplicate = base_path('tests/content/posts/hello-world.markdown');
     File::put($duplicate, "---\ntitle: From markdown\n---\n");
 
     try {
@@ -135,7 +136,7 @@ it('reads the slug from the first driver extension when it exists under several'
 });
 
 it('reads a file whose name is entirely numeric', function (): void {
-    $numeric = __DIR__.'/../content/posts/2024.md';
+    $numeric = base_path('tests/content/posts/2024.md');
     File::put($numeric, "---\ntitle: Year In Review\n---\nbody");
 
     try {
@@ -322,7 +323,7 @@ it('matches with whereLike and respects case sensitivity', function (): void {
 });
 
 it('matches whereLike across lines and on non-ASCII characters', function (): void {
-    $path = __DIR__.'/../content/posts/__like__.md';
+    $path = base_path('tests/content/posts/__like__.md');
     File::put($path, "---\ntitle: Æble\n---\n\nFirst line\nSecond line\n");
 
     try {
@@ -358,7 +359,7 @@ it('reads a column named after a model method as empty instead of calling the me
 });
 
 it('matches a string only by its exact text, not as a number or a boolean', function (): void {
-    $path = __DIR__.'/../content/posts/versioned.md';
+    $path = base_path('tests/content/posts/versioned.md');
     File::put($path, "---\nversion: '1.10'\n---\n");
 
     try {
@@ -371,7 +372,7 @@ it('matches a string only by its exact text, not as a number or a boolean', func
 });
 
 it('leaves a record out of whereNotRegexp when the pattern fails to run on it', function (): void {
-    $path = __DIR__.'/../content/posts/backtracking.md';
+    $path = base_path('tests/content/posts/backtracking.md');
     File::put($path, "---\ntitle: '".str_repeat('a', 30000)."b'\n---\n");
 
     try {
@@ -444,6 +445,16 @@ it('filters with whereNull and whereNotNull', function (): void {
 it('filters with whereContains on an array field', function (): void {
     expect(Post::whereContains('tags', 'laravel')->count())->toBe(1)
         ->and(Post::whereContains('tags', 'php')->count())->toBe(0);
+});
+
+it('matches a listed number in whereContains whether it is written as a number or as text, like whereIn', function (): void {
+    PaperFake::fake(Post::class, [
+        'numeric' => ['years' => [2024]],
+        'quoted' => ['years' => ['2024']],
+    ]);
+
+    expect(Post::whereContains('years', '2024')->pluck('slug')->all())->toBe(['numeric', 'quoted'])
+        ->and(Post::whereContains('years', 2024)->pluck('slug')->all())->toBe(['numeric', 'quoted']);
 });
 
 it('rejects an array of values in whereContains instead of matching nothing', function (): void {
@@ -575,7 +586,7 @@ it('treats a null value as a null check on the column', function (): void {
 });
 
 it('reads the second argument as a value, even when it looks like an operator', function (): void {
-    $path = __DIR__.'/../content/posts/operator-value.md';
+    $path = base_path('tests/content/posts/operator-value.md');
     File::put($path, "---\ntitle: Operator Value\nstatus: '>='\nauthor_slug: john-doe\n---\n");
 
     try {
@@ -618,7 +629,7 @@ it('applies pending where constraints to find', function (): void {
 });
 
 it('throws a message naming the model when querying a model whose content directory is missing', function (): void {
-    File::deleteDirectory(__DIR__.'/../content/drafts');
+    File::deleteDirectory(base_path('tests/content/drafts'));
 
     Draft::resetPaperState();
 
@@ -626,9 +637,25 @@ it('throws a message naming the model when querying a model whose content direct
 })->throws(ContentPathNotFoundException::class, 'for model '.Draft::class);
 
 it('throws when finding in a model whose content directory is missing', function (): void {
-    File::deleteDirectory(__DIR__.'/../content/drafts');
+    File::deleteDirectory(base_path('tests/content/drafts'));
 
     Draft::resetPaperState();
 
     Draft::find('anything');
 })->throws(ContentPathNotFoundException::class);
+
+it('exposes every where clause of the query builder as a static method on the model', function (): void {
+    $builder = new ReflectionClass(PaperQueryBuilder::class);
+    $missing = [];
+
+    foreach ($builder->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
+        $name = $method->getName();
+        $isClause = str_starts_with($name, 'where') || str_starts_with($name, 'orWhere');
+
+        if ($isClause && ! method_exists(Post::class, $name)) {
+            $missing[] = $name;
+        }
+    }
+
+    expect($missing)->toBe([]);
+});

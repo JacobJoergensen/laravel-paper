@@ -10,7 +10,7 @@ use JacobJoergensen\LaravelPaper\Tests\Fixtures\Page;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 
 beforeEach(function (): void {
-    $path = PaperQueryBuilder::contentPathFor(Post::class);
+    $path = PaperQueryBuilder::sourceFor(Post::class)->path;
 
     $this->adapter = new CountingAdapter;
     $this->adapter->seed("$path/a.md", "---\ntitle: Alpha\n---\nAlpha body", 1_000);
@@ -82,12 +82,13 @@ it('reads the body from the new file after refresh when the extension changed', 
     config(['paper.watch' => true]);
     app()->forgetInstance(PaperManifest::class);
 
-    $path = PaperQueryBuilder::contentPathFor(Post::class);
+    $path = PaperQueryBuilder::sourceFor(Post::class)->path;
     $post = Post::find('a');
 
     $this->adapter->remove("$path/a.md");
     $this->adapter->seed("$path/a.markdown", "---\ntitle: Alpha\n---\nMoved body", 3_000);
 
+    app()->forgetScopedInstances();
     $post->refresh();
 
     expect($post->content)->toBe('Moved body');

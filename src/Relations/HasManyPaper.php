@@ -103,14 +103,4 @@ final readonly class HasManyPaper extends PaperRelation
             $parent->setRelation($relationName, $related ?? $this->newCollection());
         }
     }
-
-    /**
-     * @return Collection<int, TRelated>
-     */
-    private function newCollection(): Collection
-    {
-        $relatedClass = $this->relatedClass;
-
-        return new $relatedClass()->newCollection();
-    }
 }

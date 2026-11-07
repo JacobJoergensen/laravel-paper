@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Illuminate\Cache\ArrayStore;
 use Illuminate\Cache\Repository;
 use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
+use JacobJoergensen\LaravelPaper\ContentSource;
 use JacobJoergensen\LaravelPaper\Drivers\MarkdownDriver;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\CountingAdapter;
@@ -13,14 +14,13 @@ use JacobJoergensen\LaravelPaper\Tests\Fixtures\RawModel;
 beforeEach(function (): void {
     $manifest = new PaperManifest(new Repository(new ArrayStore), 60, 10, true);
     $adapter = new CountingAdapter;
+    $source = new ContentSource($adapter, new MarkdownDriver, 'blog', false);
 
     $adapter->seed('blog/a.md', "---\nstatus: active\norder: 1\n---\n", 1_000);
     $adapter->seed('blog/b.md', "---\nstatus: active\norder: 2\n---\n", 2_000);
     $adapter->seed('blog/c.md', "---\nstatus: draft\norder: 3\n---\n", 3_000);
 
-    $this->build = fn (): PaperQueryBuilder => new PaperQueryBuilder(
-        $adapter, new MarkdownDriver, $manifest, 'blog', RawModel::class,
-    );
+    $this->build = fn (): PaperQueryBuilder => new PaperQueryBuilder($source, $manifest, RawModel::class);
 });
 
 it('applies an array of conditions as AND, in triple, pair and assoc form', function (): void {

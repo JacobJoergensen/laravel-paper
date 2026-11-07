@@ -17,13 +17,12 @@ final class RefreshCommand extends PaperCommand
 
     protected function runFor(string $model): void
     {
-        $resolved = PaperQueryBuilder::resolveFor($model);
-        $path = PaperQueryBuilder::contentPathFor($model);
+        $source = PaperQueryBuilder::sourceFor($model);
         $manifest = app(PaperManifest::class);
 
-        $manifest->flush($resolved['adapter'], $resolved['driver'], $path, $resolved['nested']);
+        $manifest->flush($source);
 
-        $records = $manifest->reconcile($resolved['adapter'], $resolved['driver'], $path, $resolved['nested']);
+        $records = $manifest->reconcile($source);
 
         $this->info(sprintf('%s: refreshed %d records.', $model, count($records)));
     }

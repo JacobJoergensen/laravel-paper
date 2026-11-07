@@ -70,4 +70,67 @@ abstract readonly class PaperRelation
 
         return is_string($value) || is_int($value) ? $value : null;
     }
+
+    /**
+     * @return ?list<int|string>
+     */
+    protected function slugList(mixed $value): ?array
+    {
+        if ($value === null) {
+            return [];
+        }
+
+        if (! is_array($value) || ! array_is_list($value)) {
+            return null;
+        }
+
+        $slugs = [];
+
+        foreach ($value as $slug) {
+            if (! is_string($slug) && ! is_int($slug)) {
+                return null;
+            }
+
+            $slugs[$slug] = true;
+        }
+
+        return array_keys($slugs);
+    }
+
+    /**
+     * @param  Collection<int, TRelated>  $models
+     * @return array<int|string, TRelated>
+     */
+    protected function keyed(Collection $models): array
+    {
+        $relatedKey = $this->relatedKeyName();
+        $keyed = [];
+
+        foreach ($models as $model) {
+            $key = $this->keyOf($model, $relatedKey);
+
+            if ($key !== null) {
+                $keyed[$key] = $model;
+            }
+        }
+
+        return $keyed;
+    }
+
+    protected function relatedKeyName(): string
+    {
+        $relatedClass = $this->relatedClass;
+
+        return new $relatedClass()->getKeyName();
+    }
+
+    /**
+     * @return Collection<int, TRelated>
+     */
+    protected function newCollection(): Collection
+    {
+        $relatedClass = $this->relatedClass;
+
+        return new $relatedClass()->newCollection();
+    }
 }

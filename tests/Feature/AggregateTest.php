@@ -7,7 +7,7 @@ use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 
 function writeAggregatePost(string $slug, string $frontmatter): void
 {
-    $path = __DIR__.'/../content/posts/__agg_test__'.$slug.'.md';
+    $path = base_path('tests/content/posts/__agg_test__').$slug.'.md';
     file_put_contents($path, "---\n".$frontmatter."\n---\n\nbody\n");
 }
 
@@ -16,7 +16,7 @@ beforeEach(function (): void {
 });
 
 afterEach(function (): void {
-    foreach (glob(__DIR__.'/../content/posts/__agg_test__*') ?: [] as $file) {
+    foreach (glob(base_path('tests/content/posts/__agg_test__*')) ?: [] as $file) {
         @unlink($file);
     }
 });

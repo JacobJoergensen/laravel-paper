@@ -19,13 +19,12 @@ final class WarmCommand extends PaperCommand
 
     protected function runFor(string $model): void
     {
-        $resolved = PaperQueryBuilder::resolveFor($model);
-        $path = PaperQueryBuilder::contentPathFor($model);
+        $source = PaperQueryBuilder::sourceFor($model);
         $manifest = app(PaperManifest::class);
 
         $records = $this->option('compile') === true
-            ? $manifest->compile($resolved['adapter'], $resolved['driver'], $path, $resolved['nested'])
-            : $manifest->reconcile($resolved['adapter'], $resolved['driver'], $path, $resolved['nested']);
+            ? $manifest->compile($source)
+            : $manifest->reconcile($source);
 
         $this->info(sprintf('%s: warmed %d records.', $model, count($records)));
     }

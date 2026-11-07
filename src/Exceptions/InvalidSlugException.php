@@ -25,8 +25,13 @@ final class InvalidSlugException extends InvalidArgumentException implements Pap
     public static function forWindows(string $slug): self
     {
         return new self(
-            "The slug '$slug' is not a valid filename on Windows. It must not contain < > : \" | ? * or control characters."
+            "The slug '$slug' is not a valid filename on Windows. It has a reserved name like CON, a forbidden character like : or a tab, or a segment ending in a dot or space."
         );
+    }
+
+    public static function notAList(string $column, string $model, string $slug): self
+    {
+        return new self("The '$column' attribute on $model '$slug' must be a list of slugs.");
     }
 
     public static function missing(): self

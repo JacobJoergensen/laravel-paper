@@ -170,12 +170,15 @@ Post::create(['slug' => 'hello-world', 'title' => 'Hello World']);
 Post::updateOrCreate(['slug' => 'hello-world'], ['title' => 'Updated title']);
 ```
 
-Bulk `update` writes each matching file in a loop. Model events fire per record, `$fillable`
-does not apply, and it is not a single atomic operation:
+Bulk `update`, `increment` and `decrement` write each matching file in a loop. Model events fire
+per record, `$fillable` does not apply, and it is not a single atomic operation:
 
 ```php
 Post::where('draft', true)->update(['published' => true]);
+Post::where('featured', true)->increment('order');
 ```
+
+Increments suit editorial numbers and small counters, not page-view metrics.
 
 A save or delete checks that the file still holds what the record was loaded with, and throws
 `StaleRecordException` when it does not. `paper.concurrency` picks the policy: `strict` refuses

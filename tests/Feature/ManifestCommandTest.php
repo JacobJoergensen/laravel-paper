@@ -10,7 +10,7 @@ use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 
 function fakePostAdapter(): CountingAdapter
 {
-    $dir = PaperQueryBuilder::contentPathFor(Post::class);
+    $dir = PaperQueryBuilder::sourceFor(Post::class)->path;
     $adapter = new CountingAdapter;
     $adapter->seed($dir.'/cmd-1.md', "---\ntitle: One\n---\n", 1_000);
     $adapter->seed($dir.'/cmd-2.md', "---\ntitle: Two\n---\n", 2_000);
@@ -72,7 +72,7 @@ it('refreshes by rebuilding the manifest and leaving it warm', function (): void
 });
 
 it('covers every Paper model in app/Models when none are named', function (): void {
-    $this->app->useAppPath(base_path('tests/Fixtures/DiscoveryApp'));
+    $this->app->useAppPath(dirname(__DIR__).'/Fixtures/DiscoveryApp');
 
     $this->artisan('paper:clear')
         ->assertSuccessful()

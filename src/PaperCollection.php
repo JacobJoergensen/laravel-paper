@@ -51,10 +51,42 @@ class PaperCollection extends Collection
                 continue;
             }
 
-            $missing = $this->reject(fn (Model $model): bool => $model->relationLoaded($name));
+            $segments = explode('.', $name, 2);
+            $root = $segments[0];
+            $rest = $segments[1] ?? null;
+
+            [$loaded, $missing] = $this->partition(fn (Model $model): bool => $model->relationLoaded($root));
 
             if ($missing->isNotEmpty()) {
-                $missing->load(is_int($key) ? [$name] : [$name => $relation]);
+                $wanted = is_int($key) ? [$name] : [$name => $relation];
+
+                $missing->load($wanted);
+            }
+
+            if ($rest === null) {
+                continue;
+            }
+
+            $children = [];
+
+            foreach ($loaded as $model) {
+                $related = $model->getRelation($root);
+                $models = $related instanceof Collection ? $related->all() : [$related];
+
+                foreach ($models as $child) {
+                    if ($child instanceof Model) {
+                        $children[spl_object_id($child)] = $child;
+                    }
+                }
+            }
+
+            $first = reset($children);
+
+            if ($first !== false) {
+                $below = is_int($key) ? [$rest] : [$rest => $relation];
+                $childCollection = $first->newCollection(array_values($children));
+
+                $childCollection->loadMissing($below);
             }
         }
 

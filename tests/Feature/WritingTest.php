@@ -21,19 +21,19 @@ beforeEach(function (): void {
 });
 
 afterEach(function (): void {
-    foreach (glob(__DIR__.'/../content/posts/__save_test__*') ?: [] as $file) {
+    foreach (glob(base_path('tests/content/posts/__save_test__*')) ?: [] as $file) {
         @unlink($file);
     }
 
-    foreach (glob(__DIR__.'/../content/pages/__json_save_test__*') ?: [] as $file) {
+    foreach (glob(base_path('tests/content/pages/__json_save_test__*')) ?: [] as $file) {
         @unlink($file);
     }
 
-    foreach (glob(__DIR__.'/../content/*/.paper-*') ?: [] as $file) {
+    foreach (glob(base_path('tests/content/*/.paper-*')) ?: [] as $file) {
         @unlink($file);
     }
 
-    File::deleteDirectory(__DIR__.'/../content/drafts');
+    File::deleteDirectory(base_path('tests/content/drafts'));
 });
 
 it('reads a hand-authored YAML list into an array-cast attribute', function (): void {
@@ -49,14 +49,14 @@ it('writes array-cast attributes as native structures, not JSON strings', functi
     $post->tags = ['php', 'laravel'];
     $post->save();
 
-    $raw = file_get_contents(__DIR__.'/../content/posts/__save_test__cast.md');
+    $raw = file_get_contents(base_path('tests/content/posts/__save_test__cast.md'));
 
     expect($raw)->toContain('- php')->not->toContain('["')
         ->and(Post::find('__save_test__cast')->tags)->toBe(['php', 'laravel']);
 });
 
 it('leaves an array-cast field alone when the file value is not valid json', function (): void {
-    $path = __DIR__.'/../content/posts/__save_test__scalar.md';
+    $path = base_path('tests/content/posts/__save_test__scalar.md');
     File::put($path, "---\ntitle: Scalar Tags\ntags: laravel\n---\n\nBody.\n");
 
     $post = Post::find('__save_test__scalar');
@@ -141,7 +141,7 @@ it('clears dirty state and records changes after saving', function (): void {
 });
 
 it('leaves the file alone and fires no update events when saving an unchanged record', function (): void {
-    $path = __DIR__.'/../content/posts/__save_test__unchanged.md';
+    $path = base_path('tests/content/posts/__save_test__unchanged.md');
     file_put_contents($path, "---\ntitle: Unchanged\n---\n\nBody\n");
     touch($path, time() - 3600);
     clearstatcache();
@@ -185,7 +185,7 @@ it('keeps the record queryable when the file delete fails', function (): void {
     config(['paper.watch' => false]);
     app()->forgetInstance(PaperManifest::class);
 
-    $path = PaperQueryBuilder::contentPathFor(Post::class);
+    $path = PaperQueryBuilder::sourceFor(Post::class)->path;
     $adapter = new CountingAdapter;
     $adapter->seed($path.'/keeper.md', "---\ntitle: Keeper\n---\n", 1_000);
     PaperQueryBuilder::fake(Post::class, $adapter);
@@ -223,7 +223,7 @@ it('deletes records by slug with destroy, given an array, several arguments, or 
 });
 
 it('still reports the file it removed after a delete', function (): void {
-    $dir = __DIR__.'/../content/posts';
+    $dir = base_path('tests/content/posts');
     file_put_contents($dir.'/__save_test__.markdown', "---\ntitle: Gone\n---\n\nBody\n");
 
     Post::resetPaperState();
@@ -235,7 +235,7 @@ it('still reports the file it removed after a delete', function (): void {
 });
 
 it('moves the file when the slug changes', function (): void {
-    $dir = __DIR__.'/../content/posts';
+    $dir = base_path('tests/content/posts');
     file_put_contents($dir.'/__save_test__from.markdown', "---\ntitle: Moved\n---\n\nBody\n");
 
     Post::resetPaperState();
@@ -250,7 +250,7 @@ it('moves the file when the slug changes', function (): void {
 });
 
 it('renames a record when only the case of its slug changes', function (): void {
-    $dir = __DIR__.'/../content/posts';
+    $dir = base_path('tests/content/posts');
     file_put_contents($dir.'/__save_test__case.md', "---\ntitle: Case\n---\n\nBody\n");
 
     Post::resetPaperState();
@@ -264,7 +264,7 @@ it('renames a record when only the case of its slug changes', function (): void 
 });
 
 it('renames a record when its slug only changes the case of a non-ASCII letter', function (): void {
-    $dir = __DIR__.'/../content/posts';
+    $dir = base_path('tests/content/posts');
     file_put_contents($dir.'/__save_test__Æble.md', "---\ntitle: Apple\n---\n");
 
     Post::resetPaperState();
@@ -297,7 +297,7 @@ it('rejects a slug with a directory when the model does not read subdirectories'
 })->throws(InvalidSlugException::class);
 
 it('leaves the stored file alone when deleting a model that was never loaded', function (): void {
-    $path = __DIR__.'/../content/posts/__save_test__kept.md';
+    $path = base_path('tests/content/posts/__save_test__kept.md');
     file_put_contents($path, "---\ntitle: Kept\n---\n");
 
     $post = new Post(['slug' => '__save_test__kept']);
@@ -315,7 +315,7 @@ it('rejects path traversal when deleting', function (): void {
 })->throws(InvalidSlugException::class);
 
 it('saves a model whose slug is "0"', function (): void {
-    $dir = __DIR__.'/../content/drafts';
+    $dir = base_path('tests/content/drafts');
     File::deleteDirectory($dir);
 
     Draft::resetPaperState();
@@ -329,7 +329,7 @@ it('saves a model whose slug is "0"', function (): void {
 });
 
 it('creates the content directory for the first record of a model with timestamps', function (): void {
-    $dir = __DIR__.'/../content/__timestamped__';
+    $dir = base_path('tests/content/__timestamped__');
     File::deleteDirectory($dir);
 
     $model = new #[Timestamps, ContentPath('tests/content/__timestamped__')] class extends PaperModel
@@ -346,7 +346,7 @@ it('creates the content directory for the first record of a model with timestamp
 });
 
 it('creates the content directory when it does not exist', function (): void {
-    $dir = __DIR__.'/../content/drafts';
+    $dir = base_path('tests/content/drafts');
     File::deleteDirectory($dir);
 
     Draft::resetPaperState();
@@ -361,7 +361,7 @@ it('creates the content directory when it does not exist', function (): void {
 });
 
 it('overwrites the existing .markdown file instead of creating a duplicate', function (): void {
-    $dir = __DIR__.'/../content/posts';
+    $dir = base_path('tests/content/posts');
     file_put_contents($dir.'/__save_test__.markdown', "---\ntitle: Original\n---\n\nBody\n");
 
     Post::resetPaperState();
@@ -376,7 +376,7 @@ it('overwrites the existing .markdown file instead of creating a duplicate', fun
 });
 
 it('refuses to move a record onto a slug another record already holds', function (): void {
-    $path = PaperQueryBuilder::contentPathFor(Post::class);
+    $path = PaperQueryBuilder::sourceFor(Post::class)->path;
     $adapter = new CountingAdapter;
     $adapter->seed($path.'/mover.md', "---\ntitle: Mover\n---\n", 1_000);
     $adapter->seed($path.'/taken.md', "---\ntitle: Taken\n---\n", 2_000);
@@ -390,7 +390,7 @@ it('refuses to move a record onto a slug another record already holds', function
 });
 
 it('refuses to create a record on a slug a file already holds', function (): void {
-    $path = PaperQueryBuilder::contentPathFor(Post::class);
+    $path = PaperQueryBuilder::sourceFor(Post::class)->path;
     $adapter = new CountingAdapter;
     $adapter->seed($path.'/taken.md', "---\ntitle: Taken\n---\n", 1_000);
     PaperQueryBuilder::fake(Post::class, $adapter);
@@ -401,7 +401,7 @@ it('refuses to create a record on a slug a file already holds', function (): voi
 });
 
 it('refuses to create a record on a slug another extension already holds', function (): void {
-    $path = PaperQueryBuilder::contentPathFor(Post::class);
+    $path = PaperQueryBuilder::sourceFor(Post::class)->path;
     $adapter = new CountingAdapter;
     $adapter->seed($path.'/taken.markdown', "---\ntitle: Taken\n---\n", 1_000);
     PaperQueryBuilder::fake(Post::class, $adapter);
@@ -412,7 +412,7 @@ it('refuses to create a record on a slug another extension already holds', funct
 });
 
 it('reports failure and leaves the record in place when the moved file cannot be deleted', function (): void {
-    $path = PaperQueryBuilder::contentPathFor(Post::class);
+    $path = PaperQueryBuilder::sourceFor(Post::class)->path;
     $adapter = new CountingAdapter;
     $adapter->seed($path.'/stuck.md', "---\ntitle: Stuck\n---\n", 1_000);
     PaperQueryBuilder::fake(Post::class, $adapter);
@@ -427,7 +427,7 @@ it('reports failure and leaves the record in place when the moved file cannot be
 });
 
 it('refuses a move onto a slug a file with another extension already holds', function (): void {
-    $path = PaperQueryBuilder::contentPathFor(Post::class);
+    $path = PaperQueryBuilder::sourceFor(Post::class)->path;
     $adapter = new CountingAdapter;
     $adapter->seed($path.'/old.markdown', "---\ntitle: Old\n---\n", 1_000);
     $adapter->seed($path.'/taken.md', "---\ntitle: Taken\n---\n", 2_000);

@@ -93,8 +93,8 @@ it('eager loads relations for the record returned by sole', function (): void {
 });
 
 it('attaches relations for a numeric slug, which PHP stores as an integer array key', function (): void {
-    $author = __DIR__.'/../content/authors/123.json';
-    $post = __DIR__.'/../content/posts/numeric-author.md';
+    $author = base_path('tests/content/authors/123.json');
+    $post = base_path('tests/content/posts/numeric-author.md');
 
     File::put($author, '{"name": "Numeric"}');
     File::put($post, "---\ntitle: Numeric Author\nauthor_slug: 123\n---\n");
@@ -217,7 +217,7 @@ it('lazy eager loads across a collection without touching a model that already h
 });
 
 it('reloads the relations it already had when refreshing', function (): void {
-    $path = __DIR__.'/../content/posts/refreshed.md';
+    $path = base_path('tests/content/posts/refreshed.md');
     File::put($path, "---\ntitle: Refreshed\nauthor_slug: john-doe\n---\n");
 
     try {
@@ -249,4 +249,40 @@ it('eager loads the relations given to fresh', function (): void {
 it('lazy eager loads every relation name it is given', function (): void {
     expect(fn (): mixed => Post::all()->load('author', 'nonexistent'))
         ->toThrow(BadMethodCallException::class, 'Post::nonexistent does not exist.');
+});
+
+it('eager loads a nested relation through dot notation, stopping at a missing parent', function (): void {
+    $posts = Post::with('author.posts')->get()->keyBy('slug');
+    $author = $posts['hello-world']->author;
+
+    expect($author->relationLoaded('posts'))->toBeTrue()
+        ->and($author->posts->pluck('slug')->all())->toBe(['hello-world'])
+        ->and($posts['draft-post']->author)->toBeNull();
+});
+
+it('applies a constraint on a dotted relation to its last segment', function (): void {
+    $unpublished = fn (PaperQueryBuilder $query): PaperQueryBuilder => $query->where('published', false);
+
+    $post = Post::with(['author.posts' => $unpublished])->find('hello-world');
+
+    expect($post->author?->slug)->toBe('john-doe')
+        ->and($post->author->posts)->toHaveCount(0);
+});
+
+it('keeps the constraint on a relation that is also named as the start of a nested path', function (): void {
+    $jane = fn (PaperQueryBuilder $query): PaperQueryBuilder => $query->where('name', 'Jane Doe');
+
+    $post = Post::with(['author' => $jane], 'author.posts')->find('hello-world');
+
+    expect($post->author)->toBeNull();
+});
+
+it('loads only the missing nested relation onto a parent that is already loaded', function (): void {
+    $post = Post::with('author')->find('hello-world');
+    $author = $post->author;
+
+    $post->loadMissing('author.posts');
+
+    expect($post->author)->toBe($author)
+        ->and($author->relationLoaded('posts'))->toBeTrue();
 });

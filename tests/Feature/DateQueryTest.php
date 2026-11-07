@@ -6,6 +6,7 @@ use Illuminate\Cache\ArrayStore;
 use Illuminate\Cache\Repository;
 use Illuminate\Support\Carbon;
 use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
+use JacobJoergensen\LaravelPaper\ContentSource;
 use JacobJoergensen\LaravelPaper\Drivers\MarkdownDriver;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\CountingAdapter;
@@ -18,16 +19,13 @@ beforeEach(function (): void {
 
     $manifest = new PaperManifest(new Repository(new ArrayStore), 60, 10, true);
     $adapter = new CountingAdapter;
+    $source = new ContentSource($adapter, new MarkdownDriver, 'blog', false);
     $adapter->seed('blog/march.md', "---\ndate: 2024-03-15\n---\n", 1_000);
     $adapter->seed('blog/june.md', "---\ndate: '2025-06-20'\n---\n", 2_000);
 
     $this->adapter = $adapter;
-    $this->raw = fn (): PaperQueryBuilder => new PaperQueryBuilder(
-        $adapter, new MarkdownDriver, $manifest, 'blog', RawModel::class,
-    );
-    $this->cast = fn (): PaperQueryBuilder => new PaperQueryBuilder(
-        $adapter, new MarkdownDriver, $manifest, 'blog', DateModel::class,
-    );
+    $this->raw = fn (): PaperQueryBuilder => new PaperQueryBuilder($source, $manifest, RawModel::class);
+    $this->cast = fn (): PaperQueryBuilder => new PaperQueryBuilder($source, $manifest, DateModel::class);
 });
 
 afterEach(function (): void {

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use Illuminate\Filesystem\Filesystem;
 use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
-use JacobJoergensen\LaravelPaper\PaperVersion;
 use JacobJoergensen\LaravelPaper\StorageAdapters\ConditionalWriteStatus;
 use JacobJoergensen\LaravelPaper\StorageAdapters\LocalAdapter;
 
@@ -39,7 +38,7 @@ it('creates only when nothing holds the path', function (): void {
     $again = $this->adapter->createIfMissing($path, 'second');
 
     expect($created->status)->toBe(ConditionalWriteStatus::Written)
-        ->and($created->version)->toBe(PaperVersion::of('first'))
+        ->and($created->version)->toBe($this->adapter->readVersioned($path)['version'])
         ->and($again->status)->toBe(ConditionalWriteStatus::Taken)
         ->and(file_get_contents($path))->toBe('first');
 });
@@ -47,10 +46,11 @@ it('creates only when nothing holds the path', function (): void {
 it('replaces only the version it was given', function (): void {
     $path = $this->dir.'/post.md';
     $this->adapter->write($path, 'first');
+    $version = $this->adapter->readVersioned($path)['version'];
 
-    $stale = $this->adapter->replaceIf($path, 'stale', PaperVersion::of('other'));
-    $fresh = $this->adapter->replaceIf($path, 'second', PaperVersion::of('first'));
-    $gone = $this->adapter->replaceIf($this->dir.'/missing.md', 'x', PaperVersion::of('first'));
+    $stale = $this->adapter->replaceIf($path, 'stale', 'outdated');
+    $fresh = $this->adapter->replaceIf($path, 'second', $version);
+    $gone = $this->adapter->replaceIf($this->dir.'/missing.md', 'x', $version);
 
     expect($stale->status)->toBe(ConditionalWriteStatus::Mismatch)
         ->and($fresh->status)->toBe(ConditionalWriteStatus::Written)
@@ -61,12 +61,13 @@ it('replaces only the version it was given', function (): void {
 it('deletes only the version it was given', function (): void {
     $path = $this->dir.'/post.md';
     $this->adapter->write($path, 'first');
+    $version = $this->adapter->readVersioned($path)['version'];
 
-    $stale = $this->adapter->deleteIf($path, PaperVersion::of('other'));
+    $stale = $this->adapter->deleteIf($path, 'outdated');
 
     expect($stale->status)->toBe(ConditionalWriteStatus::Mismatch)
         ->and(file_exists($path))->toBeTrue()
-        ->and($this->adapter->deleteIf($path, PaperVersion::of('first'))->status)->toBe(ConditionalWriteStatus::Removed)
+        ->and($this->adapter->deleteIf($path, $version)->status)->toBe(ConditionalWriteStatus::Removed)
         ->and(file_exists($path))->toBeFalse();
 });
 
@@ -74,22 +75,23 @@ it('moves a record only when the source matches and the destination is free', fu
     $from = $this->dir.'/from.md';
     $to = $this->dir.'/to.md';
     $this->adapter->write($from, 'body');
+    $version = $this->adapter->readVersioned($from)['version'];
 
-    $stale = $this->adapter->moveIf($from, $to, 'body', PaperVersion::of('other'));
+    $stale = $this->adapter->moveIf($from, $to, 'body', 'outdated');
 
     expect($stale->status)->toBe(ConditionalWriteStatus::Mismatch)
         ->and(file_exists($to))->toBeFalse();
 
     $this->adapter->write($to, 'taken');
 
-    $taken = $this->adapter->moveIf($from, $to, 'body', PaperVersion::of('body'));
+    $taken = $this->adapter->moveIf($from, $to, 'body', $version);
 
     expect($taken->status)->toBe(ConditionalWriteStatus::Taken)
         ->and(file_get_contents($to))->toBe('taken');
 
     unlink($to);
 
-    $moved = $this->adapter->moveIf($from, $to, 'body', PaperVersion::of('body'));
+    $moved = $this->adapter->moveIf($from, $to, 'body', $version);
 
     expect($moved->status)->toBe(ConditionalWriteStatus::Written)
         ->and(file_exists($from))->toBeFalse()

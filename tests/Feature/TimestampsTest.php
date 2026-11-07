@@ -18,7 +18,7 @@ beforeEach(function (): void {
 afterEach(function (): void {
     PaperFake::reset();
 
-    foreach (glob(__DIR__.'/../content/posts/__ts_test__*') ?: [] as $file) {
+    foreach (glob(base_path('tests/content/posts/__ts_test__*')) ?: [] as $file) {
         @unlink($file);
     }
 });
@@ -69,7 +69,7 @@ it('orders by the model CREATED_AT column when latest is given no column', funct
 });
 
 it('orders an authored timestamp column by its frontmatter value, keeping ties in slug order', function (): void {
-    $dir = PaperQueryBuilder::contentPathFor(DatedPost::class);
+    $dir = PaperQueryBuilder::sourceFor(DatedPost::class)->path;
     $adapter = PaperFake::fake(DatedPost::class);
 
     $adapter->seed("$dir/hello-world.md", "---\ndate: 2024-01-15\n---\n", 1_700_000_300);
@@ -162,7 +162,7 @@ it('sets updated_at to the new file modification time after save', function (): 
 });
 
 it('keeps records that share an updated_at in slug order', function (): void {
-    $dir = PaperQueryBuilder::contentPathFor(TimestampedPost::class);
+    $dir = PaperQueryBuilder::sourceFor(TimestampedPost::class)->path;
     $adapter = PaperFake::fake(TimestampedPost::class);
 
     $adapter->seed("$dir/second-post.md", "---\ntitle: Second\n---\n", 1_700_000_300);

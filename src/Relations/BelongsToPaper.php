@@ -79,23 +79,13 @@ final readonly class BelongsToPaper extends PaperRelation
             return;
         }
 
-        $relatedKey = $this->relatedKeyName();
-
-        $query = PaperQueryBuilder::forModel($this->relatedClass)->whereIn($relatedKey, $keys);
+        $query = PaperQueryBuilder::forModel($this->relatedClass)->whereIn($this->relatedKeyName(), $keys);
 
         if ($constraint !== null) {
             $constraint($query);
         }
 
-        $byKey = [];
-
-        foreach ($query->get() as $model) {
-            $key = $this->keyOf($model, $relatedKey);
-
-            if ($key !== null) {
-                $byKey[$key] = $model;
-            }
-        }
+        $byKey = $this->keyed($query->get());
 
         foreach ($parents as $parent) {
             $key = $this->keyOf($parent, $this->foreignKey);
@@ -103,12 +93,5 @@ final readonly class BelongsToPaper extends PaperRelation
 
             $parent->setRelation($relationName, $related);
         }
-    }
-
-    private function relatedKeyName(): string
-    {
-        $relatedClass = $this->relatedClass;
-
-        return new $relatedClass()->getKeyName();
     }
 }

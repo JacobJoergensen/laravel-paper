@@ -30,6 +30,18 @@ interface PaperModel
      */
     public function paperRelations(): array;
 
+    /**
+     * @param  array<array-key, mixed>  $columns
+     * @param  array<string, mixed>  $extra
+     */
+    public function incrementEach(array $columns, array $extra = []): false|int;
+
+    /**
+     * @param  array<array-key, mixed>  $columns
+     * @param  array<string, mixed>  $extra
+     */
+    public function decrementEach(array $columns, array $extra = []): false|int;
+
     public function getContentPath(): string;
 
     public function getFilePath(): string;

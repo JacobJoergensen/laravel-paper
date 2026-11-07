@@ -10,8 +10,8 @@ use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Str;
+use JacobJoergensen\LaravelPaper\ContentSource;
 use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
-use JacobJoergensen\LaravelPaper\Contracts\StorageAdapterContract;
 use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
 use JacobJoergensen\LaravelPaper\Exceptions\ManifestCacheException;
 use JacobJoergensen\LaravelPaper\StorageAdapters\BestEffortWriter;
@@ -32,6 +32,11 @@ final class PaperManifest
      */
     private array $memo = [];
 
+    /**
+     * @var array<string, array<string, ManifestFile>>
+     */
+    private array $listings = [];
+
     public function __construct(
         private readonly Repository $cache,
         private readonly int $lockTtl,
@@ -45,43 +50,46 @@ final class PaperManifest
     /**
      * @return array<string, ManifestEntry>
      */
-    public function records(
-        StorageAdapterContract $adapter,
-        DriverContract $driver,
-        string $contentPath,
-        bool $nested = false,
-    ): array {
-        $trusted = $this->trusted($this->key($adapter, $driver, $contentPath, $nested));
+    public function records(ContentSource $source): array
+    {
+        $key = $this->key($source);
 
-        return $trusted ?? $this->reconcile($adapter, $driver, $contentPath, $nested);
+        return $this->trusted($key) ?? $this->rebuild($source, $key);
     }
 
     /**
      * @return array<string, ManifestEntry>
      */
-    public function reconcile(
-        StorageAdapterContract $adapter,
-        DriverContract $driver,
-        string $contentPath,
-        bool $nested = false,
-    ): array {
-        $key = $this->key($adapter, $driver, $contentPath, $nested);
+    public function reconcile(ContentSource $source): array
+    {
+        $key = $this->key($source);
+
+        unset($this->listings[$key]);
+
+        return $this->rebuild($source, $key);
+    }
+
+    /**
+     * @return array<string, ManifestEntry>
+     */
+    private function rebuild(ContentSource $source, string $key): array
+    {
         $revision = $this->revision($key);
-        $index = $this->files($adapter, $driver, $contentPath, $nested);
+        $index = $this->listing($source, $key);
         $cached = $this->read($key);
 
         if ($cached !== null && $this->current($cached, $index)) {
             return $cached;
         }
 
-        $rebuild = function () use ($adapter, $driver, $contentPath, $index, $key, $revision): array {
+        $rebuild = function () use ($source, $index, $key, $revision): array {
             $shared = $this->shared($key);
 
             if ($shared !== null && $this->current($shared, $index)) {
                 return $shared;
             }
 
-            $entries = $this->entries($adapter, $driver, $contentPath, $index, $shared ?? []);
+            $entries = $this->entries($source, $index, $shared ?? []);
 
             $this->store($key, $entries, $revision);
 
@@ -90,7 +98,7 @@ final class PaperManifest
 
         $rebuilt = $this->locked($key, $rebuild);
 
-        return $rebuilt ?? $this->entries($adapter, $driver, $contentPath, $index, $cached ?? []);
+        return $rebuilt ?? $this->entries($source, $index, $cached ?? []);
     }
 
     /**
@@ -118,14 +126,10 @@ final class PaperManifest
     /**
      * @return array<string, ManifestEntry>
      */
-    public function compile(
-        StorageAdapterContract $adapter,
-        DriverContract $driver,
-        string $contentPath,
-        bool $nested = false,
-    ): array {
-        $entries = $this->reconcile($adapter, $driver, $contentPath, $nested);
-        $file = $this->compiledFile($this->key($adapter, $driver, $contentPath, $nested));
+    public function compile(ContentSource $source): array
+    {
+        $entries = $this->reconcile($source);
+        $file = $this->compiledFile($this->key($source));
 
         if ($file === null) {
             return $entries;
@@ -229,17 +233,12 @@ final class PaperManifest
      * @param  array<string, ManifestEntry>  $cached
      * @return array<string, ManifestEntry>
      */
-    private function entries(
-        StorageAdapterContract $adapter,
-        DriverContract $driver,
-        string $contentPath,
-        array $index,
-        array $cached,
-    ): array {
+    private function entries(ContentSource $source, array $index, array $cached): array
+    {
         $entries = [];
 
         foreach ($index as $slug => $info) {
-            $entry = $this->entryFor($adapter, $driver, $cached[$slug] ?? null, $info);
+            $entry = $this->entryFor($source, $cached[$slug] ?? null, $info);
 
             if ($entry !== null) {
                 $entries[$slug] = $entry;
@@ -251,15 +250,15 @@ final class PaperManifest
                 continue;
             }
 
-            $path = $contentPath.'/'.$slug.'.'.$cachedEntry['ext'];
-            $mtime = $adapter->lastModified($path);
+            $path = $source->path.'/'.$slug.'.'.$cachedEntry['ext'];
+            $mtime = $source->adapter->lastModified($path);
 
             if ($mtime === null) {
                 continue;
             }
 
             $info = ['path' => $path, 'mtime' => $mtime, 'ext' => $cachedEntry['ext']];
-            $entry = $this->entryFor($adapter, $driver, $cachedEntry, $info);
+            $entry = $this->entryFor($source, $cachedEntry, $info);
 
             if ($entry !== null) {
                 $entries[$slug] = $entry;
@@ -276,19 +275,15 @@ final class PaperManifest
      * @param  ManifestFile  $info
      * @return ManifestEntry|null
      */
-    private function entryFor(
-        StorageAdapterContract $adapter,
-        DriverContract $driver,
-        ?array $existing,
-        array $info,
-    ): ?array {
+    private function entryFor(ContentSource $source, ?array $existing, array $info): ?array
+    {
         if ($this->fresh($existing, $info)) {
             return $existing;
         }
 
-        $read = BestEffortWriter::of($adapter)->readVersioned($info['path']);
+        $read = BestEffortWriter::of($source->adapter)->readVersioned($info['path']);
 
-        if ($read === null && $adapter->exists($info['path'])) {
+        if ($read === null && $source->adapter->exists($info['path'])) {
             throw FileParseException::unreadable($info['path']);
         }
 
@@ -296,9 +291,9 @@ final class PaperManifest
             return null;
         }
 
-        $data = $this->parse($driver, $info['path'], $read['contents']);
+        $data = $this->parse($source->driver, $info['path'], $read['contents']);
 
-        return $this->entry($driver, $info, $data, $read['version']);
+        return $this->entry($source->driver, $info, $data, $read['version']);
     }
 
     /**
@@ -316,31 +311,21 @@ final class PaperManifest
     /**
      * @return ManifestRecord|null
      */
-    public function record(
-        StorageAdapterContract $adapter,
-        DriverContract $driver,
-        string $contentPath,
-        string $slug,
-        bool $nested = false,
-    ): ?array {
-        return $this->recordsFor($adapter, $driver, $contentPath, [$slug], $nested)[$slug] ?? null;
+    public function record(ContentSource $source, string $slug): ?array
+    {
+        return $this->recordsFor($source, [$slug])[$slug] ?? null;
     }
 
     /**
      * @param  list<string>  $slugs
      * @return array<string, ManifestRecord>
      */
-    public function recordsFor(
-        StorageAdapterContract $adapter,
-        DriverContract $driver,
-        string $contentPath,
-        array $slugs,
-        bool $nested = false,
-    ): array {
+    public function recordsFor(ContentSource $source, array $slugs): array
+    {
         $found = [];
 
         if (! $this->watch) {
-            $entries = $this->records($adapter, $driver, $contentPath, $nested);
+            $entries = $this->records($source);
 
             foreach ($slugs as $slug) {
                 if (isset($entries[$slug])) {
@@ -351,9 +336,9 @@ final class PaperManifest
             return $found;
         }
 
-        $key = $this->key($adapter, $driver, $contentPath, $nested);
+        $key = $this->key($source);
         $revision = $this->revision($key);
-        $index = $this->files($adapter, $driver, $contentPath, $nested);
+        $index = $this->listing($source, $key);
         $cached = $this->read($key) ?? [];
         $parsed = [];
 
@@ -367,7 +352,7 @@ final class PaperManifest
             $existing = $cached[$slug] ?? null;
 
             if (! $this->fresh($existing, $info)) {
-                $existing = $this->entryFor($adapter, $driver, $existing, $info);
+                $existing = $this->entryFor($source, $existing, $info);
 
                 if ($existing === null) {
                     continue;
@@ -394,21 +379,21 @@ final class PaperManifest
         return $found;
     }
 
-    public function body(StorageAdapterContract $adapter, DriverContract $driver, string $path): mixed
+    public function body(ContentSource $source, string $path): mixed
     {
-        $column = $driver->bodyColumn();
+        $column = $source->driver->bodyColumn();
 
         if ($column === null) {
             return null;
         }
 
-        $contents = $adapter->read($path);
+        $contents = $source->adapter->read($path);
 
         if ($contents === null) {
             return null;
         }
 
-        $data = $this->parse($driver, $path, $contents);
+        $data = $this->parse($source->driver, $path, $contents);
 
         return $data[$column] ?? null;
     }
@@ -416,14 +401,10 @@ final class PaperManifest
     /**
      * @return list<string>
      */
-    public function slugs(
-        StorageAdapterContract $adapter,
-        DriverContract $driver,
-        string $contentPath,
-        bool $nested = false,
-    ): array {
-        $key = $this->key($adapter, $driver, $contentPath, $nested);
-        $entries = $this->trusted($key) ?? $this->files($adapter, $driver, $contentPath, $nested);
+    public function slugs(ContentSource $source): array
+    {
+        $key = $this->key($source);
+        $entries = $this->trusted($key) ?? $this->listing($source, $key);
 
         return array_map(strval(...), array_keys($entries));
     }
@@ -431,26 +412,18 @@ final class PaperManifest
     /**
      * @param  array<string, mixed>  $data
      */
-    public function put(
-        StorageAdapterContract $adapter,
-        DriverContract $driver,
-        string $contentPath,
-        string $slug,
-        string $path,
-        array $data,
-        string $version,
-        bool $nested = false,
-    ): void {
+    public function put(ContentSource $source, string $slug, string $path, array $data, string $version): void
+    {
         $info = [
             'path' => $path,
-            'mtime' => $adapter->lastModified($path) ?? 0,
+            'mtime' => $source->adapter->lastModified($path) ?? 0,
             'ext' => pathinfo($path, PATHINFO_EXTENSION),
         ];
 
-        $key = $this->key($adapter, $driver, $contentPath, $nested);
+        $key = $this->key($source);
 
-        $this->mutate($key, function (array $entries) use ($driver, $slug, $info, $data, $version): array {
-            $entries[$slug] = $this->entry($driver, $info, $data, $version);
+        $this->mutate($key, function (array $entries) use ($source, $slug, $info, $data, $version): array {
+            $entries[$slug] = $this->entry($source->driver, $info, $data, $version);
 
             ksort($entries, SORT_STRING);
 
@@ -480,14 +453,9 @@ final class PaperManifest
         ];
     }
 
-    public function forget(
-        StorageAdapterContract $adapter,
-        DriverContract $driver,
-        string $contentPath,
-        string $slug,
-        bool $nested = false,
-    ): void {
-        $key = $this->key($adapter, $driver, $contentPath, $nested);
+    public function forget(ContentSource $source, string $slug): void
+    {
+        $key = $this->key($source);
 
         $this->mutate($key, function (array $entries) use ($slug): array {
             unset($entries[$slug]);
@@ -496,13 +464,9 @@ final class PaperManifest
         });
     }
 
-    public function flush(
-        StorageAdapterContract $adapter,
-        DriverContract $driver,
-        string $contentPath,
-        bool $nested = false,
-    ): void {
-        $this->invalidate($this->key($adapter, $driver, $contentPath, $nested));
+    public function flush(ContentSource $source): void
+    {
+        $this->invalidate($this->key($source));
     }
 
     /**
@@ -511,6 +475,8 @@ final class PaperManifest
     private function mutate(string $key, Closure $change): void
     {
         $this->forgetCompiled($key);
+
+        $this->listings = [];
 
         $merged = $this->locked($key, function () use ($key, $change): array {
             $revision = $this->revision($key);
@@ -536,6 +502,8 @@ final class PaperManifest
     {
         $this->forgetCompiled($key);
 
+        $this->listings = [];
+
         $this->cache->forever($key.':revision', Str::random());
 
         $this->drop($key);
@@ -556,19 +524,16 @@ final class PaperManifest
     }
 
     /**
+     * @param  array<string, int>  $listing
      * @return array<string, ManifestFile>
      */
-    public function files(
-        StorageAdapterContract $adapter,
-        DriverContract $driver,
-        string $contentPath,
-        bool $nested = false,
-    ): array {
-        $priority = array_flip($driver->extensions());
-        $root = rtrim(str_replace('\\', '/', $contentPath), '/').'/';
+    public function index(ContentSource $source, array $listing): array
+    {
+        $priority = array_flip($source->driver->extensions());
+        $root = rtrim(str_replace('\\', '/', $source->path), '/').'/';
         $byslug = [];
 
-        foreach ($adapter->listing($contentPath, $driver->extensions(), $nested) as $path => $mtime) {
+        foreach ($listing as $path => $mtime) {
             $normalized = str_replace('\\', '/', $path);
             $relative = str_starts_with($normalized, $root) ? substr($normalized, strlen($root)) : $normalized;
             $extension = pathinfo($relative, PATHINFO_EXTENSION);
@@ -589,6 +554,20 @@ final class PaperManifest
             'mtime' => $info['mtime'],
             'ext' => $info['ext'],
         ], $byslug);
+    }
+
+    /**
+     * @return array<string, ManifestFile>
+     */
+    private function listing(ContentSource $source, string $key): array
+    {
+        if (isset($this->listings[$key])) {
+            return $this->listings[$key];
+        }
+
+        $listed = $source->adapter->listing($source->path, $source->driver->extensions(), $source->nested);
+
+        return $this->listings[$key] = $this->index($source, $listed);
     }
 
     /**
@@ -640,17 +619,13 @@ final class PaperManifest
         }
     }
 
-    private function key(
-        StorageAdapterContract $adapter,
-        DriverContract $driver,
-        string $contentPath,
-        bool $nested,
-    ): string {
+    private function key(ContentSource $source): string
+    {
         $scope = implode(':', [
             $this->version,
-            $adapter->cacheKey($contentPath),
-            $driver::class,
-            $nested ? 'nested' : 'flat',
+            $source->adapter->cacheKey($source->path),
+            $source->driver::class,
+            $source->nested ? 'nested' : 'flat',
             $this->watch ? 'watched' : 'trusted',
         ]);
 

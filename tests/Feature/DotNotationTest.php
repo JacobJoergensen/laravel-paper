@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Illuminate\Cache\ArrayStore;
 use Illuminate\Cache\Repository;
 use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
+use JacobJoergensen\LaravelPaper\ContentSource;
 use JacobJoergensen\LaravelPaper\Drivers\MarkdownDriver;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\CastKeyModel;
@@ -15,15 +16,12 @@ use JacobJoergensen\LaravelPaper\Tests\Fixtures\RawModel;
 beforeEach(function (): void {
     $manifest = new PaperManifest(new Repository(new ArrayStore), 60, 10, true);
     $adapter = new CountingAdapter;
+    $source = new ContentSource($adapter, new MarkdownDriver, 'blog', false);
     $adapter->seed('blog/alpha.md', "---\nseo:\n  title: Alpha\n  meta:\n    robots: index\n---\n", 1_000);
     $adapter->seed('blog/beta.md', "---\nseo:\n  title: Beta\n  meta:\n    robots: noindex\n---\n", 2_000);
 
-    $this->raw = fn (): PaperQueryBuilder => new PaperQueryBuilder(
-        $adapter, new MarkdownDriver, $manifest, 'blog', RawModel::class,
-    );
-    $this->cast = fn (): PaperQueryBuilder => new PaperQueryBuilder(
-        $adapter, new MarkdownDriver, $manifest, 'blog', NestedModel::class,
-    );
+    $this->raw = fn (): PaperQueryBuilder => new PaperQueryBuilder($source, $manifest, RawModel::class);
+    $this->cast = fn (): PaperQueryBuilder => new PaperQueryBuilder($source, $manifest, NestedModel::class);
 });
 
 it('queries into nested frontmatter with dot-notation', function (): void {
@@ -37,11 +35,10 @@ it('queries into nested frontmatter with dot-notation', function (): void {
 it('prefers a literal flat key over a nested lookup', function (): void {
     $manifest = new PaperManifest(new Repository(new ArrayStore), 60, 10, true);
     $adapter = new CountingAdapter;
+    $source = new ContentSource($adapter, new MarkdownDriver, 'flat', false);
     $adapter->seed('flat/doc.md', "---\n'seo.title': Flat\n---\n", 1_000);
 
-    $query = fn (): PaperQueryBuilder => new PaperQueryBuilder(
-        $adapter, new MarkdownDriver, $manifest, 'flat', RawModel::class,
-    );
+    $query = fn (): PaperQueryBuilder => new PaperQueryBuilder($source, $manifest, RawModel::class);
 
     expect($query()->where('seo.title', 'Flat')->get()->pluck('slug')->all())->toBe(['doc'])
         ->and($query()->pluck('seo.title')->all())->toBe(['Flat']);
@@ -50,9 +47,10 @@ it('prefers a literal flat key over a nested lookup', function (): void {
 it('filters a dotted flat key on its cast value', function (): void {
     $manifest = new PaperManifest(new Repository(new ArrayStore), 60, 10, true);
     $adapter = new CountingAdapter;
+    $source = new ContentSource($adapter, new MarkdownDriver, 'cast', false);
     $adapter->seed('cast/doc.md', "---\n'seo.count': '10'\n---\n", 1_000);
 
-    $query = new PaperQueryBuilder($adapter, new MarkdownDriver, $manifest, 'cast', CastKeyModel::class);
+    $query = new PaperQueryBuilder($source, $manifest, CastKeyModel::class);
 
     expect($query->where('seo.count', '===', 10)->get()->pluck('slug')->all())->toBe(['doc']);
 });

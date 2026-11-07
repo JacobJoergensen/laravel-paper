@@ -17,7 +17,7 @@ beforeEach(function (): void {
     Article::resetPaperState();
 
     $this->write = function (string $slug, string $title = 'First'): string {
-        $path = __DIR__.'/../content/posts/'.$slug.'.md';
+        $path = base_path('tests/content/posts/').$slug.'.md';
         File::put($path, "---\ntitle: $title\n---\n\nBody\n");
 
         return $path;
@@ -25,7 +25,7 @@ beforeEach(function (): void {
 });
 
 afterEach(function (): void {
-    foreach (glob(__DIR__.'/../content/posts/__cc_test__*') ?: [] as $file) {
+    foreach (glob(base_path('tests/content/posts/__cc_test__*')) ?: [] as $file) {
         @unlink($file);
     }
 });
@@ -162,7 +162,7 @@ it('writes without checking when the concurrency policy is off', function (): vo
 it('still undoes a rename whose old file survives when the policy is off', function (): void {
     config(['paper.concurrency' => 'off']);
 
-    $path = PaperQueryBuilder::contentPathFor(Post::class);
+    $path = PaperQueryBuilder::sourceFor(Post::class)->path;
     $adapter = new CountingAdapter;
     $adapter->seed($path.'/stuck.md', "---\ntitle: Stuck\n---\n", 1_000);
     PaperQueryBuilder::fake(Post::class, $adapter);

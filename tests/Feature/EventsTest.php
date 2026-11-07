@@ -14,7 +14,7 @@ beforeEach(function (): void {
 });
 
 afterEach(function (): void {
-    $dir = __DIR__.'/../content/posts';
+    $dir = base_path('tests/content/posts');
 
     foreach (glob($dir.'/__save_test__*') ?: [] as $file) {
         @unlink($file);
@@ -135,7 +135,7 @@ it('records the slug a saving listener set, not the one it was handed', function
 });
 
 it('deletes the file the record was loaded from, not one a deleting listener names', function (): void {
-    $dir = __DIR__.'/../content/posts';
+    $dir = base_path('tests/content/posts');
     file_put_contents($dir.'/__save_test__target.md', "---\ntitle: Target\n---\n");
     file_put_contents($dir.'/__save_test__bystander.md', "---\ntitle: Bystander\n---\n");
 

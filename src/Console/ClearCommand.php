@@ -17,10 +17,9 @@ final class ClearCommand extends PaperCommand
 
     protected function runFor(string $model): void
     {
-        $resolved = PaperQueryBuilder::resolveFor($model);
-        $path = PaperQueryBuilder::contentPathFor($model);
+        $source = PaperQueryBuilder::sourceFor($model);
 
-        app(PaperManifest::class)->flush($resolved['adapter'], $resolved['driver'], $path, $resolved['nested']);
+        app(PaperManifest::class)->flush($source);
 
         $this->info(sprintf('%s: manifest cleared.', $model));
     }

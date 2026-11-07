@@ -23,8 +23,9 @@ return [
     | File Watcher
     |--------------------------------------------------------------------------
     |
-    | Whether a query lists the content directory to pick up files changed
-    | outside the app. "auto" watches locally and trusts the manifest elsewhere.
+    | Whether each request or job lists the content directory once to pick up
+    | files changed outside the app. "auto" watches locally and trusts the
+    | manifest elsewhere.
     | With it off, a warm query is a pure cache read and disk edits show up
     | after "paper:refresh".
     |
