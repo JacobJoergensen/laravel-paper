@@ -11,6 +11,10 @@ parameters:
         - identifier: attribute.notFound
           path: */tests/Fixtures/Post.php
           reportUnmatched: false
+        # Model::incrementEach is documented as returning int before Laravel 13.38.
+        - identifier: notIdentical.alwaysTrue
+          path: */src/PaperQueryBuilder.php
+          reportUnmatched: false
         # Automatic relationship loading only exists on newer Laravel 12.
         - identifier: function.alreadyNarrowedType
           path: */src/Paper.php
