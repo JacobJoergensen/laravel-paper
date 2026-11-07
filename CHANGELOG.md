@@ -1,50 +1,40 @@
 # Changelog
 
 ## Unreleased
-* Added `config/paper.php` to put the manifest on a dedicated cache store that survives `cache:clear`, and to tune the rebuild lock timing
-* Added `has`, `doesntHave`, `whereHas`, `whereDoesntHave`, and `whereRelation`, plus `or` variants, to filter on relations with count constraints like `has('posts', '>=', 3)`
-* Added `paper.watch` to skip the per-request directory scan when the manifest is trusted; auto by default, on locally and off in production
-* Added `PaperModel` interface that models using the `Paper` trait must implement, so pointing a relation at a non-Paper model is caught before runtime
-* Added a `PaperModel` base class so a model can extend it instead of wiring the `Paper` trait and the interface by hand
-* Added lazy loading for relations, so `$post->author` resolves it on first read and keeps the result
-* Added `load` and `loadMissing` on the model, so a relation can be batched onto a record already in memory
-* Added `PaperCollection` as the default collection, giving `load`, `loadMissing`, and `fresh` on a result set; a class named by `#[CollectedBy]` must extend it
-* Added `with` for eager loading relations, batching reads to avoid N+1, and taking a closure per relation to constrain it
-* Added a batch size to `lazy`, the number of records an eager load groups into; `chunk` passes its own count
-* Added `PaperQueryBuilder::driverFor` so tooling can read a model's driver, and with it `bodyColumn` and `bodySyntax`
-* Added optimistic concurrency, so `save` and `delete` throw `StaleRecordException` when the record changed on disk after it was loaded
-* Added `paper.concurrency` to choose the policy: `strict`, `best_effort`, or `off`
-* Added `ConditionalWriteContract` for storage that applies a condition and its write in one step; `LocalAdapter` implements it, a disk is checked without that guarantee
-* Added `PaperRelation` abstract base for relation descriptors, with `BelongsToPaper` and `HasManyPaper` as concrete types exposing `getResults()` for lazy resolution and property access after eager loading, and `query()` to filter the records a relation covers before it runs
-* Added `paperRelations` to enumerate the relations a model declares a concrete `PaperRelation` return type for, keyed by name, so tooling does not have to reflect the model itself
-* Added `nested` to `#[ContentPath]` so a model reads subdirectories, turning `docs/guides/installation.md` into the slug `guides/installation`
-* Added `#[Disk]` attribute to point a model at any Laravel filesystem disk; default behavior (local FS) is unchanged when the attribute is absent
-* Added `StorageAdapterContract` with `LocalAdapter` and `DiskAdapter` implementations so reads, writes, listing, and existence checks go through one abstraction
-* Added `PaperFake` to define model content inline in tests instead of writing files to disk
-* Added `RefreshesPaperFakes` test trait to clear fakes between tests, like `RefreshDatabase`
-* Added `paper:warm`, `paper:clear`, and `paper:refresh` commands to warm, clear, and rebuild a model's manifest; `paper:warm --compile` writes it to a PHP file that opcache serves, like `config:cache`
-* Changed `addGlobalScope` to throw `UnsupportedScopeException` for an Eloquent `Scope`, which Paper silently ignored before
-* Changed `belongsToPaper` and `hasManyPaper` to return relation descriptors; call ->getResults() for direct resolution or use with() to eager load
-* Changed `fresh` to eager load the relations it is given instead of ignoring them
-* Changed `toQuery` and the `loadCount` family on a result set to throw `UnsupportedCollectionMethodException` instead of querying the database
-* Changed `whereContains` to only accept a scalar value; passing an array silently matched nothing
-* Changed `where`, `orWhere`, and `firstWhere` to take a `Closure` instead of any callable, like Eloquent
-* Changed `where` and the date family to reject a value that is not scalar or null; passing an array silently matched nothing
-* Changed `where` to reject a comparison operator handed null instead of silently matching nothing
-* Changed `orderBy`, `limit`, `offset`, `chunk`, `paginate`, `simplePaginate`, and `whereBetween` to throw on input they cannot apply, like an unknown sort direction or a negative limit
-* Changed `save` and `delete` to resolve the file through `getFilePath` instead of probing every driver extension on disk; a record that was never loaded uses the driver's first extension
-* Changed `find` to match slugs case-sensitively, like `where`; a case-mismatched slug now returns null
-* Changed `find` to throw `ContentPathNotFoundException` for a missing content directory, like `where`, instead of returning null
-* Changed `DriverContract` to require `bodyColumn()`, naming the column that holds the file's body, or null for a format without one
-* Changed `DriverContract` to require `bodySyntax()`, naming the markup the body is written in, or null when the driver does not say
-* Changed `DriverContract::parse` signature to `parse(string $contents)`; drivers no longer perform I/O, the adapter reads files. A format error is rethrown with the file path via `FileParseException::inFile`
-* Changed Markdown frontmatter that is not a mapping to throw instead of being dropped on the next `save`
-* Changed Markdown frontmatter to write multi-line strings as literal blocks, like the `yaml` driver
-* Improved scoped route model binding to resolve through any `PaperRelation`, not only `hasManyPaper`
-* Optimized `where` and `orderBy` to work on the raw record and build only the models a query returns when the columns have no cast, accessor, or relation
-* Optimized queries to reconcile a per content-path manifest against one directory listing, so a query reads one listing instead of a metadata call per file and warm reads scale flat with file count
-* Removed `applyGlobalScopes` from `PaperQueryBuilder`; global scopes are applied when the query is built
-* Removed `UnsupportedRouteBindingException` now that `resolveChildRouteBinding` resolves the child instead of throwing
+* Added `config/paper.php` to give the manifest its own cache store that survives `cache:clear`
+* Added `paper.watch` to skip the directory scan on each request; on locally and off in production by default
+* Added `has`, `whereHas`, `whereRelation` and their `doesntHave` and `or` variants, with counts like `has('posts', '>=', 3)`
+* Added a `PaperModel` interface and base class; a relation to a non-Paper model now fails early
+* Added `PaperRelation` with `BelongsToPaper` and `HasManyPaper`; `query()` filters the records a relation covers
+* Added eager loading with `with`, `load` and `loadMissing`, and lazy loading on property access like `$post->author`
+* Added `PaperCollection` as the default collection with `load`, `loadMissing` and `fresh`; a `#[CollectedBy]` class must extend it
+* Added a batch size to `lazy` for grouping eager loads
+* Added `paperRelations` to list the relations a model declares
+* Added `PaperQueryBuilder::driverFor` to read a model's driver
+* Added `nested` to `#[ContentPath]` to read subdirectories, so `docs/guides/installation.md` gets the slug `guides/installation`
+* Added `#[Disk]` to read a model from any Laravel filesystem disk
+* Added `StorageAdapterContract` with `LocalAdapter` and `DiskAdapter`
+* Added optimistic concurrency, so `save` and `delete` throw `StaleRecordException` when the file changed after it was loaded. Set the policy with `paper.concurrency`
+* Added `ConditionalWriteContract` for storage that checks and writes in one step; `LocalAdapter` implements it
+* Added `PaperFake` and the `RefreshesPaperFakes` trait to define content inline in tests
+* Added `paper:warm`, `paper:clear` and `paper:refresh` to manage the manifest; `paper:warm --compile` caches it to a PHP file like `config:cache`
+* Changed `belongsToPaper` and `hasManyPaper` to return a `PaperRelation`; call `getResults()` or eager load with `with`
+* Changed `addGlobalScope` to throw `UnsupportedScopeException` for an Eloquent `Scope` instead of ignoring it
+* Changed `fresh` to eager load the relations it is given
+* Changed `toQuery` and the `loadCount` family on a result set to throw `UnsupportedCollectionMethodException`
+* Changed `where`, `whereContains` and the date family to throw on an array, or on null with a comparison operator, instead of matching nothing
+* Changed `where`, `orWhere` and `firstWhere` to take a `Closure` instead of any callable, like Eloquent
+* Changed `orderBy`, `limit`, `offset`, `chunk`, `paginate`, `simplePaginate` and `whereBetween` to throw on invalid input like an unknown sort direction or a negative limit
+* Changed `find` to work like `where`: slugs match case-sensitively and a missing content directory throws `ContentPathNotFoundException`
+* Changed `save` and `delete` to use `getFilePath` instead of probing every driver extension
+* Changed `DriverContract` to require `bodyColumn()` and `bodySyntax()`
+* Changed `DriverContract::parse` to take the file contents instead of a path; the adapter reads the file
+* Changed Markdown frontmatter to throw when it is not a mapping and to write multi-line strings as literal blocks
+* Improved scoped route model binding to resolve through any `PaperRelation`
+* Optimized `where` and `orderBy` to skip building models when the columns have no cast, accessor or relation
+* Optimized queries to check one directory listing against the manifest instead of reading each file's metadata
+* Removed `applyGlobalScopes` from `PaperQueryBuilder`
+* Removed `UnsupportedRouteBindingException`; `resolveChildRouteBinding` now resolves the child
 
 ## Version 1.21.0 (2026-11-03)
 * Improved `findMany` to accept a collection of slugs, like Eloquent
