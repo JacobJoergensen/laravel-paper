@@ -38,6 +38,9 @@
 * Removed `applyGlobalScopes` from `PaperQueryBuilder`
 * Removed `UnsupportedRouteBindingException`; `resolveChildRouteBinding` now resolves the child
 
+## Version 1.21.1 (2026-11-12)
+* Bumped `symfony/yaml` to `^7.4.23|^8.1.11` to prevent a single YAML file from hanging the PHP process
+
 ## Version 1.21.0 (2026-11-03)
 * Improved `findMany` to accept a collection of slugs, like Eloquent
 * Improved `PaperRule::unique()->ignore()` to accept a model, like Laravel's `unique` rule
