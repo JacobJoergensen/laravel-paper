@@ -20,7 +20,7 @@ use JacobJoergensen\LaravelPaper\StorageAdapters\BestEffortWriter;
  * @internal
  *
  * @phpstan-type ManifestEntry array{mtime: int, parsed: int, ext: string, data: array<string, mixed>, version: string}
- * @phpstan-type ManifestRecord array{slug: string, mtime: int, ext: string, data: array<string, mixed>, version: string}
+ * @phpstan-type ManifestRecord array{slug: string, mtime: int, parsed?: int, ext: string, data: array<string, mixed>, version: string}
  * @phpstan-type ManifestFile array{path: string, mtime: int, ext: string}
  */
 final class PaperManifest
@@ -187,7 +187,7 @@ final class PaperManifest
 
     /**
      * @param  ManifestEntry|null  $existing
-     * @param  array{mtime: int, ext: string}  $info
+     * @param  ManifestFile  $info
      *
      * @phpstan-assert-if-true ManifestEntry $existing
      */
@@ -432,7 +432,7 @@ final class PaperManifest
     }
 
     /**
-     * @param  array{mtime: int, ext: string}  $info
+     * @param  ManifestFile  $info
      * @param  array<string, mixed>  $data
      * @return ManifestEntry
      */

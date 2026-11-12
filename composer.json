@@ -24,15 +24,14 @@
         "illuminate/database": "^12.0|^13.0",
         "illuminate/filesystem": "^12.0|^13.0",
         "illuminate/support": "^12.0|^13.0",
-        "symfony/yaml": "^7.4.18|^8.1.6"
+        "symfony/yaml": "^7.4.23|^8.1.11"
     },
     "require-dev": {
-        "laravel/pint": "^1.29",
+        "laravel/pint": "^1.32.3",
         "orchestra/testbench": "^10.0|^11.0",
-        "pestphp/pest": "^4.0",
-        "pestphp/pest-plugin-laravel": "^4.1",
-        "pestphp/pest-plugin-type-coverage": "^4.0",
-        "phpstan/phpstan": "^2.3"
+        "pestphp/pest": "^4.7.8",
+        "pestphp/pest-plugin-type-coverage": "^4.0.4",
+        "phpstan/phpstan": "^2.3.5"
     },
     "autoload": {
         "psr-4": {
@@ -53,7 +52,7 @@
         "test:lint": "vendor/bin/pint --parallel --test",
         "test:types": "vendor/bin/phpstan analyse",
         "test:type-coverage": "vendor/bin/pest --type-coverage --min=100",
-        "test:unit": "vendor/bin/pest --parallel",
+        "test:unit": "vendor/bin/pest",
         "test": [
             "@test:lint",
             "@test:types",

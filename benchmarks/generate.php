@@ -27,7 +27,7 @@ if (is_dir($dir)) {
 
 mt_srand($seed);
 
-/** @var list<string> $words */
+/** @var non-empty-list<string> $words */
 $words = explode(' ', 'lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua enim ad minim veniam quis nostrud exercitation ullamco laboris');
 $tags = [
     'laravel', 'php', 'markdown', 'content', 'flat-file',
@@ -72,7 +72,7 @@ for ($i = 1; $i <= $count; $i++) {
 file_put_contents($manifest, $signature);
 
 /**
- * @param  list<string>  $pool
+ * @param  non-empty-list<string>  $pool
  */
 function pickTags(array $pool): string
 {
@@ -86,7 +86,7 @@ function pickTags(array $pool): string
 }
 
 /**
- * @param  list<string>  $words
+ * @param  non-empty-list<string>  $words
  */
 function body(array $words, int $bodyKb): string
 {
