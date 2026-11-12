@@ -21,9 +21,13 @@
     "require": {
         "php": "^8.4",
         "composer-runtime-api": "^2.2",
+        "illuminate/config": "^12.0|^13.0",
+        "illuminate/console": "^12.0|^13.0",
         "illuminate/database": "^12.0|^13.0",
         "illuminate/filesystem": "^12.0|^13.0",
+        "illuminate/pagination": "^12.0|^13.0",
         "illuminate/support": "^12.0|^13.0",
+        "illuminate/translation": "^12.0|^13.0",
         "symfony/yaml": "^7.4.23|^8.1.11"
     },
     "require-dev": {
@@ -72,7 +76,5 @@
         "allow-plugins": {
             "pestphp/pest-plugin": true
         }
-    },
-    "minimum-stability": "dev",
-    "prefer-stable": true
+    }
 }
