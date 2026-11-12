@@ -459,7 +459,7 @@ final class PaperQueryBuilder
     {
         $amounts = self::incrementAmounts($columns);
 
-        $write = fn (Model&PaperModel $model): bool => $model->incrementEach($amounts, $extra) !== false;
+        $write = fn (PaperModel $model): bool => $model->incrementEach($amounts, $extra) !== false;
 
         return $this->writeEach($write);
     }
@@ -472,7 +472,7 @@ final class PaperQueryBuilder
     {
         $amounts = self::incrementAmounts($columns);
 
-        $write = fn (Model&PaperModel $model): bool => $model->decrementEach($amounts, $extra) !== false;
+        $write = fn (PaperModel $model): bool => $model->decrementEach($amounts, $extra) !== false;
 
         return $this->writeEach($write);
     }
