@@ -154,11 +154,10 @@ it('reads the slug from the first driver extension when it exists under several'
     File::put($duplicate, "---\ntitle: From markdown\n---\n");
 
     try {
-        $found = Post::find('hello-world');
         $post = Post::all()->firstWhere('slug', 'hello-world');
 
         expect($post->title)->toBe('Hello World')
-            ->and($found->title)->toBe($post->title);
+            ->and($post->title)->toBe(Post::find('hello-world')->title);
     } finally {
         File::delete($duplicate);
     }

@@ -103,7 +103,7 @@ model binding too. A scope is a Closure or a class implementing `ScopeContract`,
 Eloquent's `Scope`, which Paper's builder cannot accept. Drop one with
 `withoutGlobalScope`. An `or` in the query cannot widen past a scope, unlike in Eloquent.
 
-`#[CollectedBy]` is also respected, so queries return your model's custom collection.
+A `#[CollectedBy]` class must extend `PaperCollection`.
 
 ## Route model binding
 
@@ -120,9 +120,8 @@ Route::get('/authors/{author}/posts/{post}', fn (Author $author, Post $post) => 
 
 ## Aggregates
 
-`min`, `max`, `sum`, and `avg` read the column through its cast, building a model per matching
-record. `min` and `max` compare with PHP's rules, so a column mixing numbers and text can return
-the text.
+`min`, `max`, `sum`, and `avg` read the column through its cast. `min` and `max` compare with
+PHP's rules, so a column mixing numbers and text can return the text.
 
 ```php
 $next = Post::max('order') + 1;
@@ -148,9 +147,6 @@ tags: [laravel, markdown]
 
 ## Writing
 
-Save and delete go through the standard Eloquent API and fire the usual model events;
-loading a record fires `retrieved`.
-
 ```php
 $post = new Post();
 $post->slug = 'hello-world';
@@ -161,9 +157,7 @@ $post->save();
 $post->delete();
 ```
 
-`create`, `firstOrCreate`, and `updateOrCreate` work from an attribute array. Like any
-Eloquent model, these use mass assignment, so set `$fillable` (or `$guarded = []`) on the
-model. The array must include the slug, since it is the key:
+`create`, `firstOrCreate`, and `updateOrCreate` need the slug in the attribute array, since it is the key:
 
 ```php
 Post::create(['slug' => 'hello-world', 'title' => 'Hello World']);
@@ -256,13 +250,10 @@ foreach (Post::with('author')->get() as $post) {
 }
 ```
 
-A lazy load reads the manifest rather than the file, so a loop without `with()` costs far
-less than an N+1 in SQL, but `with()` still saves the repeated lookup.
-
 Foreign keys default to `{model}_slug` (e.g. `author_slug`); pass a second argument to
 override. Every relation answers `query()` with the records it covers, so `$author->posts()->query()`
 or `$post->author()->query()` can be filtered before it runs. A custom relation extends
-`PaperRelation` and implements `query`, `getResults`, `eagerLoad` and `counter`.
+`PaperRelation`.
 
 ## Validation
 
@@ -283,8 +274,8 @@ PaperRule::unique(Post::class)->ignore($post->slug);
 ## Custom drivers
 
 `markdown`, `json`, and `yaml` are registered by default. To support another format, implement
-`DriverContract` (`extensions`, `bodyColumn`, `bodySyntax`, `body`, `parse`, `serialize`) and register it in a
-service provider's `boot` method, then point a model at it with `#[Driver('toml')]`.
+`DriverContract` and register it in a service provider's `boot` method, then point a model at it
+with `#[Driver('toml')]`.
 
 ```php
 use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
@@ -292,13 +283,9 @@ use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
 app(DriverRegistry::class)->register('toml', TomlDriver::class);
 ```
 
-`parse` takes the file contents, not a path, and returns only strings, numbers, booleans, null and
-arrays; an object throws `FileParseException`. `bodyColumn` names the attribute the body is
-exposed as, `content` for Markdown, and returns `null` for a format that is data only. `body`
-returns only the body from the file contents, without parsing the rest, or `null` when there is none.
-
-`bodySyntax` names the markup the body is written in, lowercase, `markdown` for Markdown.
-Paper never reads it; editors and other tooling do. Return `null` to say nothing.
+`parse` gets the file contents, not a path, and returns only scalars, null and arrays, so turn dates
+into strings. `bodySyntax` names the body's markup in lowercase, like `markdown`. A data-only format
+returns `null` from `bodyColumn`, `bodySyntax` and `body`.
 
 Order `extensions()` deliberately. New records are written with the first one, and when a slug
 exists under several, the first one wins.

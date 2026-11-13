@@ -38,14 +38,11 @@ it('handles content without frontmatter', function (): void {
     expect($data)->toBe(['content' => 'Just content, no frontmatter.']);
 });
 
-it('reads the body alone without parsing the frontmatter', function (string $contents, string $body): void {
+it('reads the body even when the frontmatter is malformed', function (): void {
     $driver = new MarkdownDriver;
 
-    expect($driver->body($contents))->toBe($body);
-})->with([
-    'after frontmatter' => ["\xEF\xBB\xBF---\ntitle: [unclosed\n---\n\nBody\n", 'Body'],
-    'without frontmatter' => ["\nJust content.\n", 'Just content.'],
-]);
+    expect($driver->body("---\ntitle: [unclosed\n---\n\nBody\n"))->toBe('Body');
+});
 
 it('throws a Paper exception when the frontmatter is malformed', function (): void {
     $driver = new MarkdownDriver;

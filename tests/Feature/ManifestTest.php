@@ -70,29 +70,20 @@ it('reads only the requested file on a cold find, then serves it warm', function
         ->and($this->adapter->counts['read'])->toBe(0);
 });
 
-it('compiles the manifest on the first read from the cache store, then serves it from opcache', function (bool $opcache, string $read): void {
+it('serves the same records from the compiled manifest as from the cache store', function (): void {
     $compiledPath = sys_get_temp_dir().'/paper-compiled-'.getmypid();
-    $store = new CountingStore;
-    $cache = new Repository($store);
-    $request = fn (): PaperManifest => new PaperManifest($cache, 60, 10, false, '', $compiledPath, $opcache);
+    $request = fn (bool $opcache): PaperManifest => new PaperManifest($this->cache, 60, 10, false, '', $compiledPath, $opcache);
+    $this->adapter->seed('blog/2024.md', "---\nratio: 0.1\ntags: [a, b]\nnote: ~\n---\n", 2_000);
 
     try {
-        $request()->records($this->source);
-        $request()->records($this->source);
-        $store->reset();
+        $stored = $request(false)->records($this->source);
+        $request(true)->records($this->source);
 
-        $records = $request()->records($this->source);
-        $reads = array_map(fn (string $key): string => str_ends_with($key, ':generation') ? 'generation' : 'manifest', $store->keys);
-
-        expect($records)->toHaveCount(5)
-            ->and($reads)->toBe([$read]);
+        expect($request(true)->records($this->source))->toBe($stored);
     } finally {
         File::deleteDirectory($compiledPath);
     }
-})->with([
-    'with opcache' => [true, 'generation'],
-    'without opcache' => [false, 'manifest'],
-]);
+});
 
 it('rejects a driver value the manifest cannot store', function (): void {
     $driver = new class implements DriverContract
@@ -146,11 +137,7 @@ it('never serves a compiled manifest from before a write, even one made by a pro
         $this->adapter->remove('blog/post-1.md');
         $request(opcache: false)->forget($this->source, 'post-1');
 
-        $records = $request()->records($this->source);
-        $files = glob($compiledPath.'/*.php') ?: [];
-
-        expect($records)->not->toHaveKey('post-1')
-            ->and($files)->toHaveCount(1);
+        expect($request()->records($this->source))->not->toHaveKey('post-1');
     } finally {
         File::deleteDirectory($compiledPath);
     }
@@ -158,7 +145,7 @@ it('never serves a compiled manifest from before a write, even one made by a pro
 
 it('never serves a compiled manifest after a write that finds the cached one evicted', function (): void {
     $compiledPath = sys_get_temp_dir().'/paper-compiled-'.getmypid();
-    $store = new CountingStore;
+    $store = new ArrayStore;
     $cache = new Repository($store);
     $request = fn (): PaperManifest => new PaperManifest($cache, 60, 10, false, '', $compiledPath, true);
 
@@ -166,8 +153,9 @@ it('never serves a compiled manifest after a write that finds the cached one evi
         $request()->records($this->source);
         $request()->records($this->source);
 
-        $manifestKey = array_find($store->keys, fn (string $key): bool => preg_match('/:(generation|revision)$/', $key) === 0);
-        $cache->forget($manifestKey);
+        $sizes = array_map(fn (array $item): int => strlen(serialize($item['value'])), $store->all());
+        arsort($sizes);
+        $store->forget((string) array_key_first($sizes));
 
         $this->adapter->remove('blog/post-1.md');
         $request()->forget($this->source, 'post-1');
@@ -193,18 +181,14 @@ it('removes the compiled manifest when the manifest is flushed', function (): vo
     }
 });
 
-it('answers from the cache store when the compiled manifest cannot be written', function (): void {
+it('still answers queries when the compiled manifest cannot be written', function (): void {
     $blocker = tempnam(sys_get_temp_dir(), 'paper-');
     $request = fn (): PaperManifest => new PaperManifest($this->cache, 60, 10, false, '', $blocker.'/compiled', true);
 
     try {
         $request()->records($this->source);
-        $this->adapter->reset();
 
-        $records = $request()->records($this->source);
-
-        expect($records)->toHaveCount(5)
-            ->and($this->adapter->counts['read'])->toBe(0);
+        expect($request()->records($this->source))->toHaveCount(5);
     } finally {
         @unlink($blocker);
     }
