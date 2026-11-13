@@ -8,17 +8,19 @@ use Illuminate\Cache\ArrayStore;
 
 final class CountingStore extends ArrayStore
 {
-    /** @var array<string, int> */
-    public array $counts = ['get' => 0];
+    /**
+     * @var list<string>
+     */
+    public array $keys = [];
 
     public function reset(): void
     {
-        $this->counts = array_fill_keys(array_keys($this->counts), 0);
+        $this->keys = [];
     }
 
     public function get($key): mixed
     {
-        $this->counts['get']++;
+        $this->keys[] = $key;
 
         return parent::get($key);
     }

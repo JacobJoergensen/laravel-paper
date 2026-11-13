@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\File;
 use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
 use JacobJoergensen\LaravelPaper\ContentSource;
+use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Drivers\JsonDriver;
 use JacobJoergensen\LaravelPaper\Drivers\MarkdownDriver;
 use JacobJoergensen\LaravelPaper\Drivers\YamlDriver;
@@ -69,77 +70,145 @@ it('reads only the requested file on a cold find, then serves it warm', function
         ->and($this->adapter->counts['read'])->toBe(0);
 });
 
-it('serves a compiled manifest from opcache without the cache or disk', function (bool $opcache, int $reads): void {
+it('compiles the manifest on the first read from the cache store, then serves it from opcache', function (bool $opcache, string $read): void {
     $compiledPath = sys_get_temp_dir().'/paper-compiled-'.getmypid();
+    $store = new CountingStore;
+    $cache = new Repository($store);
+    $request = fn (): PaperManifest => new PaperManifest($cache, 60, 10, false, '', $compiledPath, $opcache);
 
     try {
-        new PaperManifest(new Repository(new ArrayStore), 60, 10, false, '', $compiledPath, true)
-            ->compile($this->source);
-        $this->adapter->reset();
+        $request()->records($this->source);
+        $request()->records($this->source);
+        $store->reset();
 
-        $records = new PaperManifest(new Repository(new ArrayStore), 60, 10, false, '', $compiledPath, $opcache)
-            ->records($this->source);
+        $records = $request()->records($this->source);
+        $reads = array_map(fn (string $key): string => str_ends_with($key, ':generation') ? 'generation' : 'manifest', $store->keys);
 
         expect($records)->toHaveCount(5)
-            ->and($this->adapter->counts['read'])->toBe($reads);
+            ->and($reads)->toBe([$read]);
     } finally {
         File::deleteDirectory($compiledPath);
     }
 })->with([
-    'served by opcache' => [true, 0],
-    'without opcache' => [false, 5],
+    'with opcache' => [true, 'generation'],
+    'without opcache' => [false, 'manifest'],
 ]);
 
-it('removes the compiled manifest on a write, so it is never served stale', function (): void {
+it('rejects a driver value the manifest cannot store', function (): void {
+    $driver = new class implements DriverContract
+    {
+        public function extensions(): array
+        {
+            return ['md'];
+        }
+
+        public function bodyColumn(): ?string
+        {
+            return null;
+        }
+
+        public function bodySyntax(): ?string
+        {
+            return null;
+        }
+
+        public function body(string $contents): ?string
+        {
+            return null;
+        }
+
+        public function parse(string $contents): array
+        {
+            return ['date' => new DateTimeImmutable];
+        }
+
+        public function serialize(array $data): string
+        {
+            return '';
+        }
+    };
+
+    $source = new ContentSource($this->adapter, $driver, 'blog', false);
+    $manifest = new PaperManifest($this->cache, 60, 10, false);
+
+    expect(fn (): array => $manifest->records($source))
+        ->toThrow(FileParseException::class, 'returned a DateTimeImmutable');
+});
+
+it('never serves a compiled manifest from before a write, even one made by a process without opcache', function (): void {
     $compiledPath = sys_get_temp_dir().'/paper-compiled-'.getmypid();
-    $cache = new Repository(new ArrayStore);
+    $request = fn (bool $opcache = true): PaperManifest => new PaperManifest($this->cache, 60, 10, false, '', $compiledPath, $opcache);
 
     try {
-        $manifest = new PaperManifest($cache, 60, 10, false, '', $compiledPath, true);
-        $manifest->compile($this->source);
+        $request()->records($this->source);
+        $request()->records($this->source);
 
         $this->adapter->remove('blog/post-1.md');
-        $manifest->forget($this->source, 'post-1');
+        $request(opcache: false)->forget($this->source, 'post-1');
 
-        $records = new PaperManifest($cache, 60, 10, false, '', $compiledPath, true)
-            ->records($this->source);
+        $records = $request()->records($this->source);
+        $files = glob($compiledPath.'/*.php') ?: [];
 
-        expect($records)->not->toHaveKey('post-1');
+        expect($records)->not->toHaveKey('post-1')
+            ->and($files)->toHaveCount(1);
     } finally {
         File::deleteDirectory($compiledPath);
     }
 });
 
-it('reports a compiled manifest it cannot remove on a write', function (): void {
-    Exceptions::fake();
-
+it('never serves a compiled manifest after a write that finds the cached one evicted', function (): void {
     $compiledPath = sys_get_temp_dir().'/paper-compiled-'.getmypid();
+    $store = new CountingStore;
+    $cache = new Repository($store);
+    $request = fn (): PaperManifest => new PaperManifest($cache, 60, 10, false, '', $compiledPath, true);
 
     try {
-        $manifest = new PaperManifest(new Repository(new ArrayStore), 60, 10, false, '', $compiledPath, true);
-        $manifest->compile($this->source);
+        $request()->records($this->source);
+        $request()->records($this->source);
 
-        foreach (glob($compiledPath.'/*.php') ?: [] as $compiled) {
-            chmod($compiled, 0444);
-        }
+        $manifestKey = array_find($store->keys, fn (string $key): bool => preg_match('/:(generation|revision)$/', $key) === 0);
+        $cache->forget($manifestKey);
 
-        chmod($compiledPath, 0555);
+        $this->adapter->remove('blog/post-1.md');
+        $request()->forget($this->source, 'post-1');
 
-        $manifest->forget($this->source, 'post-1');
-
-        $undeletable = fn (ManifestCacheException $e): bool => str_contains($e->getMessage(), 'could not delete');
-
-        Exceptions::assertReported($undeletable);
+        expect($request()->records($this->source))->not->toHaveKey('post-1');
     } finally {
-        @chmod($compiledPath, 0755);
-
-        foreach (glob($compiledPath.'/*.php') ?: [] as $compiled) {
-            chmod($compiled, 0644);
-        }
-
         File::deleteDirectory($compiledPath);
     }
-})->skip(function_exists('posix_geteuid') && posix_geteuid() === 0, 'Root ignores file permissions.');
+});
+
+it('removes the compiled manifest when the manifest is flushed', function (): void {
+    $compiledPath = sys_get_temp_dir().'/paper-compiled-'.getmypid();
+    $request = fn (): PaperManifest => new PaperManifest($this->cache, 60, 10, false, '', $compiledPath, true);
+
+    try {
+        $request()->records($this->source);
+        $request()->records($this->source);
+        $request()->flush($this->source);
+
+        expect(glob($compiledPath.'/*.php') ?: [])->toBe([]);
+    } finally {
+        File::deleteDirectory($compiledPath);
+    }
+});
+
+it('answers from the cache store when the compiled manifest cannot be written', function (): void {
+    $blocker = tempnam(sys_get_temp_dir(), 'paper-');
+    $request = fn (): PaperManifest => new PaperManifest($this->cache, 60, 10, false, '', $blocker.'/compiled', true);
+
+    try {
+        $request()->records($this->source);
+        $this->adapter->reset();
+
+        $records = $request()->records($this->source);
+
+        expect($records)->toHaveCount(5)
+            ->and($this->adapter->counts['read'])->toBe(0);
+    } finally {
+        @unlink($blocker);
+    }
+});
 
 it('reports a manifest the cache store refuses and still answers from the files', function (): void {
     Exceptions::fake();
@@ -293,7 +362,7 @@ it('serves later queries in a request from the manifest it already read', functi
     $build()->where('status', 'published')->get();
     $build()->count();
 
-    expect($store->counts['get'])->toBe(0);
+    expect($store->keys)->toBe([]);
 });
 
 it('drops what it memoized between requests, so a cleared cache is noticed', function (): void {

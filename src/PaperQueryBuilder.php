@@ -47,7 +47,7 @@ use Throwable;
  *
  * @phpstan-type Where array{type: string, boolean: string, column?: string, second?: string, operator?: string, value?: ?scalar, values?: array<int, scalar>, caseSensitive?: bool, wheres?: list<array{type: string, boolean: string}>, relation?: string, count?: int, constraint?: ?Closure}
  *
- * @phpstan-import-type ManifestRecord from PaperManifest
+ * @phpstan-import-type ManifestEntry from PaperManifest
  * @phpstan-import-type ManifestFile from PaperManifest
  */
 final class PaperQueryBuilder
@@ -367,6 +367,13 @@ final class PaperQueryBuilder
      */
     public static function guardSlug(string $slug): void
     {
+        if (! self::validSlug($slug)) {
+            throw InvalidSlugException::forSlug($slug);
+        }
+    }
+
+    private static function validSlug(string $slug): bool
+    {
         $segments = explode('/', $slug);
 
         $malformed = $slug === ''
@@ -377,9 +384,7 @@ final class PaperQueryBuilder
             || str_contains($slug, '//')
             || array_any($segments, fn (string $segment): bool => str_starts_with($segment, '.'));
 
-        if ($malformed) {
-            throw InvalidSlugException::forSlug($slug);
-        }
+        return ! $malformed;
     }
 
     /**
@@ -1616,11 +1621,7 @@ final class PaperQueryBuilder
             && $this->offsetValue === 0;
 
         if ($key === null && $unconstrained && $this->columnSafe($column)) {
-            return $this->records()->map(function (array $record) use ($column): mixed {
-                $row = ['slug' => $record['slug']] + $record['data'];
-
-                return $this->rowValue($row, $column);
-            });
+            return $this->records()->map(fn (array $record): mixed => $this->recordValue($record, $column));
         }
 
         $value = fn (Model $model): mixed => $this->attribute($model, $column);
@@ -2153,7 +2154,7 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @return ?Collection<int, ManifestRecord>
+     * @return ?Collection<int, ManifestEntry>
      */
     private function parseFreeRecords(): ?Collection
     {
@@ -2196,7 +2197,7 @@ final class PaperQueryBuilder
             $records = $records->sortBy(
                 fn (array $record): mixed => $order['column'] === $updatedAt
                     ? $record['mtime']
-                    : $this->rowValue(['slug' => $record['slug']] + $record['data'], $order['column']),
+                    : $this->recordValue($record, $order['column']),
                 SORT_REGULAR,
                 $order['direction'] === 'desc'
             );
@@ -2230,19 +2231,72 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @return Collection<int, ManifestRecord>
+     * @return Collection<int, ManifestEntry>
      */
     private function records(): Collection
     {
-        $entries = $this->readManifest(fn (): array => $this->manifest->records($this->source));
+        $pinned = $this->pinnedSlugs();
 
-        $records = [];
+        $read = $pinned === null
+            ? fn (): array => $this->manifest->records($this->source)
+            : fn (): array => $this->manifest->recordsFor($this->source, $pinned);
 
-        foreach ($entries as $slug => $entry) {
-            $records[] = ['slug' => (string) $slug, ...$entry];
+        $entries = $this->readManifest($read);
+
+        if ($pinned !== null) {
+            ksort($entries, SORT_STRING);
         }
 
-        return collect($records);
+        return collect(array_values($entries));
+    }
+
+    /**
+     * @return ?list<string>
+     */
+    private function pinnedSlugs(): ?array
+    {
+        if (! $this->columnSafe('slug')) {
+            return null;
+        }
+
+        $pinned = null;
+
+        foreach ([$this->wheres, ...array_values($this->scopeWheres)] as $wheres) {
+            $alternatives = array_slice($wheres, 1);
+
+            if (array_any($alternatives, fn (array $where): bool => $where['boolean'] === 'or')) {
+                continue;
+            }
+
+            foreach ($wheres as $where) {
+                if (($where['column'] ?? null) !== 'slug') {
+                    continue;
+                }
+
+                $value = $where['value'] ?? null;
+                $values = $where['values'] ?? [];
+                $strings = array_filter($values, is_string(...));
+                $equals = in_array($where['operator'] ?? null, ['=', '==='], true);
+
+                $slugs = match (true) {
+                    $where['type'] === 'basic' && $equals && is_string($value) => [$value],
+                    $where['type'] === 'in' && count($strings) === count($values) => array_values($strings),
+                    default => null,
+                };
+
+                if ($slugs !== null) {
+                    $pinned = $pinned === null ? $slugs : array_intersect($pinned, $slugs);
+                }
+            }
+        }
+
+        if ($pinned === null) {
+            return null;
+        }
+
+        $valid = array_filter(array_unique($pinned), self::validSlug(...));
+
+        return array_values($valid);
     }
 
     /**
@@ -2276,7 +2330,7 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @param  ManifestRecord  $record
+     * @param  array{slug: string, mtime: int, ext: string, data: array<string, mixed>, version: string}  $record
      * @return TModel
      */
     private function hydrate(array $record): Model
@@ -2374,12 +2428,11 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @param  ManifestRecord  $record
+     * @param  ManifestEntry  $record
      */
     private function recordMatches(array $record): bool
     {
-        $row = ['slug' => $record['slug']] + $record['data'];
-        $resolve = fn (string $column): mixed => $this->rowValue($row, $column);
+        $resolve = fn (string $column): mixed => $this->recordValue($record, $column);
 
         return $this->matchesScopes($resolve, null) && $this->matches($resolve, $this->wheres, null);
     }
@@ -2420,15 +2473,23 @@ final class PaperQueryBuilder
     }
 
     /**
-     * @param  array<string, mixed>  $row
+     * @param  ManifestEntry  $record
      */
-    private function rowValue(array $row, string $column): mixed
+    private function recordValue(array $record, string $column): mixed
     {
-        if (array_key_exists($column, $row)) {
-            return $row[$column];
+        if ($column === 'slug') {
+            return $record['slug'];
         }
 
-        return str_contains($column, '.') ? data_get($row, $column) : null;
+        $data = $record['data'];
+
+        if (array_key_exists($column, $data)) {
+            return $data[$column];
+        }
+
+        $nested = str_contains($column, '.') && ! str_starts_with($column, 'slug.');
+
+        return $nested ? data_get($data, $column) : null;
     }
 
     /**

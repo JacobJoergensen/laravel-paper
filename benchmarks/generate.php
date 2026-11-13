@@ -8,7 +8,7 @@ $bodyKb = (int) ($argv[3] ?? 0);
 
 $dir = __DIR__.'/.fixtures/posts';
 $manifest = $dir.'/.manifest';
-$signature = $count.' '.$seed.' '.$bodyKb;
+$signature = $count.' '.$seed.' '.$bodyKb.' '.hash_file('xxh3', __FILE__);
 
 $current = is_file($manifest) ? trim((string) file_get_contents($manifest)) : '';
 $onDisk = count(glob($dir.'/post-*.md') ?: []);

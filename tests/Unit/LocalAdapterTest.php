@@ -176,6 +176,35 @@ it('lists each file once when a subdirectory links back into the tree', function
     expect($paths)->toEqualCanonicalizing([$this->dir.'/root.md', $this->dir.'/sub/child.md']);
 });
 
+it('locates a slug only where listing would find it', function (): void {
+    mkdir($this->dir.'/guides');
+    mkdir($this->dir.'/archive.md');
+    touch($this->dir.'/post.md');
+    touch($this->dir.'/post.markdown');
+    touch($this->dir.'/guides/install.md');
+
+    $slugs = ['post', 'POST', 'guides/install', 'Guides/install', 'guides./install', 'archive'];
+    $located = $this->adapter->locate($this->dir, $slugs, ['md', 'markdown'], true);
+    $flat = $this->adapter->locate($this->dir, ['guides/install'], ['md'], false);
+
+    expect(array_column($located, 'path'))->toBe([$this->dir.'/post.md', $this->dir.'/guides/install.md'])
+        ->and(array_keys($located))->toBe(['post', 'guides/install'])
+        ->and($flat)->toBe([]);
+});
+
+it('does not locate a file through a linked subdirectory, which listing skips', function (): void {
+    mkdir($this->dir.'/real');
+    touch($this->dir.'/real/page.md');
+
+    if (! @symlink($this->dir.'/real', $this->dir.'/linked')) {
+        $this->markTestSkipped('the platform does not allow creating a symlink');
+    }
+
+    $located = $this->adapter->locate($this->dir, ['linked/page', 'real/page'], ['md'], true);
+
+    expect(array_keys($located))->toBe(['real/page']);
+});
+
 it('throws when listing a directory that does not exist', function (): void {
     $this->adapter->listing($this->dir.'/nope', ['md']);
 })->throws(ContentPathNotFoundException::class);

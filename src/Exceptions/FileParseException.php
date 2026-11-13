@@ -23,6 +23,11 @@ final class FileParseException extends RuntimeException implements PaperExceptio
         return new self("Failed to parse YAML: $error");
     }
 
+    public static function objectValue(string $type): self
+    {
+        return new self("The driver returned a $type. Paper stores only strings, numbers, booleans, null and arrays.");
+    }
+
     public static function inFile(string $filepath, self $previous): self
     {
         return new self(

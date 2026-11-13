@@ -25,5 +25,6 @@ $app = Testbench::create(
 /** @var Repository $config */
 $config = $app['config'];
 $config->set('cache.default', 'file');
+$config->set('paper.watch', false);
 
 return $app;

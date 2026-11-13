@@ -283,7 +283,7 @@ PaperRule::unique(Post::class)->ignore($post->slug);
 ## Custom drivers
 
 `markdown`, `json`, and `yaml` are registered by default. To support another format, implement
-`DriverContract` (`extensions`, `bodyColumn`, `bodySyntax`, `parse`, `serialize`) and register it in a
+`DriverContract` (`extensions`, `bodyColumn`, `bodySyntax`, `body`, `parse`, `serialize`) and register it in a
 service provider's `boot` method, then point a model at it with `#[Driver('toml')]`.
 
 ```php
@@ -292,8 +292,10 @@ use JacobJoergensen\LaravelPaper\Drivers\DriverRegistry;
 app(DriverRegistry::class)->register('toml', TomlDriver::class);
 ```
 
-`parse` takes the file contents, not a path. `bodyColumn` names the attribute the body is
-exposed as, `content` for Markdown, and returns `null` for a format that is data only.
+`parse` takes the file contents, not a path, and returns only strings, numbers, booleans, null and
+arrays; an object throws `FileParseException`. `bodyColumn` names the attribute the body is
+exposed as, `content` for Markdown, and returns `null` for a format that is data only. `body`
+returns only the body from the file contents, without parsing the rest, or `null` when there is none.
 
 `bodySyntax` names the markup the body is written in, lowercase, `markdown` for Markdown.
 Paper never reads it; editors and other tooling do. Return `null` to say nothing.

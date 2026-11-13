@@ -19,7 +19,7 @@
 * Added optimistic concurrency, so `save` and `delete` throw `StaleRecordException` when the file changed after it was loaded. Set the policy with `paper.concurrency`
 * Added `ConditionalWriteContract` for storage that checks and writes in one step; `LocalAdapter` implements it
 * Added `PaperFake` and the `RefreshesPaperFakes` trait to define content inline in tests
-* Added `paper:warm`, `paper:clear` and `paper:refresh` to manage the manifest; `paper:warm --compile` caches it to a PHP file like `config:cache`
+* Added `paper:warm`, `paper:clear` and `paper:refresh` to manage the manifest
 * Changed `belongsToPaper` and `hasManyPaper` to return a `PaperRelation`; call `getResults()` or eager load with `with`
 * Changed `addGlobalScope` to throw `UnsupportedScopeException` for an Eloquent `Scope` instead of ignoring it
 * Changed `fresh` to eager load the relations it is given
@@ -29,12 +29,12 @@
 * Changed `orderBy`, `limit`, `offset`, `chunk`, `paginate`, `simplePaginate` and `whereBetween` to throw on invalid input like an unknown sort direction or a negative limit
 * Changed `find` to work like `where`: slugs match case-sensitively and a missing content directory throws `ContentPathNotFoundException`
 * Changed `save` and `delete` to use `getFilePath` instead of probing every driver extension
-* Changed `DriverContract` to require `bodyColumn()` and `bodySyntax()`
-* Changed `DriverContract::parse` to take the file contents instead of a path; the adapter reads the file
+* Changed `DriverContract` to require `bodyColumn()`, `bodySyntax()` and `body()`
+* Changed `DriverContract::parse` to take the file contents instead of a path and return only plain values; an object throws `FileParseException`
 * Changed Markdown frontmatter to throw when it is not a mapping and to write multi-line strings as literal blocks
 * Improved scoped route model binding to resolve through any `PaperRelation`
 * Optimized `where` and `orderBy` to skip building models when the columns have no cast, accessor or relation
-* Optimized queries to check one directory listing against the manifest instead of reading each file's metadata
+* Optimized `where` and `whereIn` on `slug` to build only the matching records
 * Removed `applyGlobalScopes` from `PaperQueryBuilder`
 * Removed `UnsupportedRouteBindingException`; `resolveChildRouteBinding` now resolves the child
 

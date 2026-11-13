@@ -14,15 +14,7 @@ final class ManifestCacheException extends RuntimeException implements PaperExce
 
         return new self(
             "The cache store ($store) refused the Paper manifest ($size MB), so every request rebuilds it from the files. "
-            .'Point paper.cache_store at a store that holds larger values, like redis or file, or run paper:warm --compile.'
-        );
-    }
-
-    public static function undeletable(string $file): self
-    {
-        return new self(
-            "Paper could not delete the compiled manifest ($file), so it keeps serving records from before the last write. "
-            .'Give the web server write access to it, or run paper:clear.'
+            .'Point paper.cache_store at a store that holds larger values, like redis or file.'
         );
     }
 }

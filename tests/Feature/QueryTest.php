@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\MultipleRecordsFoundException;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\File;
+use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
 use JacobJoergensen\LaravelPaper\Exceptions\ContentPathNotFoundException;
 use JacobJoergensen\LaravelPaper\Exceptions\InvalidSlugException;
 use JacobJoergensen\LaravelPaper\Exceptions\UnsupportedDatabaseQueryException;
@@ -43,11 +44,10 @@ it('discovers files across every driver extension', function (): void {
         ->and($post->slug)->toBe('draft-post');
 });
 
-it('finds many posts by slug, omitting missing and duplicate ids', function (): void {
-    $posts = Post::findMany(['hello-world', 'does-not-exist', 'second-post', 'hello-world']);
+it('finds many posts by slug in the order given, omitting missing and duplicate ids', function (): void {
+    $posts = Post::findMany(['second-post', 'does-not-exist', 'hello-world', 'second-post']);
 
-    expect($posts)->toHaveCount(2)
-        ->and($posts->pluck('slug')->sort()->values()->toArray())->toBe(['hello-world', 'second-post']);
+    expect($posts->pluck('slug')->toArray())->toBe(['second-post', 'hello-world']);
 });
 
 it('finds many posts from a collection of slugs, skipping null', function (): void {
@@ -65,6 +65,34 @@ it('resolves slugs case-sensitively, so find and where agree', function (): void
     expect(Post::find('HELLO-WORLD'))->toBeNull()
         ->and(Post::where('slug', 'HELLO-WORLD')->first())->toBeNull()
         ->and(Post::find('hello-world')?->slug)->toBe(Post::where('slug', 'hello-world')->first()?->slug);
+});
+
+it('keeps an or condition next to a slug filter', function (): void {
+    $slugs = Post::where('slug', 'hello-world')->orWhere('slug', 'second-post')->pluck('slug');
+
+    expect($slugs->all())->toBe(['hello-world', 'second-post']);
+});
+
+it('finds a file added outside the app on the next request when watching', function (): void {
+    config(['paper.watch' => true]);
+    $this->app->forgetInstance(PaperManifest::class);
+
+    $path = base_path('tests/content/posts/added-outside.md');
+
+    Post::all();
+    File::put($path, "---\ntitle: Added outside\n---\n");
+
+    try {
+        $this->app->forgetScopedInstances();
+
+        $found = Post::find('added-outside');
+        $filtered = Post::where('slug', 'added-outside')->first();
+
+        expect($found?->title)->toBe('Added outside')
+            ->and($filtered?->title)->toBe('Added outside');
+    } finally {
+        File::delete($path);
+    }
 });
 
 it('excludes null fields from comparison operators', function (): void {
@@ -126,10 +154,11 @@ it('reads the slug from the first driver extension when it exists under several'
     File::put($duplicate, "---\ntitle: From markdown\n---\n");
 
     try {
+        $found = Post::find('hello-world');
         $post = Post::all()->firstWhere('slug', 'hello-world');
 
         expect($post->title)->toBe('Hello World')
-            ->and($post->title)->toBe(Post::find('hello-world')->title);
+            ->and($found->title)->toBe($post->title);
     } finally {
         File::delete($duplicate);
     }

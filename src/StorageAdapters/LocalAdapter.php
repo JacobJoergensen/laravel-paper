@@ -260,4 +260,58 @@ final readonly class LocalAdapter implements ConditionalWriteContract, StorageAd
             }
         }
     }
+
+    /**
+     * @internal
+     *
+     * @param  list<string>  $slugs
+     * @param  list<string>  $extensions
+     * @return array<string, array{path: string, mtime: int, ext: string}>
+     */
+    public function locate(string $directory, array $slugs, array $extensions, bool $nested): array
+    {
+        if (! $this->files->isDirectory($directory)) {
+            throw ContentPathNotFoundException::forPath($directory);
+        }
+
+        $located = [];
+        $entries = [];
+
+        foreach ($slugs as $slug) {
+            $segments = explode('/', $slug);
+            $name = array_pop($segments);
+            $parent = $directory;
+
+            if (! $nested && $segments !== []) {
+                continue;
+            }
+
+            foreach ($segments as $segment) {
+                $entries[$parent] ??= array_flip(scandir($parent, SCANDIR_SORT_NONE) ?: []);
+                $path = $parent.'/'.$segment;
+
+                if (! isset($entries[$parent][$segment]) || is_link($path) || ! is_dir($path)) {
+                    continue 2;
+                }
+
+                $parent = $path;
+            }
+
+            $entries[$parent] ??= array_flip(scandir($parent, SCANDIR_SORT_NONE) ?: []);
+
+            foreach ($extensions as $extension) {
+                $file = $name.'.'.$extension;
+                $path = $parent.'/'.$file;
+                $mtime = isset($entries[$parent][$file]) && ! is_dir($path) ? @filemtime($path) : false;
+
+                if ($mtime !== false) {
+                    $located[$slug] = ['path' => $path, 'mtime' => $mtime, 'ext' => $extension];
+
+                    continue 2;
+                }
+            }
+        }
+
+        return $located;
+    }
 }

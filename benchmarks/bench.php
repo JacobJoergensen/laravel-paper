@@ -2,8 +2,20 @@
 
 declare(strict_types=1);
 
-const COLD_SAMPLES = 15;
+const PROCESS_SAMPLES = 15;
 const WARM_SAMPLES = 50;
+const PRIMING_RUNS = 2;
+
+const SHAPES = [
+    'find' => 'find($slug)',
+    'where' => 'where()->get()',
+    'bodies' => 'read every body',
+    'count' => 'count()',
+    'count-where' => 'where()->count()',
+    'pluck' => 'pluck($column)',
+    'paginate' => 'paginate(15)',
+    'page' => 'page of 3 queries',
+];
 
 if (! is_dir(__DIR__.'/.opcache')) {
     mkdir(__DIR__.'/.opcache', 0777, true);
@@ -17,59 +29,27 @@ $rows = [];
 foreach ($counts as $count) {
     generate($count, $seed);
 
-    progress("find / $count / cold");
-    $rows[] = ['find($slug)', $count, 'cold', coldStats('find')];
-
-    progress("find / $count / hot");
-    $rows[] = ['find($slug)', $count, 'hot', hotStats('find')];
-
-    progress("where()->get() / $count / cold");
-    $rows[] = ['where()->get()', $count, 'cold', coldStats('where')];
-
-    progress("where()->get() / $count / hot");
-    $rows[] = ['where()->get()', $count, 'hot', hotStats('where')];
-
-    progress("where()->get() / $count / warm");
-    $rows[] = ['where()->get()', $count, 'warm', warmStats('where')];
-
-    progress("read every body / $count / hot");
-    $rows[] = ['read every body', $count, 'hot', hotStats('bodies')];
-
-    progress("count() / $count / cold");
-    $rows[] = ['count()', $count, 'cold', coldStats('count')];
-
-    progress("where()->count() / $count / hot");
-    $rows[] = ['where()->count()', $count, 'hot', hotStats('count-where')];
-
-    progress("pluck(\$column) / $count / hot");
-    $rows[] = ['pluck($column)', $count, 'hot', hotStats('pluck')];
-
-    progress("paginate(15) / $count / cold");
-    $rows[] = ['paginate(15)', $count, 'cold', coldStats('paginate')];
-
-    progress("paginate(15) / $count / hot");
-    $rows[] = ['paginate(15)', $count, 'hot', hotStats('paginate')];
-
-    progress("paginate(15) / $count / warm");
-    $rows[] = ['paginate(15)', $count, 'warm', warmStats('paginate')];
-
-    progress("page of 3 queries / $count / hot");
-    $rows[] = ['page of 3 queries', $count, 'hot', hotStats('page')];
+    $rows[] = measure('find', $count, 'cold');
+    $rows[] = measure('find', $count, 'hot');
+    $rows[] = measure('where', $count, 'cold');
+    $rows[] = measure('where', $count, 'hot');
+    $rows[] = measure('where', $count, 'warm');
+    $rows[] = measure('bodies', $count, 'hot');
+    $rows[] = measure('count', $count, 'cold');
+    $rows[] = measure('count-where', $count, 'hot');
+    $rows[] = measure('pluck', $count, 'hot');
+    $rows[] = measure('paginate', $count, 'cold');
+    $rows[] = measure('paginate', $count, 'hot');
+    $rows[] = measure('paginate', $count, 'warm');
+    $rows[] = measure('page', $count, 'hot');
 }
 
 generate(10000, $seed);
 
-progress('find / 10000 / cold');
-$rows[] = ['find($slug)', 10000, 'cold', coldStats('find')];
-
-progress('find / 10000 / hot');
-$rows[] = ['find($slug)', 10000, 'hot', hotStats('find')];
-
-progress('where()->get() / 10000 / cold');
-$rows[] = ['where()->get()', 10000, 'cold', coldStats('where')];
-
-progress('where()->get() / 10000 / hot');
-$rows[] = ['where()->get()', 10000, 'hot', hotStats('where')];
+$rows[] = measure('find', 10000, 'cold');
+$rows[] = measure('find', 10000, 'hot');
+$rows[] = measure('where', 10000, 'cold');
+$rows[] = measure('where', 10000, 'hot');
 
 $cold = [];
 $hot = [];
@@ -94,13 +74,33 @@ function generate(int $count, int $seed, int $bodyKb = 0): void
 }
 
 /**
+ * @param  key-of<SHAPES>  $shape
+ * @param  'cold'|'hot'|'warm'  $cache
+ * @return array{0: string, 1: int, 2: string, 3: array{median: float, min: float, p90: float, peak: float}}
+ */
+function measure(string $shape, int $files, string $cache): array
+{
+    $label = SHAPES[$shape];
+
+    progress("$label / $files / $cache");
+
+    $stats = match ($cache) {
+        'cold' => coldStats($shape),
+        'hot' => hotStats($shape),
+        'warm' => warmStats($shape),
+    };
+
+    return [$label, $files, $cache, $stats];
+}
+
+/**
  * @return array{median: float, min: float, p90: float, peak: float}
  */
 function coldStats(string $shape): array
 {
     $samples = [];
 
-    for ($i = 0; $i < COLD_SAMPLES; $i++) {
+    for ($i = 0; $i < PROCESS_SAMPLES; $i++) {
         flushStore();
         $samples[] = sample($shape, 'cold')[0];
     }
@@ -123,11 +123,13 @@ function hotStats(string $shape): array
 {
     flushStore();
 
-    sample($shape, 'hot');
+    for ($i = 0; $i < PRIMING_RUNS; $i++) {
+        sample($shape, 'hot');
+    }
 
     $samples = [];
 
-    for ($i = 0; $i < COLD_SAMPLES; $i++) {
+    for ($i = 0; $i < PROCESS_SAMPLES; $i++) {
         $samples[] = sample($shape, 'hot')[0];
     }
 
@@ -142,6 +144,12 @@ function flushStore(): void
         foreach (glob($data.$depth) ?: [] as $entry) {
             is_dir($entry) ? rmdir($entry) : unlink($entry);
         }
+    }
+
+    $compiled = dirname(__DIR__).'/bootstrap/cache/paper-manifest-*.php';
+
+    foreach (glob($compiled) ?: [] as $file) {
+        unlink($file);
     }
 }
 
@@ -237,7 +245,7 @@ function writeResults(array $rows, string $validation, int $seed, array $counts)
     $body = "# Benchmark results\n\n";
     $body .= machineBlock($seed, $counts);
     $body .= "\nCold runs measure a fresh PHP process with an empty application cache. Page cache and PHP opcache stay warm, so this is a first request after a deploy, not a bare-metal disk read.\n";
-    $body .= "\nHot runs measure a fresh process against a manifest already held in the file store, which is what a request hits in production once the cache is populated.\n";
+    $body .= "\nHot runs measure a fresh process against a manifest already compiled for opcache. Here opcache loads it from its file cache; under FPM it stays in shared memory, which is faster.\n";
 
     $body .= "\n";
     $body .= "| shape | files | cache | median | min | p90 | peak MB |\n";
@@ -270,23 +278,23 @@ function validationSection(array $cold, array $hot, int $files): string
     $body .= "| cache | 1KB | 50KB | ratio |\n";
     $body .= "|-------|----:|-----:|------:|\n";
 
+    $ratios = [];
+
     foreach (['cold' => $cold, 'hot' => $hot] as $cache => $stats) {
-        $ratio = $stats['50KB']['median'] / $stats['1KB']['median'];
+        $ratios[$cache] = $stats['50KB']['median'] / $stats['1KB']['median'];
 
         $body .= sprintf(
             "| %s | %s | %s | %.2f× |\n",
             $cache,
             ms($stats['1KB']['median']),
             ms($stats['50KB']['median']),
-            $ratio,
+            $ratios[$cache],
         );
     }
 
-    $hotRatio = $hot['50KB']['median'] / $hot['1KB']['median'];
-
-    return $body.($hotRatio >= 1.5
+    return $body.($ratios['hot'] >= 1.5
         ? "\nFile size is decision-relevant on the hot path.\n"
-        : "\nFile size is not decision-relevant in either cache state.\n");
+        : "\nFile size is not decision-relevant on the hot path.\n");
 }
 
 /**
@@ -304,7 +312,8 @@ function machineBlock(int $seed, array $counts): string
         '- CPU '.(getenv('BENCH_CPU') ?: php_uname('m')),
         '- Storage '.(getenv('BENCH_STORAGE') ?: 'unspecified'),
         '- RAM '.(getenv('BENCH_RAM') ?: 'unspecified'),
-        '- Fixture seed '.$seed.', cold samples '.COLD_SAMPLES.', warm samples '.WARM_SAMPLES,
+        '- Paper watch off, so cold and hot rows take the production path',
+        '- Fixture seed '.$seed.', process samples '.PROCESS_SAMPLES.', warm samples '.WARM_SAMPLES,
         '- File counts '.$fileCounts.' (+ 10,000 cold and hot)',
     ];
 

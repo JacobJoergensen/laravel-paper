@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace JacobJoergensen\LaravelPaper\Cache;
 
 use Closure;
+use ErrorException;
 use Illuminate\Contracts\Cache\LockProvider;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Contracts\Cache\Repository;
@@ -15,12 +16,12 @@ use JacobJoergensen\LaravelPaper\Contracts\DriverContract;
 use JacobJoergensen\LaravelPaper\Exceptions\FileParseException;
 use JacobJoergensen\LaravelPaper\Exceptions\ManifestCacheException;
 use JacobJoergensen\LaravelPaper\StorageAdapters\BestEffortWriter;
+use JacobJoergensen\LaravelPaper\StorageAdapters\LocalAdapter;
 
 /**
  * @internal
  *
- * @phpstan-type ManifestEntry array{mtime: int, parsed: int, ext: string, data: array<string, mixed>, version: string}
- * @phpstan-type ManifestRecord array{slug: string, mtime: int, parsed?: int, ext: string, data: array<string, mixed>, version: string}
+ * @phpstan-type ManifestEntry array{slug: string, mtime: int, parsed: int, ext: string, data: array<string, mixed>, version: string}
  * @phpstan-type ManifestFile array{path: string, mtime: int, ext: string}
  */
 final class PaperManifest
@@ -110,66 +111,84 @@ final class PaperManifest
             return null;
         }
 
-        $file = $this->compiledFile($key);
-        $compiled = $file !== null && $this->opcache && is_file($file) ? require $file : null;
-
-        if (! is_array($compiled)) {
-            return $this->read($key);
+        if (isset($this->memo[$key])) {
+            return $this->memo[$key];
         }
 
-        /** @var array<string, ManifestEntry> $compiled */
-        $this->memo[$key] = $compiled;
+        $file = $this->opcache ? $this->compiledFile($key) : null;
+        $compiled = $file !== null ? @include $file : null;
 
-        return $compiled;
-    }
-
-    /**
-     * @return array<string, ManifestEntry>
-     */
-    public function compile(ContentSource $source): array
-    {
-        $entries = $this->reconcile($source);
-        $file = $this->compiledFile($this->key($source));
-
-        if ($file === null) {
-            return $entries;
+        if (is_array($compiled)) {
+            /** @var array<string, ManifestEntry> $compiled */
+            return $this->memo[$key] = $compiled;
         }
 
-        $files = new Filesystem;
-        $files->ensureDirectoryExists(dirname($file));
-        $files->replace($file, '<?php return '.var_export($entries, true).';'.PHP_EOL);
+        $entries = $this->read($key);
 
-        if (function_exists('opcache_invalidate')) {
-            opcache_invalidate($file, true);
+        if ($file !== null && $entries !== null) {
+            $this->compile($key, $file, $entries);
         }
 
         return $entries;
     }
 
-    private function forgetCompiled(string $key): void
+    /**
+     * @param  array<string, ManifestEntry>  $entries
+     */
+    private function compile(string $key, string $file, array $entries): void
     {
-        $file = $this->compiledFile($key);
+        $files = new Filesystem;
+        $directory = dirname($file);
 
-        if ($file === null || ! is_file($file)) {
+        try {
+            $files->ensureDirectoryExists($directory);
+
+            if (! is_writable($directory)) {
+                return;
+            }
+
+            $files->replace($file, '<?php return '.var_export($entries, true).';'.PHP_EOL);
+
+            $protection = (int) ini_get('opcache.file_update_protection');
+            touch($file, time() - $protection - 1);
+
+            $this->forgetCompiled($key, $file);
+        } catch (ErrorException) {
+        }
+    }
+
+    private function forgetCompiled(string $key, ?string $keep = null): void
+    {
+        if ($this->compiledPath === null) {
             return;
         }
 
-        if (! @unlink($file) && is_file($file)) {
-            report(ManifestCacheException::undeletable($file));
-        }
+        $pattern = $this->compiledPrefix($key).'*.php';
+        $stale = array_diff(glob($pattern) ?: [], [$keep]);
 
-        if (function_exists('opcache_invalidate')) {
-            opcache_invalidate($file, true);
+        foreach ($stale as $file) {
+            if (function_exists('opcache_invalidate')) {
+                @opcache_invalidate($file, true);
+            }
+
+            @unlink($file);
         }
     }
 
     private function compiledFile(string $key): ?string
     {
-        if ($this->compiledPath === null) {
+        $generation = $this->cache->get($key.':generation');
+
+        if ($this->compiledPath === null || ! is_string($generation)) {
             return null;
         }
 
-        return $this->compiledPath.'/'.str_replace(':', '-', $key).'.php';
+        return $this->compiledPrefix($key).$generation.'.php';
+    }
+
+    private function compiledPrefix(string $key): string
+    {
+        return $this->compiledPath.'/'.str_replace(':', '-', $key).'-';
     }
 
     /**
@@ -238,7 +257,7 @@ final class PaperManifest
         $entries = [];
 
         foreach ($index as $slug => $info) {
-            $entry = $this->entryFor($source, $cached[$slug] ?? null, $info);
+            $entry = $this->entryFor($source, (string) $slug, $cached[$slug] ?? null, $info);
 
             if ($entry !== null) {
                 $entries[$slug] = $entry;
@@ -258,7 +277,7 @@ final class PaperManifest
             }
 
             $info = ['path' => $path, 'mtime' => $mtime, 'ext' => $cachedEntry['ext']];
-            $entry = $this->entryFor($source, $cachedEntry, $info);
+            $entry = $this->entryFor($source, (string) $slug, $cachedEntry, $info);
 
             if ($entry !== null) {
                 $entries[$slug] = $entry;
@@ -275,7 +294,7 @@ final class PaperManifest
      * @param  ManifestFile  $info
      * @return ManifestEntry|null
      */
-    private function entryFor(ContentSource $source, ?array $existing, array $info): ?array
+    private function entryFor(ContentSource $source, string $slug, ?array $existing, array $info): ?array
     {
         if ($this->fresh($existing, $info)) {
             return $existing;
@@ -293,7 +312,7 @@ final class PaperManifest
 
         $data = $this->parse($source->driver, $info['path'], $read['contents']);
 
-        return $this->entry($source->driver, $info, $data, $read['version']);
+        return $this->entry($source->driver, $slug, $info, $data, $read['version']);
     }
 
     /**
@@ -309,7 +328,7 @@ final class PaperManifest
     }
 
     /**
-     * @return ManifestRecord|null
+     * @return ManifestEntry|null
      */
     public function record(ContentSource $source, string $slug): ?array
     {
@@ -318,7 +337,7 @@ final class PaperManifest
 
     /**
      * @param  list<string>  $slugs
-     * @return array<string, ManifestRecord>
+     * @return array<string, ManifestEntry>
      */
     public function recordsFor(ContentSource $source, array $slugs): array
     {
@@ -329,7 +348,7 @@ final class PaperManifest
 
             foreach ($slugs as $slug) {
                 if (isset($entries[$slug])) {
-                    $found[$slug] = ['slug' => $slug, ...$entries[$slug]];
+                    $found[$slug] = $entries[$slug];
                 }
             }
 
@@ -337,9 +356,20 @@ final class PaperManifest
         }
 
         $key = $this->key($source);
-        $revision = $this->revision($key);
-        $index = $this->listing($source, $key);
-        $cached = $this->read($key) ?? [];
+        $revision = null;
+        $adapter = $source->adapter;
+        $direct = $adapter instanceof LocalAdapter && ! isset($this->listings[$key]);
+
+        if ($direct) {
+            $extensions = $source->driver->extensions();
+            $index = $adapter->locate($source->path, $slugs, $extensions, $source->nested);
+            $cached = $this->memo[$key] ?? [];
+        } else {
+            $revision = $this->revision($key);
+            $index = $this->listing($source, $key);
+            $cached = $this->read($key) ?? [];
+        }
+
         $parsed = [];
 
         foreach ($slugs as $slug) {
@@ -352,7 +382,7 @@ final class PaperManifest
             $existing = $cached[$slug] ?? null;
 
             if (! $this->fresh($existing, $info)) {
-                $existing = $this->entryFor($source, $existing, $info);
+                $existing = $this->entryFor($source, $slug, $existing, $info);
 
                 if ($existing === null) {
                     continue;
@@ -361,10 +391,10 @@ final class PaperManifest
                 $parsed[$slug] = $existing;
             }
 
-            $found[$slug] = ['slug' => $slug, ...$existing];
+            $found[$slug] = $existing;
         }
 
-        if ($parsed === []) {
+        if ($parsed === [] || $direct) {
             return $found;
         }
 
@@ -379,23 +409,11 @@ final class PaperManifest
         return $found;
     }
 
-    public function body(ContentSource $source, string $path): mixed
+    public function body(ContentSource $source, string $path): ?string
     {
-        $column = $source->driver->bodyColumn();
-
-        if ($column === null) {
-            return null;
-        }
-
         $contents = $source->adapter->read($path);
 
-        if ($contents === null) {
-            return null;
-        }
-
-        $data = $this->parse($source->driver, $path, $contents);
-
-        return $data[$column] ?? null;
+        return $contents === null ? null : $source->driver->body($contents);
     }
 
     /**
@@ -423,7 +441,7 @@ final class PaperManifest
         $key = $this->key($source);
 
         $this->mutate($key, function (array $entries) use ($source, $slug, $info, $data, $version): array {
-            $entries[$slug] = $this->entry($source->driver, $info, $data, $version);
+            $entries[$slug] = $this->entry($source->driver, $slug, $info, $data, $version);
 
             ksort($entries, SORT_STRING);
 
@@ -436,7 +454,7 @@ final class PaperManifest
      * @param  array<string, mixed>  $data
      * @return ManifestEntry
      */
-    private function entry(DriverContract $driver, array $info, array $data, string $version): array
+    private function entry(DriverContract $driver, string $slug, array $info, array $data, string $version): array
     {
         $column = $driver->bodyColumn();
 
@@ -444,7 +462,16 @@ final class PaperManifest
             unset($data[$column]);
         }
 
+        array_walk_recursive($data, function (mixed $value) use ($info): void {
+            if (is_object($value)) {
+                $error = FileParseException::objectValue(get_debug_type($value));
+
+                throw FileParseException::inFile($info['path'], $error);
+            }
+        });
+
         return [
+            'slug' => $slug,
             'mtime' => $info['mtime'],
             'parsed' => now()->getTimestamp(),
             'ext' => $info['ext'],
@@ -474,8 +501,6 @@ final class PaperManifest
      */
     private function mutate(string $key, Closure $change): void
     {
-        $this->forgetCompiled($key);
-
         $this->listings = [];
 
         $merged = $this->locked($key, function () use ($key, $change): array {
@@ -483,6 +508,8 @@ final class PaperManifest
             $cached = $this->shared($key);
 
             if ($cached === null) {
+                $this->drop($key);
+
                 return [];
             }
 
@@ -500,8 +527,6 @@ final class PaperManifest
 
     private function invalidate(string $key): void
     {
-        $this->forgetCompiled($key);
-
         $this->listings = [];
 
         $this->cache->forever($key.':revision', Str::random());
@@ -511,6 +536,9 @@ final class PaperManifest
 
     private function drop(string $key): void
     {
+        $this->cache->forget($key.':generation');
+        $this->forgetCompiled($key);
+
         unset($this->memo[$key]);
 
         $this->cache->forget($key);
@@ -613,6 +641,8 @@ final class PaperManifest
 
             report(ManifestCacheException::refused($store, strlen(serialize($entries))));
         }
+
+        $this->cache->forever($key.':generation', Str::random(16));
 
         if ($this->revision($key) !== $revision) {
             $this->drop($key);

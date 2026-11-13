@@ -34,6 +34,11 @@ final readonly class YamlDriver implements DriverContract
         return null;
     }
 
+    public function body(string $contents): ?string
+    {
+        return null;
+    }
+
     /**
      * @return array<string, mixed>
      */

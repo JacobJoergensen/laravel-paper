@@ -15,6 +15,8 @@ interface DriverContract
 
     public function bodySyntax(): ?string;
 
+    public function body(string $contents): ?string;
+
     /**
      * @return array<string, mixed>
      */
