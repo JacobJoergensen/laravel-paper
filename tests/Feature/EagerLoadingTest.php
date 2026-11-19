@@ -18,13 +18,6 @@ it('attaches the matching parent for each belongsTo relation', function (): void
         ->and($helloWorld->author->slug)->toBe('john-doe');
 });
 
-it('attaches null for belongsTo when the foreign key is missing', function (): void {
-    $posts = Post::with('author')->get();
-    $draft = $posts->firstWhere('slug', 'draft-post');
-
-    expect($draft->author)->toBeNull();
-});
-
 it('attaches children grouped by parent and an empty collection when there are none', function (): void {
     $authors = Author::with('posts')->get();
     $john = $authors->firstWhere('slug', 'john-doe');

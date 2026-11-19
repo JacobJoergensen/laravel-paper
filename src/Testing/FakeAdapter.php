@@ -12,7 +12,9 @@ use JacobJoergensen\LaravelPaper\StorageAdapters\ConditionalWriteResult;
 
 final class FakeAdapter implements ConditionalWriteContract, StorageAdapterContract
 {
-    /** @var array<string, array{contents: string, mtime: int}> */
+    /**
+     * @var array<string, array{contents: string, mtime: int}>
+     */
     private array $files = [];
 
     private int $clock = PaperFake::BASE_MTIME;

@@ -11,11 +11,9 @@ beforeEach(function (): void {
     Author::resetPaperState();
 });
 
-it('returns null for belongsTo when foreign key is null', function (): void {
-    $post = Post::find('draft-post');
-    $author = $post->author()->getResults();
-
-    expect($author)->toBeNull();
+it('loads no parent for a missing foreign key, lazily or eagerly', function (): void {
+    expect(Post::find('draft-post')->author)->toBeNull()
+        ->and(Post::with('author')->find('draft-post')->author)->toBeNull();
 });
 
 it('loads no parent for an empty foreign key, lazily or eagerly', function (): void {

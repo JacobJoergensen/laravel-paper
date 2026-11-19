@@ -52,8 +52,13 @@ final readonly class BestEffortWriter implements ConditionalWriteContract
     /**
      * @param  list<string>  $conflicts
      */
-    public function moveIf(string $from, string $to, string $contents, ?string $version, array $conflicts = []): ConditionalWriteResult
-    {
+    public function moveIf(
+        string $from,
+        string $to,
+        string $contents,
+        ?string $version,
+        array $conflicts = [],
+    ): ConditionalWriteResult {
         $mismatch = $this->verify($from, $version);
 
         if ($mismatch !== null) {

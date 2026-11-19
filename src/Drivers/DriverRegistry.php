@@ -9,7 +9,9 @@ use JacobJoergensen\LaravelPaper\Exceptions\InvalidDriverException;
 
 final class DriverRegistry
 {
-    /** @var array<string, class-string<DriverContract>> */
+    /**
+     * @var array<string, class-string<DriverContract>>
+     */
     private array $drivers = [];
 
     /**

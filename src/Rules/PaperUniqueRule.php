@@ -56,7 +56,7 @@ final class PaperUniqueRule implements ValidationRule
         $query->where($this->column, $value);
 
         if ($this->ignore !== null) {
-            $column = $this->ignoreColumn ?? (new $this->model)->getKeyName();
+            $column = $this->ignoreColumn ?? new $this->model()->getKeyName();
             $query->where($column, '!=', $this->ignore);
         }
 

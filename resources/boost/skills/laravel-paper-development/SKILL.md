@@ -101,7 +101,7 @@ protected function published(PaperQueryBuilder $query): PaperQueryBuilder
 Global scopes work through `addGlobalScope` and `#[ScopedBy]`, and cover `find` and route
 model binding too. A scope is a Closure or a class implementing `ScopeContract`, not
 Eloquent's `Scope`, which Paper's builder cannot accept. Drop one with
-`withoutGlobalScope`. An `or` in the query cannot widen past a scope, unlike in Eloquent.
+`withoutGlobalScope`. An `or` in the query cannot widen past a scope.
 
 A `#[CollectedBy]` class must extend `PaperCollection`.
 
@@ -157,7 +157,8 @@ $post->save();
 $post->delete();
 ```
 
-`create`, `firstOrCreate`, and `updateOrCreate` need the slug in the attribute array, since it is the key:
+`create`, `firstOrCreate`, and `updateOrCreate` use mass assignment, so set `$fillable` (or
+`$guarded = []`) on the model. The array must include the slug, since it is the key:
 
 ```php
 Post::create(['slug' => 'hello-world', 'title' => 'Hello World']);

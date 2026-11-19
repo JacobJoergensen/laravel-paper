@@ -38,7 +38,7 @@ it('keeps parents whose related records all fail the constraint with whereDoesnt
         ->and(Author::whereDoesntHave('posts', $drafts)->get()->pluck('slug')->all())->toBe(['jane-doe', 'john-doe']);
 });
 
-it('honours a count constraint', function (): void {
+it('honors a count constraint', function (): void {
     expect(Author::has('posts', '>=', 2)->get())->toHaveCount(0)
         ->and(Author::has('posts', '>=', 1)->get()->pluck('slug')->all())->toBe(['john-doe']);
 });
@@ -71,7 +71,7 @@ it('rejects an unsupported count operator', function (): void {
 it('narrows the related query with a constraint passed to has and doesntHave', function (): void {
     $other = fn (PaperQueryBuilder $query): PaperQueryBuilder => $query->where('name', 'Jane Doe');
 
-    expect(Post::has('author', '>=', 1, $other)->get())->toBeEmpty()
-        ->and(Post::doesntHave('author', $other)->get()->pluck('slug')->all())
+    expect(Post::has('author', '>=', 1, 'and', $other)->get())->toBeEmpty()
+        ->and(Post::doesntHave('author', 'and', $other)->get()->pluck('slug')->all())
         ->toBe(['draft-post', 'hello-world', 'second-post']);
 });

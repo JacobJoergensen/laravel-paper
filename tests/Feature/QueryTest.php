@@ -22,7 +22,7 @@ beforeEach(function (): void {
     Post::resetPaperState();
 });
 
-it('can find a post by slug', function (): void {
+it('finds a record by its slug', function (): void {
     $post = Post::find('hello-world');
 
     expect($post)->not->toBeNull()
@@ -101,13 +101,13 @@ it('excludes null fields from comparison operators', function (): void {
         ->and(Post::where('author_slug', '<', 'mmm')->count())->toBe(1);
 });
 
-it('can get all posts', function (): void {
+it('returns every record from all', function (): void {
     $posts = Post::all();
 
     expect($posts)->toHaveCount(3);
 });
 
-it('can filter posts with where clause', function (): void {
+it('returns only the records that match a where', function (): void {
     $posts = Post::where('published', true)->get();
 
     expect($posts->pluck('slug')->toArray())->toBe(['hello-world', 'second-post']);
@@ -211,7 +211,7 @@ it('uses slug as primary key', function (): void {
         ->and($post->getKeyName())->toBe('slug');
 });
 
-it('can reload model with fresh', function (): void {
+it('returns a fresh copy without the unsaved changes', function (): void {
     $post = Post::find('hello-world');
     $post->title = 'Modified Title';
 
@@ -222,7 +222,7 @@ it('can reload model with fresh', function (): void {
         ->and($post->title)->toBe('Modified Title');
 });
 
-it('can reload model in place with refresh', function (): void {
+it('discards unsaved changes in place with refresh', function (): void {
     $post = Post::find('hello-world');
     $post->title = 'Modified Title';
 
@@ -240,7 +240,7 @@ it('reloads the record by the slug it was loaded under when the slug changed', f
         ->and($post->refresh()->slug)->toBe('hello-world');
 });
 
-it('can use local scopes', function (): void {
+it('applies a local scope from the model and from a query', function (): void {
     $posts = Post::query()->published()->get();
 
     expect($posts)->toHaveCount(2)

@@ -58,7 +58,9 @@ final readonly class JsonDriver implements DriverContract
             throw FileParseException::invalidJson('Root must be an object');
         }
 
-        /** @var array<string, mixed> */
+        /**
+         * @var array<string, mixed>
+         */
         return $data;
     }
 
@@ -73,7 +75,8 @@ final readonly class JsonDriver implements DriverContract
             return "{}\n";
         }
 
-        $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $flags = JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION;
+        $json = json_encode($data, $flags);
 
         if ($json === false) {
             throw FileSerializeException::invalidJson(json_last_error_msg());

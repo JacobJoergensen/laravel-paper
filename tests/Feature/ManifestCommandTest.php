@@ -6,6 +6,7 @@ use JacobJoergensen\LaravelPaper\PaperModel;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\BrokenModel;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\CountingAdapter;
+use JacobJoergensen\LaravelPaper\Tests\Fixtures\Page;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 
 function fakePostAdapter(): CountingAdapter
@@ -57,6 +58,14 @@ it('refreshes by rebuilding the manifest and leaving it warm', function (): void
     expect($rebuildReads)->toBeGreaterThan(0)
         ->and($adapter->counts['read'])->toBe(0);
 });
+
+it('reports a single record in the singular', function (string $command, string $output): void {
+    $this->artisan($command, ['model' => [Page::class]])->expectsOutputToContain($output);
+})->with([
+    'warm' => ['paper:warm', 'warmed 1 record.'],
+    'refresh' => ['paper:refresh', 'refreshed 1 record.'],
+    'validate' => ['paper:validate', '1 file valid.'],
+]);
 
 it('covers every Paper model in app/Models when none are named', function (): void {
     $this->app->useAppPath(dirname(__DIR__).'/Fixtures/DiscoveryApp');

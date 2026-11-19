@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper\Console;
 
+use Illuminate\Support\Str;
 use JacobJoergensen\LaravelPaper\Exceptions\PaperException;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -17,7 +18,9 @@ final class ValidateCommand extends PaperCommand
 
     protected $description = 'Check that every content file is read, parses, and hydrates';
 
-    /** @var list<array{model: string, path: string|null, error: string}> */
+    /**
+     * @var list<array{model: string, path: string|null, error: string}>
+     */
     private array $failures = [];
 
     public function handle(): int
@@ -59,7 +62,9 @@ final class ValidateCommand extends PaperCommand
             return;
         }
 
-        $this->info(sprintf('%s: %d files valid.', $model, $result['checked']));
+        $noun = Str::plural('file', $result['checked']);
+
+        $this->info(sprintf('%s: %d %s valid.', $model, $result['checked'], $noun));
     }
 
     private function record(string $model, ?string $path, string $error): void

@@ -35,7 +35,7 @@
         "orchestra/testbench": "^10.0|^11.0",
         "pestphp/pest": "^4.7.8",
         "pestphp/pest-plugin-type-coverage": "^4.0.4",
-        "phpstan/phpstan": "^2.3.5"
+        "phpstan/phpstan": "^2.3.7"
     },
     "autoload": {
         "psr-4": {

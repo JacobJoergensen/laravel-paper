@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper\Console;
 
+use Illuminate\Support\Str;
 use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -23,7 +24,9 @@ final class RefreshCommand extends PaperCommand
         $manifest->flush($source);
 
         $records = $manifest->reconcile($source);
+        $count = count($records);
+        $noun = Str::plural('record', $count);
 
-        $this->info(sprintf('%s: refreshed %d records.', $model, count($records)));
+        $this->info(sprintf('%s: refreshed %d %s.', $model, $count, $noun));
     }
 }

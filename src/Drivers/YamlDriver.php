@@ -76,7 +76,9 @@ final readonly class YamlDriver implements DriverContract
             }
         });
 
-        /** @var array<string, mixed> */
+        /**
+         * @var array<string, mixed>
+         */
         return $data;
     }
 

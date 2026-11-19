@@ -46,6 +46,14 @@ it('serializes without the slug and without escaping unicode or slashes', functi
         ->and($json)->toContain('/downloads/press');
 });
 
+it('keeps a whole number float a float through a write and read', function (): void {
+    $driver = new JsonDriver;
+
+    $json = $driver->serialize(['price' => 1.0]);
+
+    expect($driver->parse($json))->toBe(['price' => 1.0]);
+});
+
 it('writes a record without fields as an object', function (): void {
     expect(new JsonDriver()->serialize(['slug' => 'empty']))->toBe("{}\n");
 });
@@ -58,7 +66,7 @@ it('treats an empty file as a record with no fields', function (): void {
     expect(new JsonDriver()->parse(''))->toBe([]);
 });
 
-it('throws exception for invalid json', function (): void {
+it('throws a Paper exception when the json is malformed', function (): void {
     $driver = new JsonDriver;
     $driver->parse('{ invalid json }');
 })->throws(FileParseException::class, 'Syntax error');

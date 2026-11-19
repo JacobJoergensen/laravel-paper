@@ -55,6 +55,13 @@ it('writes array-cast attributes as native structures, not JSON strings', functi
         ->and(Post::find('__save_test__cast')->tags)->toBe(['php', 'laravel']);
 });
 
+it('reads a whole number float inside an array-cast field as a float', function (): void {
+    $path = base_path('tests/content/posts/__save_test__rated.md');
+    File::put($path, "---\ntitle: Rated\ntags:\n  rating: 4.0\n---\n\nBody.\n");
+
+    expect(Post::find('__save_test__rated')->tags)->toBe(['rating' => 4.0]);
+});
+
 it('leaves an array-cast field alone when the file value is not valid json', function (): void {
     $path = base_path('tests/content/posts/__save_test__scalar.md');
     File::put($path, "---\ntitle: Scalar Tags\ntags: laravel\n---\n\nBody.\n");
@@ -81,7 +88,7 @@ it('writes and reads back a json model', function (): void {
         ->and($loaded->active)->toBeTrue();
 });
 
-it('creates a record with create()', function (): void {
+it('creates a record that can be found right away', function (): void {
     $post = Post::create([
         'slug' => '__save_test__created',
         'title' => 'Created',

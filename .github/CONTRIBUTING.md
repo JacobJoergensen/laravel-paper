@@ -17,7 +17,7 @@ composer install
 Before opening one:
 
 1. [File an issue](https://github.com/JacobJoergensen/laravel-paper/issues/new?template=feature.yml) first for anything beyond a small fix. Saves time if the approach won't fly.
-2. Branch from `main` for bug fixes and additive features. Larger changes that touch the public API or the `Paper` trait shape belong on the `v2` branch.
+2. Branch from `main` for bug fixes and additive features. Larger changes that touch the public API or the `Paper` trait shape belong on the `dev/` branch for the next major version.
 3. Add a test. PRs without tests usually don't get merged. When fixing a bug, add a test that would have caught it.
 4. Add a one-line entry under `## Unreleased` in `CHANGELOG.md`, matching the existing format.
 

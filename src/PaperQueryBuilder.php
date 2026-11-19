@@ -58,7 +58,9 @@ final class PaperQueryBuilder
 
     private const string WINDOWS_RESERVED_NAME = '/^(CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³]) *(\.|$)/iu';
 
-    /** @var list<Where> */
+    /**
+     * @var list<Where>
+     */
     private array $wheres = [];
 
     /**
@@ -66,13 +68,19 @@ final class PaperQueryBuilder
      */
     private array $scopeWheres = [];
 
-    /** @var array<string, callable(Model): int> */
+    /**
+     * @var array<string, callable(Model): int>
+     */
     private array $hasCounters = [];
 
-    /** @var array<int, array{column: string, direction: string}> */
+    /**
+     * @var array<int, array{column: string, direction: string}>
+     */
     private array $orders = [];
 
-    /** @var array<string, array<int, array{column: string, direction: string}>> */
+    /**
+     * @var array<string, array<int, array{column: string, direction: string}>>
+     */
     private array $scopeOrders = [];
 
     private ?int $limitValue = null;
@@ -81,10 +89,14 @@ final class PaperQueryBuilder
 
     private bool $randomOrder = false;
 
-    /** @var array<string, ?Closure> */
+    /**
+     * @var array<string, ?Closure>
+     */
     private array $with = [];
 
-    /** @var ?TModel */
+    /**
+     * @var ?TModel
+     */
     private ?Model $model = null;
 
     private bool $updatedAtResolved = false;
@@ -96,7 +108,9 @@ final class PaperQueryBuilder
      */
     private static array $resolved = [];
 
-    /** @var array<class-string<PaperModel>, StorageAdapterContract> */
+    /**
+     * @var array<class-string<PaperModel>, StorageAdapterContract>
+     */
     private static array $fakes = [];
 
     /**
@@ -131,7 +145,9 @@ final class PaperQueryBuilder
     {
         $model = $this->model();
 
-        /** @var array<string, Closure|ScopeContract<TModel>> $scopes */
+        /**
+         * @var array<string, Closure|ScopeContract<TModel>> $scopes
+         */
         $scopes = $model->getGlobalScopes();
 
         foreach ($scopes as $identifier => $scope) {
@@ -403,10 +419,12 @@ final class PaperQueryBuilder
         }
 
         $segments = explode('/', $slug);
+        $reserved = fn (string $segment): bool => preg_match(self::WINDOWS_RESERVED_NAME, $segment) === 1;
+        $trailing = fn (string $segment): bool => str_ends_with($segment, '.') || str_ends_with($segment, ' ');
 
         $unsupported = preg_match('/[<>:"|?*\x01-\x1F]/', $slug) === 1
-            || array_any($segments, fn (string $segment): bool => preg_match(self::WINDOWS_RESERVED_NAME, $segment) === 1)
-            || array_any($segments, fn (string $segment): bool => str_ends_with($segment, '.') || str_ends_with($segment, ' '));
+            || array_any($segments, $reserved)
+            || array_any($segments, $trailing);
 
         if ($unsupported) {
             throw InvalidSlugException::forWindows($slug);
@@ -419,17 +437,17 @@ final class PaperQueryBuilder
      * @param  array<array-key, mixed>  $columns
      * @return array<string, float|int>
      */
-    public static function incrementAmounts(array $columns): array
+    public static function incrementAmounts(array $columns, string $method): array
     {
         $amounts = [];
 
         foreach ($columns as $column => $amount) {
             if (! is_numeric($amount)) {
-                throw new InvalidArgumentException("Non-numeric value passed as increment amount for column: '$column'.");
+                throw new InvalidArgumentException("Non-numeric value passed as $method amount for column: '$column'.");
             }
 
             if (! is_string($column)) {
-                throw new InvalidArgumentException('Non-associative array passed to incrementEach method.');
+                throw new InvalidArgumentException("Non-associative array passed to {$method}Each method.");
             }
 
             $amounts[$column] = $amount + 0;
@@ -462,7 +480,7 @@ final class PaperQueryBuilder
      */
     public function incrementEach(array $columns, array $extra = []): int
     {
-        $amounts = self::incrementAmounts($columns);
+        $amounts = self::incrementAmounts($columns, 'increment');
 
         $write = fn (PaperModel $model): bool => $model->incrementEach($amounts, $extra) !== false;
 
@@ -475,7 +493,7 @@ final class PaperQueryBuilder
      */
     public function decrementEach(array $columns, array $extra = []): int
     {
-        $amounts = self::incrementAmounts($columns);
+        $amounts = self::incrementAmounts($columns, 'decrement');
 
         $write = fn (PaperModel $model): bool => $model->decrementEach($amounts, $extra) !== false;
 
@@ -506,10 +524,7 @@ final class PaperQueryBuilder
         $model = $this->locate([$slug])[0] ?? null;
 
         if ($model !== null) {
-            if ($this->with !== []) {
-                $this->eagerLoadRelations([$model]);
-            }
-
+            $this->eagerLoadRelations([$model]);
             $this->fireRetrieved($model);
         }
 
@@ -897,7 +912,7 @@ final class PaperQueryBuilder
     ): static {
         if (str_contains($relation, '.')) {
             throw new InvalidArgumentException(
-                sprintf('Nested relation "%s" is not supported; constrain it with a closure instead.', $relation)
+                sprintf("Nested relation '%s' is not supported; constrain it with a closure instead.", $relation)
             );
         }
 
@@ -1047,7 +1062,7 @@ final class PaperQueryBuilder
     private function addRegexpWhere(string $type, string $column, string $pattern, string $boolean): static
     {
         if (@preg_match($pattern, '') === false) {
-            throw new InvalidArgumentException(sprintf('Invalid regular expression: %s', $pattern));
+            throw new InvalidArgumentException(sprintf('Invalid regular expression: %s.', $pattern));
         }
 
         $this->wheres[] = [
@@ -1402,7 +1417,7 @@ final class PaperQueryBuilder
         $model = $this->first();
 
         if ($model === null) {
-            throw (new ModelNotFoundException)->setModel($this->modelClass);
+            throw new ModelNotFoundException()->setModel($this->modelClass);
         }
 
         return $model;
@@ -1424,11 +1439,13 @@ final class PaperQueryBuilder
      */
     public function sole(): Model
     {
-        /** @var list<TModel> $items */
+        /**
+         * @var list<TModel> $items
+         */
         $items = $this->lazy(2)->take(2)->all();
 
         if ($items === []) {
-            throw (new ModelNotFoundException)->setModel($this->modelClass);
+            throw new ModelNotFoundException()->setModel($this->modelClass);
         }
 
         if (isset($items[1])) {
@@ -1674,13 +1691,7 @@ final class PaperQueryBuilder
 
         $this->guardPage($perPage, $page);
 
-        $originalLimit = $this->limitValue;
-        $originalOffset = $this->offsetValue;
-
-        try {
-            $this->limitValue = null;
-            $this->offsetValue = 0;
-
+        return $this->withoutLimitAndOffset(function () use ($perPage, $page): LengthAwarePaginator {
             $records = $this->parseFreeRecords();
 
             if ($records !== null) {
@@ -1701,10 +1712,7 @@ final class PaperQueryBuilder
             return new LengthAwarePaginator($items, $total, $perPage, $page, [
                 'path' => Paginator::resolveCurrentPath(),
             ]);
-        } finally {
-            $this->limitValue = $originalLimit;
-            $this->offsetValue = $originalOffset;
-        }
+        });
     }
 
     /**
@@ -1716,13 +1724,7 @@ final class PaperQueryBuilder
 
         $this->guardPage($perPage, $page);
 
-        $originalLimit = $this->limitValue;
-        $originalOffset = $this->offsetValue;
-
-        try {
-            $this->limitValue = null;
-            $this->offsetValue = 0;
-
+        return $this->withoutLimitAndOffset(function () use ($perPage, $page): Paginator {
             $offset = ($page - 1) * $perPage;
             $records = $this->parseFreeRecords();
 
@@ -1739,6 +1741,25 @@ final class PaperQueryBuilder
             return new Paginator($items, $perPage, $page, [
                 'path' => Paginator::resolveCurrentPath(),
             ]);
+        });
+    }
+
+    /**
+     * @template TResult
+     *
+     * @param  Closure(): TResult  $callback
+     * @return TResult
+     */
+    private function withoutLimitAndOffset(Closure $callback): mixed
+    {
+        $originalLimit = $this->limitValue;
+        $originalOffset = $this->offsetValue;
+
+        try {
+            $this->limitValue = null;
+            $this->offsetValue = 0;
+
+            return $callback();
         } finally {
             $this->limitValue = $originalLimit;
             $this->offsetValue = $originalOffset;
@@ -1955,10 +1976,6 @@ final class PaperQueryBuilder
      */
     public function chunk(int $count, callable $callback): bool
     {
-        if ($count < 1) {
-            throw new InvalidArgumentException('The chunk size should be at least 1.');
-        }
-
         $page = 1;
 
         foreach ($this->lazy($count)->chunk($count) as $chunk) {
@@ -2351,19 +2368,18 @@ final class PaperQueryBuilder
      * @internal
      *
      * @param  array<int, Model>  $models
-     * @return array<int, Model>
      */
-    public function eagerLoadRelations(array $models): array
+    public function eagerLoadRelations(array $models): void
     {
         if ($this->with === [] || $models === []) {
-            return $models;
+            return;
         }
 
         $parents = collect($models);
         $first = $parents->first();
 
         if ($first === null) {
-            return $models;
+            return;
         }
 
         $roots = [];
@@ -2416,8 +2432,6 @@ final class PaperQueryBuilder
 
             $relation->eagerLoad($parents, $name, $constraint);
         }
-
-        return $models;
     }
 
     private function matchesWheres(Model $model): bool

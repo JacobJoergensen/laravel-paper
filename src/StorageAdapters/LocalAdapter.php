@@ -52,7 +52,7 @@ final readonly class LocalAdapter implements ConditionalWriteContract, StorageAd
 
     public function delete(string $path): bool
     {
-        return $this->files->delete($path);
+        return $this->files->delete($path) || ! $this->files->exists($path);
     }
 
     /**
@@ -85,9 +85,14 @@ final readonly class LocalAdapter implements ConditionalWriteContract, StorageAd
     /**
      * @param  list<string>  $conflicts
      */
-    public function moveIf(string $from, string $to, string $contents, ?string $version, array $conflicts = []): ConditionalWriteResult
-    {
-        return $this->locked([$from, $to, ...$conflicts], function () use ($from, $to, $contents, $version, $conflicts): ConditionalWriteResult {
+    public function moveIf(
+        string $from,
+        string $to,
+        string $contents,
+        ?string $version,
+        array $conflicts = [],
+    ): ConditionalWriteResult {
+        $move = function () use ($from, $to, $contents, $version, $conflicts): ConditionalWriteResult {
             $fromInode = @fileinode($from);
 
             $changesCase = mb_strtolower($from) === mb_strtolower($to)
@@ -125,7 +130,9 @@ final readonly class LocalAdapter implements ConditionalWriteContract, StorageAd
             }
 
             return $written;
-        });
+        };
+
+        return $this->locked([$from, $to, ...$conflicts], $move);
     }
 
     public function deleteIf(string $path, ?string $version): ConditionalWriteResult

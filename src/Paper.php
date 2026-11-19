@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace JacobJoergensen\LaravelPaper;
 
 use Closure;
+use DateTimeInterface;
 use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -74,7 +75,9 @@ trait Paper
             default => $resolved::class,
         };
 
-        /** @var array<class-string, array<string, Closure|ScopeContract<static>>> $scopes */
+        /**
+         * @var array<class-string, array<string, Closure|ScopeContract<static>>> $scopes
+         */
         $scopes = static::getAllGlobalScopes();
         $scopes[static::class][$identifier] = $resolved;
 
@@ -346,8 +349,8 @@ trait Paper
     }
 
     /**
-     * @param  ?scalar  $operator
-     * @param  ?scalar  $value
+     * @param  DateTimeInterface|scalar|null  $operator
+     * @param  DateTimeInterface|scalar|null  $value
      * @return PaperQueryBuilder<static>
      */
     public static function whereDate(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
@@ -358,8 +361,8 @@ trait Paper
     }
 
     /**
-     * @param  ?scalar  $operator
-     * @param  ?scalar  $value
+     * @param  DateTimeInterface|scalar|null  $operator
+     * @param  DateTimeInterface|scalar|null  $value
      * @return PaperQueryBuilder<static>
      */
     public static function orWhereDate(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
@@ -370,8 +373,8 @@ trait Paper
     }
 
     /**
-     * @param  ?scalar  $operator
-     * @param  ?scalar  $value
+     * @param  DateTimeInterface|scalar|null  $operator
+     * @param  DateTimeInterface|scalar|null  $value
      * @return PaperQueryBuilder<static>
      */
     public static function whereYear(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
@@ -382,8 +385,8 @@ trait Paper
     }
 
     /**
-     * @param  ?scalar  $operator
-     * @param  ?scalar  $value
+     * @param  DateTimeInterface|scalar|null  $operator
+     * @param  DateTimeInterface|scalar|null  $value
      * @return PaperQueryBuilder<static>
      */
     public static function orWhereYear(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
@@ -394,8 +397,8 @@ trait Paper
     }
 
     /**
-     * @param  ?scalar  $operator
-     * @param  ?scalar  $value
+     * @param  DateTimeInterface|scalar|null  $operator
+     * @param  DateTimeInterface|scalar|null  $value
      * @return PaperQueryBuilder<static>
      */
     public static function whereMonth(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
@@ -406,8 +409,8 @@ trait Paper
     }
 
     /**
-     * @param  ?scalar  $operator
-     * @param  ?scalar  $value
+     * @param  DateTimeInterface|scalar|null  $operator
+     * @param  DateTimeInterface|scalar|null  $value
      * @return PaperQueryBuilder<static>
      */
     public static function orWhereMonth(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
@@ -418,8 +421,8 @@ trait Paper
     }
 
     /**
-     * @param  ?scalar  $operator
-     * @param  ?scalar  $value
+     * @param  DateTimeInterface|scalar|null  $operator
+     * @param  DateTimeInterface|scalar|null  $value
      * @return PaperQueryBuilder<static>
      */
     public static function whereDay(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
@@ -430,8 +433,8 @@ trait Paper
     }
 
     /**
-     * @param  ?scalar  $operator
-     * @param  ?scalar  $value
+     * @param  DateTimeInterface|scalar|null  $operator
+     * @param  DateTimeInterface|scalar|null  $value
      * @return PaperQueryBuilder<static>
      */
     public static function orWhereDay(string $column, mixed $operator, mixed $value = null): PaperQueryBuilder
@@ -448,9 +451,10 @@ trait Paper
         string $relation,
         string $operator = '>=',
         int $count = 1,
+        string $boolean = 'and',
         ?Closure $constraint = null,
     ): PaperQueryBuilder {
-        return static::query()->has($relation, $operator, $count, 'and', $constraint);
+        return static::query()->has($relation, $operator, $count, $boolean, $constraint);
     }
 
     /**
@@ -464,9 +468,12 @@ trait Paper
     /**
      * @return PaperQueryBuilder<static>
      */
-    public static function doesntHave(string $relation, ?Closure $constraint = null): PaperQueryBuilder
-    {
-        return static::query()->doesntHave($relation, 'and', $constraint);
+    public static function doesntHave(
+        string $relation,
+        string $boolean = 'and',
+        ?Closure $constraint = null,
+    ): PaperQueryBuilder {
+        return static::query()->doesntHave($relation, $boolean, $constraint);
     }
 
     /**
@@ -1289,15 +1296,13 @@ trait Paper
 
     private static function writer(StorageAdapterContract $adapter): ConditionalWriteContract
     {
-        if ($adapter instanceof ConditionalWriteContract) {
-            return $adapter;
-        }
+        $atomic = $adapter instanceof ConditionalWriteContract;
 
-        if (self::concurrency() === ConcurrencyPolicy::Strict) {
+        if (! $atomic && self::concurrency() === ConcurrencyPolicy::Strict) {
             throw UnsupportedConcurrencyException::forAdapter($adapter::class);
         }
 
-        return new BestEffortWriter($adapter);
+        return BestEffortWriter::of($adapter);
     }
 
     /**
@@ -1512,7 +1517,7 @@ trait Paper
      */
     private function incrementOrDecrementColumns(array $columns, array $extra, string $method): false|int
     {
-        $amounts = PaperQueryBuilder::incrementAmounts($columns);
+        $amounts = PaperQueryBuilder::incrementAmounts($columns, $method);
 
         if (! $this->exists) {
             return false;
@@ -1691,7 +1696,9 @@ trait Paper
         $query = static::query();
 
         foreach ($attributes as $column => $value) {
-            /** @var ?scalar $value */
+            /**
+             * @var ?scalar $value
+             */
             $query->where($column, $value);
         }
 

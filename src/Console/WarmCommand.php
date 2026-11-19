@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace JacobJoergensen\LaravelPaper\Console;
 
+use Illuminate\Support\Str;
 use JacobJoergensen\LaravelPaper\Cache\PaperManifest;
 use JacobJoergensen\LaravelPaper\PaperQueryBuilder;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -19,7 +20,9 @@ final class WarmCommand extends PaperCommand
     {
         $source = PaperQueryBuilder::sourceFor($model);
         $records = app(PaperManifest::class)->reconcile($source);
+        $count = count($records);
+        $noun = Str::plural('record', $count);
 
-        $this->info(sprintf('%s: warmed %d records.', $model, count($records)));
+        $this->info(sprintf('%s: warmed %d %s.', $model, $count, $noun));
     }
 }

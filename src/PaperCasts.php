@@ -40,7 +40,7 @@ final class PaperCasts
     {
         foreach ($attributes as $key => $value) {
             if (is_array($value) && $model->hasCast($key, self::JSON_CASTS)) {
-                $attributes[$key] = json_encode($value);
+                $attributes[$key] = json_encode($value, JSON_PRESERVE_ZERO_FRACTION);
             }
         }
 

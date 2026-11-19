@@ -114,11 +114,13 @@ it('increments nothing for a model that was never saved', function (): void {
         ->and(Post::pluck('views', 'slug')->all())->toBe(['a' => 1, 'b' => 10, 'c' => 20]);
 });
 
-it('rejects an amount that is not a number or a column list without names, even when nothing matches', function (Closure $increment): void {
-    $increment();
-})->throws(InvalidArgumentException::class)->with([
-    'non-numeric amount' => fn (): int => Post::where('slug', 'none')->increment('views', 'many'),
-    'column list without names' => fn (): int => Post::where('slug', 'none')->incrementEach([5]),
+it('rejects an amount that is not a number or a column list without names, even when nothing matches', function (Closure $call, string $message): void {
+    expect($call)->toThrow(InvalidArgumentException::class, $message);
+})->with([
+    'non-numeric increment' => [fn (): int => Post::where('slug', 'none')->increment('views', 'many'), 'increment amount'],
+    'non-numeric decrement' => [fn (): int => Post::where('slug', 'none')->decrement('views', 'many'), 'decrement amount'],
+    'increment list without names' => [fn (): int => Post::where('slug', 'none')->incrementEach([5]), 'incrementEach method'],
+    'decrement list without names' => [fn (): int => Post::where('slug', 'none')->decrementEach([5]), 'decrementEach method'],
 ]);
 
 it('increments every matching record and returns how many it wrote', function (): void {

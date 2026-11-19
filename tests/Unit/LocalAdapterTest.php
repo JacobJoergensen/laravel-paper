@@ -58,6 +58,10 @@ it('replaces only the version it was given', function (): void {
         ->and(file_get_contents($path))->toBe('second');
 });
 
+it('returns true when deleting a missing file', function (): void {
+    expect($this->adapter->delete($this->dir.'/missing.md'))->toBeTrue();
+});
+
 it('deletes only the version it was given', function (): void {
     $path = $this->dir.'/post.md';
     $this->adapter->write($path, 'first');

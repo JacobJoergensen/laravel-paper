@@ -119,7 +119,9 @@ final class PaperManifest
         $compiled = $file !== null ? @include $file : null;
 
         if (is_array($compiled)) {
-            /** @var array<string, ManifestEntry> $compiled */
+            /**
+             * @var array<string, ManifestEntry> $compiled
+             */
             return $this->memo[$key] = $compiled;
         }
 
@@ -619,7 +621,9 @@ final class PaperManifest
             return null;
         }
 
-        /** @var array<string, ManifestEntry> $cached */
+        /**
+         * @var array<string, ManifestEntry> $cached
+         */
         $this->memo[$key] = $cached;
 
         return $cached;

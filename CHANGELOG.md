@@ -3,14 +3,15 @@
 ## Unreleased
 * Added `increment`, `decrement`, `incrementEach` and `decrementEach` on models and queries, with `*Quietly` variants on models
 * Added `config/paper.php` to let the manifest use a dedicated cache store that survives `cache:clear`
-* Added `paper.watch` to skip the directory scan on each request; on locally and off in production by default
+* Added `paper.watch` to skip the directory scan on each request; on in `local` and off elsewhere by default
 * Added `has`, `whereHas`, `whereRelation` and their `doesntHave` and `or` variants, with counts like `has('posts', '>=', 3)`
-* Added a `PaperModel` interface and base class; a relation to a non-Paper model now fails early
+* Added a `PaperModel` interface and base class
 * Added `PaperRelation` with `BelongsToPaper` and `HasManyPaper`; `query()` filters the records a relation covers
 * Added `belongsToManyPaper` and `hasManyPaperByList` for many-to-many relations stored as a list of slugs
-* Added eager loading with `with`, `load` and `loadMissing`, including nested relations like `author.posts`, and lazy loading on property access like `$post->author`
+* Added eager loading with `with`, `load` and `loadMissing`, including nested relations like `author.posts`
+* Added lazy loading on property access like `$post->author`
 * Added `PaperCollection` as the default collection with `load`, `loadMissing` and `fresh`; a `#[CollectedBy]` class must extend it
-* Added a batch size to `lazy` for grouping eager loads
+* Added a chunk size to `lazy` for grouping eager loads
 * Added `paperRelations` to list the relations a model declares
 * Added `PaperQueryBuilder::driverFor` to read a model's driver
 * Added `nested` to `#[ContentPath]` to read subdirectories, so `docs/guides/installation.md` gets the slug `guides/installation`
@@ -23,11 +24,11 @@
 * Changed `belongsToPaper` and `hasManyPaper` to return a `PaperRelation`; call `getResults()` or eager load with `with`
 * Changed `addGlobalScope` to throw `UnsupportedScopeException` for an Eloquent `Scope` instead of ignoring it
 * Changed `fresh` to eager load the relations it is given
-* Changed `toQuery` and the `loadCount` family on a result set to throw `UnsupportedCollectionMethodException`
+* Changed `toQuery` and the `loadCount` family on a `PaperCollection` to throw `UnsupportedCollectionMethodException`
 * Changed `where`, `whereContains` and the date family to throw on an array, or on null with a comparison operator, instead of matching nothing
 * Changed `where`, `orWhere` and `firstWhere` to take a `Closure` instead of any callable, like Eloquent
 * Changed `orderBy`, `limit`, `offset`, `chunk`, `paginate`, `simplePaginate` and `whereBetween` to throw on invalid input like an unknown sort direction or a negative limit
-* Changed `find` to work like `where`: slugs match case-sensitively and a missing content directory throws `ContentPathNotFoundException`
+* Changed `find` to throw `ContentPathNotFoundException` for a missing content directory, like `where`
 * Changed `save` and `delete` to use `getFilePath` instead of probing every driver extension
 * Changed `DriverContract` to require `bodyColumn()`, `bodySyntax()` and `body()`
 * Changed `DriverContract::parse` to take the file contents instead of a path and return only plain values; an object throws `FileParseException`
@@ -35,8 +36,9 @@
 * Improved scoped route model binding to resolve through any `PaperRelation`
 * Optimized `where` and `orderBy` to skip building models when the columns have no cast, accessor or relation
 * Optimized `where` and `whereIn` on `slug` to build only the matching records
+* Fixed the `json` driver writing a whole number float like `1.0` as an integer
 * Removed `applyGlobalScopes` from `PaperQueryBuilder`
-* Removed `UnsupportedRouteBindingException`; `resolveChildRouteBinding` now resolves the child
+* Removed the deprecated `UnsupportedRouteBindingException`
 
 ## Version 1.21.1 (2026-11-12)
 * Bumped `symfony/yaml` to `^7.4.23|^8.1.11` to prevent a single YAML file from hanging the PHP process

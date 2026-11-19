@@ -48,7 +48,9 @@ abstract class PaperCommand extends Command
      */
     private function models(): array
     {
-        /** @var list<string> $named */
+        /**
+         * @var list<string> $named
+         */
         $named = $this->argument('model');
 
         if ($named !== []) {
