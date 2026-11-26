@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Illuminate\Database\Eloquent\Casts\AsCollection;
 use Illuminate\Support\Facades\File;
 use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
 use JacobJoergensen\LaravelPaper\Attributes\Timestamps;
@@ -60,6 +61,91 @@ it('reads a whole number float inside an array-cast field as a float', function 
     File::put($path, "---\ntitle: Rated\ntags:\n  rating: 4.0\n---\n\nBody.\n");
 
     expect(Post::find('__save_test__rated')->tags)->toBe(['rating' => 4.0]);
+});
+
+it('writes a whole number float inside an array-cast field as a float', function (): void {
+    $post = new Post;
+    $post->slug = '__save_test__rated_write';
+    $post->title = 'Rated';
+    $post->tags = ['rating' => 4.0];
+    $post->save();
+
+    $raw = file_get_contents(base_path('tests/content/posts/__save_test__rated_write.md'));
+
+    expect($raw)->toContain('rating: 4.0');
+});
+
+it('writes a collection-cast field as a native structure', function (): void {
+    $model = new class extends Post
+    {
+        protected function casts(): array
+        {
+            return ['tags' => AsCollection::class];
+        }
+    };
+
+    $post = new $model;
+    $post->slug = '__save_test__collection_write';
+    $post->title = 'Collection';
+    $post->tags = ['php', 'laravel'];
+    $post->save();
+
+    $raw = file_get_contents(base_path('tests/content/posts/__save_test__collection_write.md'));
+
+    expect($raw)->toContain('- php')->not->toContain('["');
+});
+
+it('reads a hand-authored YAML list into a collection-cast field', function (): void {
+    $model = new class extends Post
+    {
+        protected function casts(): array
+        {
+            return ['tags' => AsCollection::class];
+        }
+    };
+
+    $path = base_path('tests/content/posts/__save_test__collection_read.md');
+    File::put($path, "---\ntitle: Collection\ntags:\n  - php\n  - laravel\n---\n\nBody.\n");
+
+    $post = $model::find('__save_test__collection_read');
+
+    expect($post->tags->all())->toBe(['php', 'laravel']);
+});
+
+it('keeps a whole number float when another key in a collection-cast field changes', function (): void {
+    $model = new class extends Post
+    {
+        protected function casts(): array
+        {
+            return ['tags' => AsCollection::class];
+        }
+    };
+
+    $path = base_path('tests/content/posts/__save_test__collection_rated.md');
+    File::put($path, "---\ntitle: Rated\ntags:\n  rating: 4.0\n---\n\nBody.\n");
+
+    $post = $model::find('__save_test__collection_rated');
+    $post->tags->put('votes', 12);
+    $post->save();
+
+    expect(file_get_contents($path))->toContain('rating: 4.0');
+});
+
+it('reads a hand-authored YAML map into a json:unicode cast field', function (): void {
+    $model = new class extends Post
+    {
+        protected function casts(): array
+        {
+            return ['tags' => 'json:unicode'];
+        }
+    };
+
+    $path = base_path('tests/content/posts/__save_test__unicode.md');
+    File::put($path, "---\ntitle: Unicode\ntags:\n  city: Paris\n---\n\nBody.\n");
+
+    $post = $model::find('__save_test__unicode');
+
+    expect($post->tags)->toBe(['city' => 'Paris']);
 });
 
 it('leaves an array-cast field alone when the file value is not valid json', function (): void {
