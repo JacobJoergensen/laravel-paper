@@ -1,7 +1,6 @@
 # Changelog
 
 ## Unreleased
-* Bumped `illuminate/*` to `^12.3|^13.0` to keep whole number floats in array-cast fields
 * Added `increment`, `decrement`, `incrementEach` and `decrementEach` on models and queries, with `*Quietly` variants on models
 * Added `config/paper.php` to let the manifest use a dedicated cache store that survives `cache:clear`
 * Added `paper.watch` to skip the directory scan on each request; on in `local` and off elsewhere by default
@@ -37,10 +36,14 @@
 * Improved scoped route model binding to resolve through any `PaperRelation`
 * Optimized `where` and `orderBy` to skip building models when the columns have no cast, accessor or relation
 * Optimized `where` and `whereIn` on `slug` to build only the matching records
-* Fixed the `json` driver and array-cast fields writing `1.0` as `1`
-* Fixed `json:unicode`, `AsArrayObject`, `AsCollection` and `AsFluent` casts to read and write native structures
 * Removed `applyGlobalScopes` from `PaperQueryBuilder`
 * Removed the deprecated `UnsupportedRouteBindingException`
+
+## Version 1.22.0 (2026-11-26)
+* Bumped `illuminate/*` to `^12.3|^13.0` to keep whole number floats in array-cast fields
+* Bumped `symfony/yaml` to `^7.4.24|^8.1.12` to stop a small YAML file from exhausting memory through aliases
+* Fixed whole number floats like `1.0` turning into integers in the `json` driver and array-cast fields
+* Fixed `json:unicode`, `AsArrayObject`, `AsCollection`, `AsEnumArrayObject`, `AsEnumCollection` and `AsFluent` casts to read and write native structures
 
 ## Version 1.21.1 (2026-11-12)
 * Bumped `symfony/yaml` to `^7.4.23|^8.1.11` to prevent a single YAML file from hanging the PHP process
