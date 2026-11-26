@@ -2,6 +2,7 @@
 
 ## Unreleased
 * Bumped `illuminate/*` to `^12.3|^13.0` to keep whole number floats in array-cast fields
+* Bumped `symfony/yaml` to `^7.4.24|^8.1.12` to stop a small YAML file from exhausting memory through aliases
 * Fixed the `json` driver and array-cast fields writing `1.0` as `1`
 * Fixed `json:unicode`, `AsArrayObject`, `AsCollection` and `AsFluent` casts to read and write native structures
 
