@@ -34,7 +34,7 @@
         "laravel/pint": "^1.32.3",
         "orchestra/testbench": "^10.0|^11.0",
         "pestphp/pest": "^4.7.8|^5.0",
-        "pestphp/pest-plugin-type-coverage": "^4.0.4|^5.0",
+        "pestphp/pest-plugin-type-coverage": "^4.0.5|^5.0",
         "phpstan/phpstan": "^2.3.7"
     },
     "autoload": {
