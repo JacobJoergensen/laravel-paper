@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+* Bumped `illuminate/*` to `^12.3|^13.0` to keep whole number floats in array-cast fields
+* Fixed the `json` driver and array-cast fields writing `1.0` as `1`
+* Fixed `json:unicode`, `AsArrayObject`, `AsCollection` and `AsFluent` casts to read and write native structures
 
 ## Version 1.21.1 (2026-11-12)
 * Bumped `symfony/yaml` to `^7.4.23|^8.1.11` to prevent a single YAML file from hanging the PHP process

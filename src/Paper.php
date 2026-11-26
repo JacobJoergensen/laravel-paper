@@ -865,6 +865,14 @@ trait Paper
     }
 
     /**
+     * @param  int  $flags
+     */
+    protected function asJson(mixed $value, $flags = 0): mixed
+    {
+        return parent::asJson($value, $flags | JSON_PRESERVE_ZERO_FRACTION);
+    }
+
+    /**
      * @param  array<string, mixed>  $options
      */
     public function save(array $options = []): bool

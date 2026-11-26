@@ -39,6 +39,14 @@ it('serializes without the slug and without escaping unicode or slashes', functi
         ->and($json)->toContain('/downloads/press');
 });
 
+it('serializes a whole number float like 1.0 as a float', function (): void {
+    $driver = new JsonDriver;
+
+    $json = $driver->serialize(['price' => 1.0]);
+
+    expect(json_decode($json, true))->toBe(['price' => 1.0]);
+});
+
 it('throws exception for invalid json', function (): void {
     $tempFile = tempnam(sys_get_temp_dir(), 'json_');
     file_put_contents($tempFile, '{ invalid json }');
