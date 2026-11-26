@@ -50,6 +50,11 @@ trait Paper
 
     private ?string $paperVersion = null;
 
+    /**
+     * @var array<string, int>
+     */
+    private array $paperCounts = [];
+
     public static function resetPaperState(): void
     {
         PaperQueryBuilder::forgetCache(static::class);
@@ -946,11 +951,30 @@ trait Paper
 
     /**
      * @param  array<int|string, string|Closure>|string  $relations
+     */
+    public function loadCount($relations, string ...$more): static
+    {
+        static::query()->withCount($relations, ...$more)->countRelations([$this]);
+
+        return $this;
+    }
+
+    /**
+     * @param  array<int|string, string|Closure>|string  $relations
      * @return PaperQueryBuilder<static>
      */
     public static function with($relations, Closure|string ...$more): PaperQueryBuilder
     {
         return static::query()->with($relations, ...$more);
+    }
+
+    /**
+     * @param  array<int|string, string|Closure>|string  $relations
+     * @return PaperQueryBuilder<static>
+     */
+    public static function withCount(array|string $relations, string ...$more): PaperQueryBuilder
+    {
+        return static::query()->withCount($relations, ...$more);
     }
 
     /**
@@ -1039,6 +1063,14 @@ trait Paper
         return $model;
     }
 
+    /**
+     * @internal
+     */
+    public function setPaperCount(string $column, int $count): void
+    {
+        $this->paperCounts[$column] = $count;
+    }
+
     public function getKeyName(): string
     {
         return 'slug';
@@ -1119,6 +1151,10 @@ trait Paper
      */
     public function getAttribute($key): mixed
     {
+        if (array_key_exists($key, $this->paperCounts)) {
+            return $this->paperCounts[$key];
+        }
+
         if (! array_key_exists($key, $this->attributes)) {
             $this->loadPaperBody($key);
         }
@@ -1159,7 +1195,9 @@ trait Paper
     {
         $this->loadPaperBody();
 
-        return parent::attributesToArray();
+        $visibleCounts = array_intersect_key($this->paperCounts, $this->getArrayableItems($this->paperCounts));
+
+        return [...parent::attributesToArray(), ...$visibleCounts];
     }
 
     /**
@@ -1348,6 +1386,7 @@ trait Paper
         $this->setRawAttributes($fresh->getAttributes(), true);
         $this->paperVersion = $fresh->paperVersion;
         $this->paperExtension = $fresh->paperExtension;
+        $this->paperCounts = [];
 
         $loaded = array_keys($this->relations);
 

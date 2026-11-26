@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\LazyLoadingViolationException;
 use JacobJoergensen\LaravelPaper\Testing\PaperFake;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Author;
 use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
@@ -9,6 +11,10 @@ use JacobJoergensen\LaravelPaper\Tests\Fixtures\Post;
 beforeEach(function (): void {
     Post::resetPaperState();
     Author::resetPaperState();
+});
+
+afterEach(function (): void {
+    Model::preventLazyLoading(false);
 });
 
 it('loads no parent for a missing foreign key, lazily or eagerly', function (): void {
@@ -56,6 +62,26 @@ it('resolves a hasMany on property access', function (): void {
 
     expect($author->posts->pluck('slug')->all())->toBe(['hello-world']);
 });
+
+it('throws when a record from a list lazy loads while lazy loading is prevented', function (Closure $list): void {
+    Model::preventLazyLoading();
+
+    $post = $list();
+
+    expect(fn (): ?Author => $post->author)->toThrow(LazyLoadingViolationException::class);
+})->with([
+    'get' => fn (): Post => Post::all()->firstOrFail(),
+    'lazy' => fn (): Post => Post::lazy()->collect()->firstOrFail(),
+]);
+
+it('lets a single record lazy load while lazy loading is prevented', function (Closure $single): void {
+    Model::preventLazyLoading();
+
+    expect($single()->author?->slug)->toBe('john-doe');
+})->with([
+    'get' => fn (): Post => Post::where('slug', 'hello-world')->get()->firstOrFail(),
+    'lazy' => fn (): Post => Post::where('slug', 'hello-world')->sole(),
+]);
 
 it('returns no hasMany records for a model without a slug', function (): void {
     expect(new Author()->posts()->getResults())->toBeEmpty();

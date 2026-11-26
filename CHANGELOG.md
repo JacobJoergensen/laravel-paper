@@ -9,6 +9,7 @@
 * Added `PaperRelation` with `BelongsToPaper` and `HasManyPaper`; `query()` filters the records a relation covers
 * Added `belongsToManyPaper` and `hasManyPaperByList` for many-to-many relations stored as a list of slugs
 * Added eager loading with `with`, `load` and `loadMissing`, including nested relations like `author.posts`
+* Added `withCount` and `loadCount` to count relations without loading them
 * Added lazy loading on property access like `$post->author`
 * Added `PaperCollection` as the default collection with `load`, `loadMissing` and `fresh`; a `#[CollectedBy]` class must extend it
 * Added a chunk size to `lazy` for grouping eager loads
@@ -20,7 +21,7 @@
 * Added optimistic concurrency, so `save` and `delete` throw `StaleRecordException` when the file changed after it was loaded. Set the policy with `paper.concurrency`
 * Added `ConditionalWriteContract` for storage that checks and writes in one step; `LocalAdapter` implements it
 * Added `PaperFake` and the `RefreshesPaperFakes` trait to define content inline in tests
-* Added `paper:warm`, `paper:clear` and `paper:refresh` to manage the manifest
+* Added `paper:warm`, `paper:clear` and `paper:refresh` to manage the manifest, hooked into `optimize`
 * Changed `belongsToPaper` and `hasManyPaper` to return a `PaperRelation`; call `getResults()` or eager load with `with`
 * Changed `addGlobalScope` to throw `UnsupportedScopeException` for an Eloquent `Scope` instead of ignoring it
 * Changed `fresh` to eager load the relations it is given

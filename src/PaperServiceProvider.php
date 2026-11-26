@@ -78,6 +78,8 @@ final class PaperServiceProvider extends ServiceProvider
                 ValidateCommand::class,
                 WarmCommand::class,
             ]);
+
+            $this->optimizes(optimize: 'paper:warm', clear: 'paper:clear');
         }
     }
 }

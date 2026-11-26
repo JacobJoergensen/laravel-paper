@@ -20,6 +20,7 @@ use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\LazyCollection;
+use Illuminate\Support\Str;
 use InvalidArgumentException;
 use JacobJoergensen\LaravelPaper\Attributes\ContentPath;
 use JacobJoergensen\LaravelPaper\Attributes\Disk;
@@ -71,7 +72,7 @@ final class PaperQueryBuilder
     /**
      * @var array<string, callable(Model): int>
      */
-    private array $hasCounters = [];
+    private array $counters = [];
 
     /**
      * @var array<int, array{column: string, direction: string}>
@@ -93,6 +94,11 @@ final class PaperQueryBuilder
      * @var array<string, ?Closure>
      */
     private array $with = [];
+
+    /**
+     * @var array<string, array{relation: string, constraint: ?Closure}>
+     */
+    private array $withCount = [];
 
     /**
      * @var ?TModel
@@ -555,7 +561,7 @@ final class PaperQueryBuilder
 
         $collection = $this->model()->newCollection($models);
 
-        $this->eagerLoadRelations($models);
+        $this->loadResults($models);
 
         $collection->each($this->fireRetrieved(...));
 
@@ -1358,23 +1364,64 @@ final class PaperQueryBuilder
                 : [$relations, ...$more];
         }
 
+        foreach ($this->constrainedRelations($relations, 'eager load') as $name => $constraint) {
+            $this->with[$name] = $constraint;
+        }
+
+        return $this;
+    }
+
+    /**
+     * @param  array<int|string, string|Closure>|string  $relations
+     */
+    public function withCount(array|string $relations, string ...$more): static
+    {
+        $relations = is_string($relations) ? [$relations, ...$more] : $relations;
+
+        foreach ($this->constrainedRelations($relations, 'count') as $name => $constraint) {
+            $segments = explode(' ', $name);
+            $relation = $name;
+            $column = Str::snake($name).'_count';
+
+            if (count($segments) === 3 && strtolower($segments[1]) === 'as') {
+                [$relation, , $column] = $segments;
+            }
+
+            self::relationFor($this->model(), $relation);
+
+            $this->withCount[$column] = ['relation' => $relation, 'constraint' => $constraint];
+        }
+
+        return $this;
+    }
+
+    /**
+     * @param  array<int|string, string|Closure>  $relations
+     * @return array<string, ?Closure>
+     */
+    private function constrainedRelations(array $relations, string $purpose): array
+    {
+        $constrained = [];
+
         foreach ($relations as $name => $constraint) {
             if (is_int($name)) {
                 [$name, $constraint] = [$constraint, null];
             }
 
             if (! is_string($name)) {
-                throw new InvalidArgumentException('Each eager load must be a relation name, on its own or keyed to a closure.');
+                throw new InvalidArgumentException(
+                    sprintf('Each %s must be a relation name, on its own or keyed to a closure.', $purpose)
+                );
             }
 
             if ($constraint !== null && ! $constraint instanceof Closure) {
-                throw new InvalidArgumentException(sprintf('The eager load constraint for %s must be a closure.', $name));
+                throw new InvalidArgumentException(sprintf('The %s constraint for %s must be a closure.', $purpose, $name));
             }
 
-            $this->with[$name] = $constraint;
+            $constrained[$name] = $constraint;
         }
 
-        return $this;
+        return $constrained;
     }
 
     /**
@@ -1706,7 +1753,7 @@ final class PaperQueryBuilder
                 $items = $all->slice(($page - 1) * $perPage)->take($perPage)->values();
             }
 
-            $this->eagerLoadRelations($items->all());
+            $this->loadResults($items->all());
             $items->each($this->fireRetrieved(...));
 
             return new LengthAwarePaginator($items, $total, $perPage, $page, [
@@ -1735,7 +1782,7 @@ final class PaperQueryBuilder
                     ->values()
                 : $this->lazyModels()->skip($offset)->take($perPage + 1)->collect();
 
-            $this->eagerLoadRelations($items->all());
+            $this->loadResults($items->all());
             $items->each($this->fireRetrieved(...));
 
             return new Paginator($items, $perPage, $page, [
@@ -1773,7 +1820,7 @@ final class PaperQueryBuilder
     {
         $models = $this->getModels();
 
-        $this->eagerLoadRelations($models->all());
+        $this->loadResults($models->all());
 
         $models->each($this->fireRetrieved(...));
 
@@ -1858,6 +1905,7 @@ final class PaperQueryBuilder
 
         return $root !== $this->updatedAtColumn()
             && $root !== $this->source->driver->bodyColumn()
+            && ! array_key_exists($root, $this->withCount)
             && ! method_exists($model, $root)
             && ! $this->hasCastOrMutator($model, $column)
             && ! $this->hasCastOrMutator($model, $root);
@@ -1928,7 +1976,17 @@ final class PaperQueryBuilder
 
         return new LazyCollection(function () use ($chunkSize): Generator {
             if ($this->with === []) {
+                $preventsLazyLoading = Model::preventsLazyLoading();
+                $first = null;
+
                 foreach ($this->yieldModels() as $model) {
+                    if ($first === null) {
+                        $first = $model;
+                    } elseif ($preventsLazyLoading) {
+                        $first->preventsLazyLoading = true;
+                        $model->preventsLazyLoading = true;
+                    }
+
                     $this->fireRetrieved($model);
 
                     yield $model;
@@ -1938,7 +1996,7 @@ final class PaperQueryBuilder
             }
 
             foreach ($this->chunkModels($chunkSize) as $models) {
-                $this->eagerLoadRelations($models);
+                $this->loadResults($models);
 
                 foreach ($models as $model) {
                     $this->fireRetrieved($model);
@@ -2361,7 +2419,51 @@ final class PaperQueryBuilder
             $data[$column] = $record['mtime'];
         }
 
-        return $this->modelClass::fromRecord($data, $record['version'], $record['ext']);
+        $model = $this->modelClass::fromRecord($data, $record['version'], $record['ext']);
+
+        $this->countRelations([$model]);
+
+        return $model;
+    }
+
+    /**
+     * @internal
+     *
+     * @param  array<int, Model&PaperModel>  $models
+     */
+    public function countRelations(array $models): void
+    {
+        foreach ($this->withCount as $column => ['relation' => $relation, 'constraint' => $constraint]) {
+            foreach ($models as $model) {
+                $counter = $this->counterFor($model, $relation, $constraint);
+
+                $model->setPaperCount($column, $counter($model));
+            }
+        }
+    }
+
+    /**
+     * @return callable(Model): int
+     */
+    private function counterFor(Model $model, string $relation, ?Closure $constraint): callable
+    {
+        $key = $constraint === null ? 'r:'.$relation : 'c:'.$relation.':'.spl_object_id($constraint);
+
+        return $this->counters[$key] ??= self::relationFor($model, $relation)->counter($constraint);
+    }
+
+    /**
+     * @param  array<int, Model>  $models
+     */
+    private function loadResults(array $models): void
+    {
+        if (count($models) > 1 && Model::preventsLazyLoading()) {
+            foreach ($models as $model) {
+                $model->preventsLazyLoading = true;
+            }
+        }
+
+        $this->eagerLoadRelations($models);
     }
 
     /**
@@ -2546,10 +2648,7 @@ final class PaperQueryBuilder
                 return false;
             }
 
-            $relation = $where['relation'] ?? '';
-            $constraint = $where['constraint'] ?? null;
-            $counterKey = $constraint === null ? 'r:'.$relation : 'c:'.$relation.':'.spl_object_id($constraint);
-            $counter = $this->hasCounters[$counterKey] ??= self::relationFor($model, $relation)->counter($constraint);
+            $counter = $this->counterFor($model, $where['relation'] ?? '', $where['constraint'] ?? null);
 
             return $this->evaluateCondition($counter($model), $where['operator'] ?? '>=', $where['count'] ?? 1);
         }

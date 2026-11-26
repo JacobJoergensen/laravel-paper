@@ -26,6 +26,11 @@ interface PaperModel
     public static function fromRecord(array $attributes, string $version, string $extension): static;
 
     /**
+     * @internal
+     */
+    public function setPaperCount(string $column, int $count): void;
+
+    /**
      * @return array<string, PaperRelation<Model&PaperModel>>
      */
     public function paperRelations(): array;

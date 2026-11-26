@@ -94,6 +94,22 @@ class PaperCollection extends Collection
     }
 
     /**
+     * @param  array<int|string, string|Closure>|string  $relations
+     */
+    public function loadCount(mixed $relations, string ...$more): static
+    {
+        $first = $this->first();
+
+        if ($first === null) {
+            return $this;
+        }
+
+        PaperQueryBuilder::forModel($first::class)->withCount($relations, ...$more)->countRelations($this->all());
+
+        return $this;
+    }
+
+    /**
      * @param  array<array-key, mixed>|string  $relations
      */
     public function loadAggregate(mixed $relations, mixed $column, mixed $function = null): never

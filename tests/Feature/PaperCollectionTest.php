@@ -22,7 +22,6 @@ it('refuses a collection method that would run a database query', function (stri
     expect(fn (): mixed => $posts->{$method}(...$arguments))
         ->toThrow(UnsupportedCollectionMethodException::class);
 })->with([
-    ['loadCount', ['author']],
     ['loadExists', ['author']],
     ['loadMax', ['author', 'name']],
     ['loadMorph', ['author', []]],
