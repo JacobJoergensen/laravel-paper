@@ -132,6 +132,15 @@ it('reads a hand-authored YAML map into a json:unicode cast field', function ():
     expect($post->tags)->toBe(['city' => 'Paris']);
 });
 
+it('reads a frontmatter list stored under an integer key', function (): void {
+    $path = __DIR__.'/../content/posts/__save_test__integer_key.md';
+    File::put($path, "---\ntitle: Integer Key\n2024:\n  - php\n---\n\nBody.\n");
+
+    $post = Post::find('__save_test__integer_key');
+
+    expect($post->getAttributes()[2024])->toBe(['php']);
+});
+
 it('leaves an array-cast field alone when the file value is not valid json', function (): void {
     $path = __DIR__.'/../content/posts/__save_test__scalar.md';
     File::put($path, "---\ntitle: Scalar Tags\ntags: laravel\n---\n\nBody.\n");

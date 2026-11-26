@@ -1,10 +1,12 @@
 # Changelog
 
 ## Unreleased
+
+## Version 1.22.0 (2026-11-26)
 * Bumped `illuminate/*` to `^12.3|^13.0` to keep whole number floats in array-cast fields
 * Bumped `symfony/yaml` to `^7.4.24|^8.1.12` to stop a small YAML file from exhausting memory through aliases
-* Fixed the `json` driver and array-cast fields writing `1.0` as `1`
-* Fixed `json:unicode`, `AsArrayObject`, `AsCollection` and `AsFluent` casts to read and write native structures
+* Fixed whole number floats like `1.0` turning into integers in the `json` driver and array-cast fields
+* Fixed `json:unicode`, `AsArrayObject`, `AsCollection`, `AsEnumArrayObject`, `AsEnumCollection` and `AsFluent` casts to read and write native structures
 
 ## Version 1.21.1 (2026-11-12)
 * Bumped `symfony/yaml` to `^7.4.23|^8.1.11` to prevent a single YAML file from hanging the PHP process

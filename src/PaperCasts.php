@@ -60,13 +60,15 @@ final class PaperCasts
         return $attributes;
     }
 
-    private static function isJsonCast(Model $model, string $key): bool
+    private static function isJsonCast(Model $model, int|string $key): bool
     {
-        if ($model->hasCast($key, self::JSON_CASTS)) {
+        $attribute = (string) $key;
+
+        if ($model->hasCast($attribute, self::JSON_CASTS)) {
             return true;
         }
 
-        $cast = $model->getCasts()[$key] ?? null;
+        $cast = $model->getCasts()[$attribute] ?? null;
 
         if (! is_string($cast)) {
             return false;
