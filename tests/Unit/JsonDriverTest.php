@@ -46,7 +46,7 @@ it('serializes without the slug and without escaping unicode or slashes', functi
         ->and($json)->toContain('/downloads/press');
 });
 
-it('keeps a whole number float a float through a write and read', function (): void {
+it('reads back a whole number float like 1.0 as a float', function (): void {
     $driver = new JsonDriver;
 
     $json = $driver->serialize(['price' => 1.0]);

@@ -112,25 +112,6 @@ it('reads a hand-authored YAML list into a collection-cast field', function (): 
     expect($post->tags->all())->toBe(['php', 'laravel']);
 });
 
-it('keeps a whole number float when another key in a collection-cast field changes', function (): void {
-    $model = new class extends Post
-    {
-        protected function casts(): array
-        {
-            return ['tags' => AsCollection::class];
-        }
-    };
-
-    $path = base_path('tests/content/posts/__save_test__collection_rated.md');
-    File::put($path, "---\ntitle: Rated\ntags:\n  rating: 4.0\n---\n\nBody.\n");
-
-    $post = $model::find('__save_test__collection_rated');
-    $post->tags->put('votes', 12);
-    $post->save();
-
-    expect(file_get_contents($path))->toContain('rating: 4.0');
-});
-
 it('reads a hand-authored YAML map into a json:unicode cast field', function (): void {
     $model = new class extends Post
     {

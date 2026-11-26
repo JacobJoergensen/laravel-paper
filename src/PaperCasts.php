@@ -16,20 +16,14 @@ use Illuminate\Database\Eloquent\Model;
  */
 final class PaperCasts
 {
-    private const array OBJECT_CASTS = [
+    private const array JSON_CASTS = ['array', 'json', 'json:unicode', 'object', 'collection'];
+
+    private const array JSON_CAST_CLASSES = [
         AsArrayObject::class,
         AsCollection::class,
-        AsFluent::class,
-    ];
-
-    private const array JSON_CASTS = [
-        'array',
-        'json',
-        'object',
-        'collection',
         AsEnumArrayObject::class,
         AsEnumCollection::class,
-        ...self::OBJECT_CASTS,
+        AsFluent::class,
     ];
 
     /**
@@ -39,25 +33,12 @@ final class PaperCasts
     public static function toStorage(Model $model, array $attributes): array
     {
         foreach ($attributes as $key => $value) {
-            if (! is_string($value)) {
-                continue;
-            }
+            if (is_string($value) && self::isJsonCast($model, $key)) {
+                $decoded = json_decode($value, true);
 
-            $castName = self::castName($model, $key);
-
-            if (! in_array($castName, self::JSON_CASTS, true)) {
-                continue;
-            }
-
-            if (in_array($castName, self::OBJECT_CASTS, true)) {
-                $castValue = $model->getAttribute($key);
-                $value = json_encode($castValue, JSON_PRESERVE_ZERO_FRACTION | JSON_THROW_ON_ERROR);
-            }
-
-            $decoded = json_decode($value, true);
-
-            if (json_last_error() === JSON_ERROR_NONE) {
-                $attributes[$key] = $decoded;
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    $attributes[$key] = $decoded;
+                }
             }
         }
 
@@ -71,13 +52,7 @@ final class PaperCasts
     public static function fromStorage(Model $model, array $attributes): array
     {
         foreach ($attributes as $key => $value) {
-            if (! is_array($value)) {
-                continue;
-            }
-
-            $castName = self::castName($model, $key);
-
-            if (in_array($castName, self::JSON_CASTS, true)) {
+            if (is_array($value) && self::isJsonCast($model, $key)) {
                 $attributes[$key] = json_encode($value, JSON_PRESERVE_ZERO_FRACTION);
             }
         }
@@ -85,14 +60,20 @@ final class PaperCasts
         return $attributes;
     }
 
-    private static function castName(Model $model, string $key): ?string
+    private static function isJsonCast(Model $model, string $key): bool
     {
+        if ($model->hasCast($key, self::JSON_CASTS)) {
+            return true;
+        }
+
         $cast = $model->getCasts()[$key] ?? null;
 
         if (! is_string($cast)) {
-            return null;
+            return false;
         }
 
-        return explode(':', $cast, 2)[0];
+        $castClass = explode(':', $cast, 2)[0];
+
+        return in_array($castClass, self::JSON_CAST_CLASSES, true);
     }
 }
