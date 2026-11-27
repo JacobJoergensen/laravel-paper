@@ -307,6 +307,7 @@ function machineBlock(int $seed, array $counts): string
     $fileCounts = implode(' / ', array_map(static fn (int $c): string => number_format($c), $counts));
 
     $lines = [
+        '- Generated '.date('Y-m-d'),
         '- PHP '.PHP_VERSION." (opcache: on via shared file cache, jit: $jit)",
         '- OS '.php_uname('s').' '.php_uname('r'),
         '- CPU '.(getenv('BENCH_CPU') ?: php_uname('m')),

@@ -131,6 +131,6 @@ final readonly class BestEffortWriter implements ConditionalWriteContract
 
     private function version(string $contents): string
     {
-        return hash('sha256', $contents);
+        return hash('xxh128', $contents);
     }
 }
